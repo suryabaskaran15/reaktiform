@@ -1,0 +1,26 @@
+{
+  "name": "reaktiform",
+  "version": "0.1.0",
+  "description": "Inline editable data grid with built-in form — React + TanStack Table",
+  "author": "suryabaskaran15 <suryabaskaran15@gmail.com>",
+  "keywords": [
+    "react",
+    "table",
+    "form",
+    "datagrid",
+    "tanstack",
+    "inline-edit",
+    "crud",
+    "data-table",
+    "react-table"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/suryabaskaran15/reaktiform.git"
+  },
+  "main": "index.js",
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  }
+}
