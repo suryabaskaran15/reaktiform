@@ -1,6 +1,6 @@
 {
   "name": "reaktiform",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Inline editable data grid with built-in form for React — table + form unified",
   "author": "Surya Baskaran",
   "license": "MIT",
