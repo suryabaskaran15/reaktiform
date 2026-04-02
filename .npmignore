@@ -1,0 +1,37 @@
+# Source (consumers get dist/ only)
+src/
+dev/
+stories/
+playground/
+
+# Config files
+.storybook/
+tsconfig.json
+tsup.config.ts
+vite.config.ts
+tailwind.config.ts
+.eslintrc*
+.prettierrc*
+
+# Dev files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage/
+storybook-static/
+
+# Cache
+node_modules/
+.vite/
+*.tsbuildinfo
+
+# Git
+.gitignore
+.github/
+
+# Logs
+*.log
+
+#dev
+dev

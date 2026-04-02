@@ -1,0 +1,39 @@
+# Build output
+dist/
+*.tgz
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Storybook build
+storybook-static/
+
+# Test coverage
+coverage/
+
+# Temp
+*.tmp
+*.temp
+
+#dev
+dev
