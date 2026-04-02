@@ -1,8 +1,9 @@
 import { defineConfig } from "tsup";
+import { copyFileSync, mkdirSync } from "fs";
+import { resolve } from "path";
 
 // All runtime deps are external — consumers install them via package.json.
-// This prevents duplicate copies (e.g. two zustand instances) and keeps
-// the reaktiform bundle as small as possible.
+// Prevents duplicate instances and keeps the bundle lean.
 const EXTERNAL = [
   "react",
   "react-dom",
@@ -30,16 +31,27 @@ export default defineConfig([
     entry: { index: "src/index.ts" },
     format: ["esm", "cjs"],
     dts: true,
-    splitting: true, // code-splitting — consumers only load what they import
+    splitting: true,
     sourcemap: true,
-    clean: true,
+    clean: true, // wipes dist/ before build
     treeshake: true,
-    minify: false, // let consumer's bundler minify with their own config
+    minify: false,
     external: EXTERNAL,
     esbuildOptions(options) {
       options.banner = { js: '"use client"' };
     },
-    onSuccess: "echo ✅ Main bundle built",
+    // Copy CSS into dist/ after the JS bundle is written.
+    // tsup does not process CSS — we copy it verbatim so consumers
+    // can do: import 'reaktiform/styles'
+    async onSuccess() {
+      mkdirSync("dist", { recursive: true });
+      copyFileSync(
+        resolve("src/styles/reaktiform.css"),
+        resolve("dist/reaktiform.css"),
+      );
+      console.log("✅ Main bundle built");
+      console.log("✅ dist/reaktiform.css copied");
+    },
   },
 
   // ── Headless bundle (hooks only — zero UI, zero styles)
@@ -52,6 +64,8 @@ export default defineConfig([
     treeshake: true,
     minify: false,
     external: EXTERNAL,
-    onSuccess: "echo ✅ Headless bundle built",
+    onSuccess: async () => {
+      console.log("✅ Headless bundle built");
+    },
   },
 ]);

@@ -1,6 +1,6 @@
 {
   "name": "reaktiform",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Inline editable data grid with built-in form for React — table + form unified",
   "author": "Surya Baskaran",
   "license": "MIT",
@@ -110,5 +110,6 @@
     "vitest": "^3.1.1",
     "tailwindcss": "^4.0.15",
     "@tailwindcss/vite": "^4.0.15"
-  }
+  },
+  "style": "./dist/reaktiform.css"
 }
