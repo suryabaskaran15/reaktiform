@@ -1,12 +1,13 @@
-/* reaktiform — build entry point
-   This file is processed by Tailwind CLI during pnpm build.
-   Output: dist/reaktiform.css (CSS vars + all generated utility classes)
-   Consumers just need: import 'reaktiform/styles'
+/* reaktiform — CSS build entry
+   Built with @tailwindcss/cli v4.
+   Output (dist/reaktiform.css) is plain CSS — no @layer, no PostCSS directives.
+   Consumers: import 'reaktiform/styles'
 */
 
-@import "tailwindcss";
+/* Import only utilities layer — avoids @layer base reset conflicts */
+@import "tailwindcss/utilities";
 
-/* ── CSS custom properties (design tokens) ─────────────────── */
+/* ── CSS custom properties ── */
 :root {
   --rf-bg: #f4f6fa;
   --rf-surface: #ffffff;
@@ -88,6 +89,5 @@
   --rf-row-dirty: #1c1400;
 }
 
-/* ── Scan ALL reaktiform source files to generate utility classes ── */
 @source "../../src/components/**/*.{tsx,ts}";
 @source "../../src/hooks/**/*.{tsx,ts}";
