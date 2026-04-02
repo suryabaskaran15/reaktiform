@@ -1,0 +1,187 @@
+/*
+ * reaktiform — Tailwind + CSS Design Tokens
+ * This file includes Tailwind's directives so utilities are generated
+ * during development/build. Consumers bundling this package should
+ * ensure Tailwind is configured (see `tailwind.config.ts` preset).
+ *
+ * Import this in your app: import 'reaktiform/styles'
+ *
+ * Override any variable in your own CSS to customise:
+ *   :root { --rf-accent: #your-brand-color; }
+ */
+
+@tailwind utilities;
+
+:root {
+  /* ── Backgrounds */
+  --rf-bg: #f4f6fa;
+  --rf-surface: #ffffff;
+  --rf-header: #f1f3f9;
+  --rf-header-sorted: #e8edfb;
+
+  /* ── Borders */
+  --rf-border: #e2e5ed;
+  --rf-border-strong: #c5cad6;
+
+  /* ── Text */
+  --rf-text-1: #0f172a;
+  --rf-text-2: #475569;
+  --rf-text-3: #94a3b8;
+
+  /* ── Accent (primary brand color) */
+  --rf-accent: #3b5bdb;
+  --rf-accent-hover: #2f4ac4;
+  --rf-accent-bg: #eef2ff;
+  --rf-accent-br: #c7d2fe;
+
+  /* ── Semantic colors */
+  --rf-ok: #16a34a;
+  --rf-ok-bg: #f0fdf4;
+  --rf-ok-br: #bbf7d0;
+
+  --rf-warn: #d97706;
+  --rf-warn-bg: #fffbeb;
+  --rf-warn-br: #fde68a;
+
+  --rf-err: #dc2626;
+  --rf-err-bg: #fff1f2;
+  --rf-err-br: #fecdd3;
+
+  --rf-purple: #7c3aed;
+  --rf-purple-bg: #f5f3ff;
+  --rf-purple-br: #ddd6fe;
+
+  --rf-amber: #b45309;
+  --rf-amber-bg: #fffbeb;
+  --rf-amber-br: #fde68a;
+
+  /* ── Row states */
+  --rf-row-hover: #f8faff;
+  --rf-row-selected: #eef2ff;
+  --rf-row-dirty: #fffdf0;
+  --rf-row-dirty-border: #f59e0b;
+  --rf-row-error-border: #dc2626;
+  --rf-cell-focus: #3b5bdb;
+
+  /* ── Pin shadow */
+  --rf-pin-shadow: 4px 0 10px rgba(15, 23, 42, 0.08);
+
+  /* ── Shadows */
+  --rf-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --rf-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.05);
+  --rf-shadow-lg:
+    0 16px 48px rgba(0, 0, 0, 0.14), 0 4px 8px rgba(0, 0, 0, 0.06);
+
+  /* ── Typography */
+  --rf-font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --rf-font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  /* ── Border radius */
+  --rf-radius-xs: 4px;
+  --rf-radius-sm: 6px;
+  --rf-radius-md: 8px;
+  --rf-radius-lg: 12px;
+  --rf-radius-xl: 16px;
+
+  /* ── Sizing */
+  --rf-row-height: 46px;
+  --rf-header-height: 64px;
+  --rf-agg-row-height: 32px;
+  --rf-panel-width: 440px;
+}
+
+/* Apply design tokens as sensible page defaults so colors appear
+ * even if some utility classes are missing during development. */
+body {
+  background: var(--rf-bg);
+  color: var(--rf-text-1);
+  font-family: var(--rf-font-sans);
+}
+
+/* ── Dark mode overrides */
+.dark {
+  --rf-bg: #0f172a;
+  --rf-surface: #1e293b;
+  --rf-header: #1a2744;
+  --rf-header-sorted: #1e2f5a;
+
+  --rf-border: #334155;
+  --rf-border-strong: #475569;
+
+  --rf-text-1: #f1f5f9;
+  --rf-text-2: #94a3b8;
+  --rf-text-3: #64748b;
+
+  --rf-accent: #6b8ef0;
+  --rf-accent-hover: #8aa3f5;
+  --rf-accent-bg: #1e2a4a;
+  --rf-accent-br: #2d3f6e;
+
+  --rf-ok: #4ade80;
+  --rf-ok-bg: #052e16;
+  --rf-ok-br: #166534;
+
+  --rf-warn: #fcd34d;
+  --rf-warn-bg: #1c1400;
+  --rf-warn-br: #713f12;
+
+  --rf-err: #f87171;
+  --rf-err-bg: #2d0b0b;
+  --rf-err-br: #7f1d1d;
+
+  --rf-row-hover: #1a2744;
+  --rf-row-selected: #1e2a4a;
+  --rf-row-dirty: #1c1400;
+}
+
+/* Map CSS variables → Tailwind utility classes */
+@theme {
+  /* Colors */
+  --color-rf-bg: var(--rf-bg);
+  --color-rf-surface: var(--rf-surface);
+  --color-rf-header: var(--rf-header);
+  --color-rf-border: var(--rf-border);
+  --color-rf-border-strong: var(--rf-border-strong);
+  --color-rf-text-1: var(--rf-text-1);
+  --color-rf-text-2: var(--rf-text-2);
+  --color-rf-text-3: var(--rf-text-3);
+  --color-rf-accent: var(--rf-accent);
+  --color-rf-accent-hover: var(--rf-accent-hover);
+  --color-rf-accent-bg: var(--rf-accent-bg);
+  --color-rf-accent-br: var(--rf-accent-br);
+  --color-rf-ok: var(--rf-ok);
+  --color-rf-ok-bg: var(--rf-ok-bg);
+  --color-rf-ok-br: var(--rf-ok-br);
+  --color-rf-warn: var(--rf-warn);
+  --color-rf-warn-bg: var(--rf-warn-bg);
+  --color-rf-warn-br: var(--rf-warn-br);
+  --color-rf-err: var(--rf-err);
+  --color-rf-err-bg: var(--rf-err-bg);
+  --color-rf-err-br: var(--rf-err-br);
+  --color-rf-purple: var(--rf-purple);
+  --color-rf-purple-bg: var(--rf-purple-bg);
+  --color-rf-purple-br: var(--rf-purple-br);
+  --color-rf-amber: var(--rf-amber);
+  --color-rf-amber-bg: var(--rf-amber-bg);
+  --color-rf-amber-br: var(--rf-amber-br);
+  --color-rf-row-hover: var(--rf-row-hover);
+  --color-rf-row-selected: var(--rf-row-selected);
+  --color-rf-row-dirty: var(--rf-row-dirty);
+  --color-rf-row-dirty-border: var(--rf-row-dirty-b);
+
+  /* Border radius */
+  --radius-rf-xs: var(--rf-radius-xs);
+  --radius-rf-sm: var(--rf-radius-sm);
+  --radius-rf-md: var(--rf-radius-md);
+  --radius-rf-lg: var(--rf-radius-lg);
+  --radius-rf-xl: var(--rf-radius-xl);
+
+  /* Shadows */
+  --shadow-rf-sm: var(--rf-shadow-sm);
+  --shadow-rf-md: var(--rf-shadow-md);
+  --shadow-rf-lg: var(--rf-shadow-lg);
+
+  /* Fonts */
+  --font-rf-sans: var(--rf-font-sans);
+  --font-rf-mono: var(--rf-font-mono);
+}
