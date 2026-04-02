@@ -1,9 +1,8 @@
 import { defineConfig } from "tsup";
-import { copyFileSync, mkdirSync } from "fs";
+import { execSync } from "child_process";
+import { mkdirSync } from "fs";
 import { resolve } from "path";
 
-// All runtime deps are external — consumers install them via package.json.
-// Prevents duplicate instances and keeps the bundle lean.
 const EXTERNAL = [
   "react",
   "react-dom",
@@ -26,35 +25,38 @@ const EXTERNAL = [
 ];
 
 export default defineConfig([
-  // ── Main bundle (Reaktiform + ReaktiformPanel + hooks)
+  // ── Main bundle
   {
     entry: { index: "src/index.ts" },
     format: ["esm", "cjs"],
     dts: true,
     splitting: true,
     sourcemap: true,
-    clean: true, // wipes dist/ before build
+    clean: true,
     treeshake: true,
     minify: false,
     external: EXTERNAL,
     esbuildOptions(options) {
       options.banner = { js: '"use client"' };
     },
-    // Copy CSS into dist/ after the JS bundle is written.
-    // tsup does not process CSS — we copy it verbatim so consumers
-    // can do: import 'reaktiform/styles'
     async onSuccess() {
       mkdirSync("dist", { recursive: true });
-      copyFileSync(
-        resolve("src/styles/reaktiform.css"),
-        resolve("dist/reaktiform.css"),
+
+      // Build the complete self-contained CSS:
+      // Tailwind scans all .tsx source files and generates ONLY the
+      // utility classes actually used — plus our CSS variable tokens.
+      // Output: dist/reaktiform.css
+      // Consumers: import 'reaktiform/styles'  — no Tailwind config needed.
+      console.log("📦 Building CSS...");
+      execSync(
+        "npx @tailwindcss/cli -i src/styles/build-entry.css -o dist/reaktiform.css --minify",
+        { stdio: "inherit" },
       );
-      console.log("✅ Main bundle built");
-      console.log("✅ dist/reaktiform.css copied");
+      console.log("✅ Main bundle + CSS built");
     },
   },
 
-  // ── Headless bundle (hooks only — zero UI, zero styles)
+  // ── Headless bundle
   {
     entry: { headless: "src/headless.ts" },
     format: ["esm", "cjs"],
@@ -64,7 +66,7 @@ export default defineConfig([
     treeshake: true,
     minify: false,
     external: EXTERNAL,
-    onSuccess: async () => {
+    async onSuccess() {
       console.log("✅ Headless bundle built");
     },
   },

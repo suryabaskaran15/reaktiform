@@ -1,0 +1,93 @@
+/* reaktiform — build entry point
+   This file is processed by Tailwind CLI during pnpm build.
+   Output: dist/reaktiform.css (CSS vars + all generated utility classes)
+   Consumers just need: import 'reaktiform/styles'
+*/
+
+@import "tailwindcss";
+
+/* ── CSS custom properties (design tokens) ─────────────────── */
+:root {
+  --rf-bg: #f4f6fa;
+  --rf-surface: #ffffff;
+  --rf-header: #f1f3f9;
+  --rf-header-sorted: #e8edfb;
+  --rf-border: #e2e5ed;
+  --rf-border-strong: #c5cad6;
+  --rf-text-1: #0f172a;
+  --rf-text-2: #475569;
+  --rf-text-3: #94a3b8;
+  --rf-accent: #3b5bdb;
+  --rf-accent-hover: #2f4ac4;
+  --rf-accent-bg: #eef2ff;
+  --rf-accent-br: #c7d2fe;
+  --rf-ok: #16a34a;
+  --rf-ok-bg: #f0fdf4;
+  --rf-ok-br: #bbf7d0;
+  --rf-warn: #d97706;
+  --rf-warn-bg: #fffbeb;
+  --rf-warn-br: #fde68a;
+  --rf-err: #dc2626;
+  --rf-err-bg: #fff1f2;
+  --rf-err-br: #fecdd3;
+  --rf-purple: #7c3aed;
+  --rf-purple-bg: #f5f3ff;
+  --rf-purple-br: #ddd6fe;
+  --rf-amber: #b45309;
+  --rf-amber-bg: #fffbeb;
+  --rf-amber-br: #fde68a;
+  --rf-row-hover: #f8faff;
+  --rf-row-selected: #eef2ff;
+  --rf-row-dirty: #fffdf0;
+  --rf-row-dirty-border: #f59e0b;
+  --rf-row-error-border: #dc2626;
+  --rf-cell-focus: #3b5bdb;
+  --rf-pin-shadow: 4px 0 10px rgba(15, 23, 42, 0.08);
+  --rf-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --rf-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.05);
+  --rf-shadow-lg:
+    0 16px 48px rgba(0, 0, 0, 0.14), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --rf-font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --rf-font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --rf-radius-xs: 4px;
+  --rf-radius-sm: 6px;
+  --rf-radius-md: 8px;
+  --rf-radius-lg: 12px;
+  --rf-radius-xl: 16px;
+  --rf-row-height: 46px;
+  --rf-header-height: 64px;
+  --rf-agg-row-height: 32px;
+  --rf-panel-width: 440px;
+}
+
+.dark {
+  --rf-bg: #0f172a;
+  --rf-surface: #1e293b;
+  --rf-header: #1a2744;
+  --rf-header-sorted: #1e2f5a;
+  --rf-border: #334155;
+  --rf-border-strong: #475569;
+  --rf-text-1: #f1f5f9;
+  --rf-text-2: #94a3b8;
+  --rf-text-3: #64748b;
+  --rf-accent: #6b8ef0;
+  --rf-accent-hover: #8aa3f5;
+  --rf-accent-bg: #1e2a4a;
+  --rf-accent-br: #2d3f6e;
+  --rf-ok: #4ade80;
+  --rf-ok-bg: #052e16;
+  --rf-ok-br: #166534;
+  --rf-warn: #fcd34d;
+  --rf-warn-bg: #1c1400;
+  --rf-warn-br: #713f12;
+  --rf-err: #f87171;
+  --rf-err-bg: #2d0b0b;
+  --rf-err-br: #7f1d1d;
+  --rf-row-hover: #1a2744;
+  --rf-row-selected: #1e2a4a;
+  --rf-row-dirty: #1c1400;
+}
+
+/* ── Scan ALL reaktiform source files to generate utility classes ── */
+@source "../../src/components/**/*.{tsx,ts}";
+@source "../../src/hooks/**/*.{tsx,ts}";
