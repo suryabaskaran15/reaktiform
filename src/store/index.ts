@@ -5,10 +5,11 @@ export {
   type GridActions,
   type GridStoreInstance,
   type HistoryEntry,
-} from "./gridStore";
+} from './gridStore'
 
 export {
   GridStoreProvider,
   useGridStore,
   useGridActions,
-} from "./GridStoreContext";
+  useGridStoreInstance,
+} from './GridStoreContext'

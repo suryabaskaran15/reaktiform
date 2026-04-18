@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { devtools, subscribeWithSelector } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
+import { enableMapSet } from "immer";
 import type {
   SortState,
   SortingMode,
@@ -8,6 +9,11 @@ import type {
   CFRule,
   ActiveFilters,
 } from "../types";
+
+// ── Enable Immer's MapSet plugin — required for Set/Map in draft state.
+// Without this, Immer crashes when mutating hiddenColumns, pinnedColumns,
+// selectedIds, or collapsedGroups (all Set<string>) after localStorage restore.
+enableMapSet();
 
 // ── History entry shape
 export type HistoryEntry = {
@@ -38,8 +44,9 @@ export type GridState = {
   columnOrder: string[]; // explicit order of column keys; [] = use definition order
 
   // ── Sort
-  sortState: SortState;
-  sortingMode: SortingMode; // NEW
+  sortState: SortState; // primary sort (single column, backward compat)
+  sortModel: SortState[]; // multi-column sort — shift+click headers
+  sortingMode: SortingMode;
 
   // ── Filters
   activeFilters: ActiveFilters;
@@ -77,8 +84,19 @@ export type GridState = {
 
 // ── Actions shape
 export type GridActions = {
-  // Column
+  // Row data
   setRows: (rows: Record<string, unknown>[]) => void;
+  /**
+   * Merge incoming rows into the store without replacing all rows.
+   * O(changed rows) — unchanged rows keep their Immer reference,
+   * so React skips re-rendering them. Much faster than setRows for
+   * large datasets where only a few rows changed (sort, refetch).
+   */
+  mergeRows: (
+    rows: Record<string, unknown>[],
+    rowIdKey: string,
+    skipDraftIds: Set<string>,
+  ) => void;
   addRowToStore: (row: Record<string, unknown>) => void;
   removeRowFromStore: (rowId: string) => void;
   updateRowInStore: (rowId: string, data: Record<string, unknown>) => void;
@@ -91,7 +109,8 @@ export type GridActions = {
   setColumnOrder: (order: string[]) => void;
 
   // Sort
-  setSort: (colKey: string) => void;
+  setSort: (colKey: string) => void; // single sort (cycles asc/desc/none)
+  setSortMulti: (colKey: string) => void; // multi-sort (shift+click — appends to sortModel)
   clearSort: () => void;
 
   // Filter
@@ -160,7 +179,8 @@ const initialState = (): GridState => ({
   columnWidths: {},
   columnOrder: [], // empty = use definition order
   sortState: null,
-  sortingMode: "client", // NEW
+  sortModel: [],
+  sortingMode: "client",
   activeFilters: {},
   searchQuery: "",
   groupByCol: null,
@@ -192,6 +212,67 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
           setRows: (rows) =>
             set((state) => {
               state.rows = rows;
+            }),
+
+          // Patch-only merge — O(changed rows) not O(all rows).
+          // Immer's structural sharing means untouched rows keep the same
+          // reference, so React.memo components don't re-render for them.
+          mergeRows: (incoming, rowIdKey, skipDraftIds) =>
+            set((state) => {
+              // Build index map for O(1) position lookup
+              const idxMap = new Map<string, number>();
+              for (let i = 0; i < state.rows.length; i++) {
+                const id = String(
+                  (state.rows[i] as Record<string, unknown>)[rowIdKey] ?? "",
+                );
+                idxMap.set(id, i);
+              }
+
+              const incomingIds = new Set(
+                incoming.map((r) =>
+                  String((r as Record<string, unknown>)[rowIdKey] ?? ""),
+                ),
+              );
+
+              // Update existing rows — skip draft rows (mid-edit)
+              for (const item of incoming) {
+                const id = String(
+                  (item as Record<string, unknown>)[rowIdKey] ?? "",
+                );
+                if (skipDraftIds.has(id)) continue;
+
+                const idx = idxMap.get(id);
+                if (idx !== undefined) {
+                  // Patch field by field — Immer only marks changed fields dirty
+                  const existing = state.rows[idx] as Record<string, unknown>;
+                  for (const key of Object.keys(item as object)) {
+                    if (key.startsWith("_")) continue; // preserve meta fields
+                    const newVal = (item as Record<string, unknown>)[key];
+                    if (existing[key] !== newVal) {
+                      existing[key] = newVal;
+                    }
+                  }
+                  // Reset transient save state
+                  existing["_saved"] = true;
+                  existing["_draft"] = null;
+                  existing["_new"] = false;
+                  existing["_errors"] = {};
+                } else {
+                  // New row — append
+                  state.rows.push(item as Record<string, unknown>);
+                }
+              }
+
+              // Remove rows that are no longer in incoming (deleted server-side)
+              // Only remove clean rows — never remove dirty/new rows
+              state.rows = state.rows.filter((r) => {
+                const row = r as Record<string, unknown>;
+                const id = String(row[rowIdKey] ?? "");
+                if (row["_draft"] !== null && row["_draft"] !== undefined)
+                  return true; // keep dirty
+                if (row["_new"]) return true; // keep new
+                return incomingIds.has(id) || skipDraftIds.has(id);
+              });
             }),
 
           addRowToStore: (row) =>
@@ -253,24 +334,44 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
             }),
 
           // ── Sort ──────────────────────────────────────────
-          // 3-state cycle: none → asc → desc → none (clears on 3rd click)
+          // Single sort: 3-state cycle none → asc → desc → none
           setSort: (colKey) =>
             set((state) => {
               if (!state.sortState || state.sortState.colKey !== colKey) {
-                // New column — start with asc
                 state.sortState = { colKey, direction: "asc" };
               } else if (state.sortState.direction === "asc") {
-                // asc → desc
                 state.sortState.direction = "desc";
               } else {
-                // desc → clear (back to default, unsorted)
                 state.sortState = null;
               }
+              // Keep sortModel in sync
+              state.sortModel = state.sortState ? [state.sortState] : [];
+            }),
+
+          // Multi-sort: shift+click appends/toggles a column in the sort stack
+          setSortMulti: (colKey) =>
+            set((state) => {
+              const idx = state.sortModel.findIndex(
+                (s) => s!.colKey === colKey,
+              );
+              if (idx === -1) {
+                // Not in model — add ascending
+                state.sortModel.push({ colKey, direction: "asc" });
+              } else if (state.sortModel[idx]!.direction === "asc") {
+                // Was asc — go desc
+                state.sortModel[idx]!.direction = "desc";
+              } else {
+                // Was desc — remove from model
+                state.sortModel.splice(idx, 1);
+              }
+              // Keep legacy sortState in sync with first sort entry
+              state.sortState = state.sortModel[0] ?? null;
             }),
 
           clearSort: () =>
             set((state) => {
               state.sortState = null;
+              state.sortModel = [];
             }),
 
           // ── Filter ────────────────────────────────────────

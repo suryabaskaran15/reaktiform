@@ -1,65 +1,125 @@
+// ── reaktiform — ColumnDef type
+// ─────────────────────────────────────────────────────────────
+// Single source of truth for column configuration.
+// Every prop is documented and tree-shakeable via TypeScript.
+// ─────────────────────────────────────────────────────────────
+
 // ── Select option shape
 export type SelectOption = {
   label: string;
   value: string;
-  color?: "default" | "success" | "warning" | "error" | "info" | "purple";
+  /**
+   * Badge color for this option.
+   * Built-in semantic: 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'
+   * Custom: any CSS color string — '#FF5733', 'rgb(255,87,51)', 'hsl(11,100%,60%)'
+   */
+  color?:
+    | "default"
+    | "success"
+    | "warning"
+    | "error"
+    | "info"
+    | "purple"
+    | (string & {});
   disabled?: boolean;
+  /** Optional icon name (lucide-react) shown before label */
+  icon?: string;
 };
 
 // ── All supported cell types
 export type ColumnType =
-  | "text"
-  | "number"
-  | "select"
-  | "multiselect"
-  | "date"
-  | "checkbox";
+  | "text" // plain text — TextCellRead / TextCellEdit
+  | "number" // numeric — NumberCellRead / NumberCellEdit
+  | "select" // single-select dropdown — SelectCellRead / SelectCellEdit
+  | "multiselect" // multi-select — MultiSelectCellRead / MultiSelectCellEdit
+  | "date" // ISO date — DateCellRead / DateCellEdit (native picker)
+  | "checkbox" // boolean — CheckboxCell
+  | "email" // text + mailto link in read mode + email validation
+  | "url" // text + hyperlink in read mode + URL validation
+  | "currency" // number formatted as currency (prefix = currency symbol)
+  | "percentage" // number displayed as N% with optional bar
+  | "rating" // 1–5 star rating
+  | "badge" // read-only enum badge (like select but not editable)
+  | "progress"; // 0–100 progress bar (read-only visual)
+
+// ── Aggregation modes for number columns
+export type AggregationMode = "none" | "sum" | "avg" | "min" | "max" | "count";
 
 // ── Column definition — generic over your data shape
+// TData is the row type — 'key' will be constrained to keyof TData
 export type ColumnDef<TData = Record<string, unknown>> = {
-  // Required
+  // ── Identity (required) ──────────────────────────────────────
+  /** Field key in your data object. TypeScript infers from your row type. */
   key: keyof TData & string;
+  /** Column header label shown in the grid. */
   label: string;
+  /** Cell type — controls how the value is rendered and edited. */
   type: ColumnType;
 
-  // Display
+  // ── Layout ──────────────────────────────────────────────────
+  /** Initial column width in pixels. Default: 150 */
   width?: number;
+  /** Minimum column width when resizing. Default: 60 */
   minWidth?: number;
+  /** Maximum column width when resizing. Default: 600 */
   maxWidth?: number;
+  /** Start hidden. Consumer can show via column visibility panel. */
   hidden?: boolean;
+  /** Pin column to the left. Stays visible when scrolling horizontally. */
   pinned?: boolean;
-  groupable?: boolean;
+  /** Text alignment inside the cell. Default: 'left' for text, 'right' for numbers. */
+  align?: "left" | "center" | "right";
+
+  // ── Header ──────────────────────────────────────────────────
+  /** Tooltip shown when hovering the column header. */
+  headerTooltip?: string;
+  /** Description shown in the column visibility panel. */
+  description?: string;
+
+  // ── Behaviour ───────────────────────────────────────────────
+  /** Allow sorting by this column. Default: true */
   sortable?: boolean;
+  /** Show filter controls for this column. Default: true */
   filterable?: boolean;
+  /** Allow grouping rows by this column. Default: false */
+  groupable?: boolean;
+  /** Allow resizing this column by dragging the header edge. Default: true */
   resizable?: boolean;
+  /** Allow clicking the cell value to copy it to clipboard. Default: false */
+  copyable?: boolean;
 
-  // ── Validation ─────────────────────────────────────────────
+  // ── Cell appearance ─────────────────────────────────────────
   /**
-   * Built-in validation rules (applied automatically via Zod):
+   * Dynamic CSS class applied to each cell in this column.
+   * @example cellClassName={(value, row) => row.status === 'overdue' ? 'rf-cell-danger' : ''}
    */
-  required?: boolean;
-
+  cellClassName?: (value: unknown, row: TData) => string | undefined;
   /**
-   * Custom validation function — runs after built-in rules.
-   * Return a string to show as an error message.
-   * Return undefined (or nothing) if the value is valid.
-   *
-   * @param value  - The current value of this field
-   * @param values - The full row data (all fields, draft values merged)
-   *                 Use this for cross-field validation
-   *
+   * Dynamic inline styles applied to each cell.
+   * @example cellStyle={(value) => ({ color: Number(value) < 0 ? 'red' : 'inherit' })}
+   */
+  cellStyle?: (value: unknown, row: TData) => React.CSSProperties | undefined;
+
+  // ── Display formatter ────────────────────────────────────────
+  /**
+   * Custom display formatter — transforms the raw value to a display string.
+   * Only affects read mode. Edit mode always uses the raw value.
+   * @example format={(v) => `${Number(v).toFixed(2)} days`}
+   */
+  format?: (value: unknown, row: TData) => string;
+
+  // ── Validation ──────────────────────────────────────────────
+  /** Mark field as required — blocks save if empty. */
+  required?: boolean;
+  /**
+   * Custom validation function.
+   * Return a string to show as an error. Return undefined if valid.
+   * @param value      - Current value of this field
+   * @param rowValues  - Full row data (draft values merged) — for cross-field rules
    * @example
-   * // Simple field validation
-   * validate: (v) => {
-   *   if (String(v).startsWith('RSK-0')) return 'RSK-0xx format is reserved'
-   * }
-   *
-   * @example
-   * // Cross-field validation (completion must be 100 if status is closed)
    * validate: (v, row) => {
-   *   if (row.status === 'closed' && Number(v) < 100) {
-   *     return 'Completion must be 100% when status is Closed'
-   *   }
+   *   if (row.status === 'closed' && Number(v) < 100)
+   *     return 'Completion must be 100% when closed'
    * }
    */
   validate?: (
@@ -67,134 +127,175 @@ export type ColumnDef<TData = Record<string, unknown>> = {
     rowValues: Record<string, unknown>,
   ) => string | undefined;
 
-  // Number specific
+  // ── Number specific ──────────────────────────────────────────
+  /** Minimum allowed value (number, currency, percentage, rating). */
   min?: number;
+  /** Maximum allowed value. */
   max?: number;
-  suffix?: string; // e.g. '%', 'days'
-  prefix?: string; // e.g. '$', '£'
-  decimals?: number; // decimal places to show
+  /** Display prefix — shown before the value. e.g. 'RM', '$', '£' */
+  prefix?: string;
+  /** Display suffix — shown after the value. e.g. '%', ' days', ' kg' */
+  suffix?: string;
+  /** Number of decimal places to display and validate. */
+  decimals?: number;
+  /** Aggregation function shown in the footer/toolbar. */
+  aggregation?: AggregationMode;
 
-  // Select / Multiselect specific
+  // ── Currency specific ────────────────────────────────────────
+  /**
+   * ISO 4217 currency code. Used when type='currency'.
+   * Enables Intl.NumberFormat currency formatting.
+   * @example currency='MYR'   → 'RM 1,234.56'
+   * @example currency='USD'   → '$1,234.56'
+   */
+  currency?: string;
+  /**
+   * BCP 47 locale tag for number/currency/date formatting.
+   * @default 'en-US'
+   * @example locale='de-DE'  → '1.234,56 €'
+   */
+  locale?: string;
+
+  // ── Select / Multiselect ─────────────────────────────────────
+  /** Dropdown options for select/multiselect/badge columns. */
   options?: SelectOption[];
-  searchable?: boolean; // show search inside dropdown
-
+  /** Show search box inside the dropdown. Default: true for >5 options or async */
+  searchable?: boolean;
   /**
-   * Async option loader for select/multiselect columns.
-   * Called when the user types in the select input.
-   * Return an array of { label, value } options.
-   *
-   * Makes the select an AsyncSelect — static options prop is used
-   * as the initial/default options before the user types.
-   *
+   * Allow the user to clear (remove) the current selection by clicking ✕.
+   * When cleared, the field value is set to null/empty.
+   * Default: false — no clear button shown.
    * @example
-   * loadOptions: async (inputValue) => {
-   *   const res = await api.get('/users/search?q=' + inputValue)
-   *   return res.data.map(u => ({ label: u.name, value: u.id }))
+   * clearable: true   // shows ✕ button on all select variants
+   */
+  clearable?: boolean;
+  /**
+   * Async option loader — called when the user types in the select input.
+   * Use for server-side search of large option lists.
+   * @example
+   * loadOptions: async (input) => {
+   *   const res = await fetch(`/api/users?q=${input}`)
+   *   return res.json()
    * }
    */
-  loadOptions?: (inputValue: string) => Promise<SelectOption[]>;
-
+  loadOptions?: (input: string) => Promise<SelectOption[]>;
+  /** Allow creating new options not in the list (creatable select). */
+  creatable?: boolean;
   /**
-   * Allow the user to create new options that don't exist yet.
-   * Called when the user types something and presses Enter or clicks "Create".
-   * Return a new SelectOption — the created option is immediately selected.
-   *
+   * Called when user creates a new option in a creatable select.
+   * Return the new SelectOption to add it to the list.
    * @example
-   * onCreateOption: async (inputValue) => {
-   *   const res = await api.post('/tags', { name: inputValue })
-   *   return { label: res.data.name, value: res.data.id }
-   * }
+   * onCreateOption={async (input) => {
+   *   const created = await api.post('/options', { label: input, value: slugify(input) })
+   *   return created
+   * }}
    */
-  onCreateOption?: (inputValue: string) => Promise<SelectOption> | SelectOption;
+  onCreateOption?: (input: string) => Promise<SelectOption> | SelectOption;
+  /** Allow selecting options not in the list without creating them. */
+  isAllowOutOfOptions?: boolean;
 
+  // ── Text specific ────────────────────────────────────────────
+  /** Minimum character length validation. */
+  minLength?: number;
+  /** Maximum character length validation. */
+  maxLength?: number;
+  /** Regex pattern validation. */
+  pattern?: RegExp;
+  /** Error message shown when pattern fails. */
+  patternMessage?: string;
+  /** Use textarea instead of single-line input. */
+  multiline?: boolean;
+  /** Number of rows for textarea. Default: 3 */
+  rows?: number;
+  /** Show character count indicator. */
+  showCharCount?: boolean;
+
+  // ── Date specific ────────────────────────────────────────────
+  /** Minimum selectable date (ISO string). */
+  minDate?: string;
+  /** Maximum selectable date (ISO string). */
+  maxDate?: string;
+  /** Display format string. Default: 'DD MMM YYYY' */
+  dateFormat?: string;
+
+  // ── Rating specific ──────────────────────────────────────────
+  /** Maximum stars for rating column. Default: 5 */
+  ratingMax?: number;
+
+  // ── Email / URL specific ─────────────────────────────────────
+  /** Open email/URL links in new tab. Default: true */
+  openInNewTab?: boolean;
+
+  // ── Value transform (advanced) ───────────────────────────────
   /**
-   * Value transformer — maps between your raw row data shape and the
-   * flat string value reaktiform uses internally for selects.
-   *
-   * Use this when your backend returns nested objects instead of flat IDs.
+   * Transform values between internal flat representation and
+   * the nested shape your API expects.
    *
    * @example
-   * // Backend returns: { owner: { id: 'alice_kwan', name: 'Alice Kwan' } }
-   * // Backend expects: { owner: { id: 'alice_kwan' } }
+   * // API expects { owner: { id: 'alice' } } but grid stores flat 'alice'
    * valueTransform: {
-   *   read:  (raw) => (raw as any)?.id ?? raw,     // extract id from object
-   *   write: (val) => ({ id: val }),                // wrap id back in object
-   * }
-   *
-   * @example
-   * // Backend returns array of objects: tags: [{ id: 'phase_1', name: 'Phase 1' }]
-   * valueTransform: {
-   *   read:  (raw) => (raw as any[]).map(t => t.id),
-   *   write: (val) => (val as string[]).map(id => ({ id })),
+   *   read:  (raw) => (raw as { id: string }).id,
+   *   write: (flat) => ({ id: flat as string }),
    * }
    */
   valueTransform?: {
-    /** Convert raw backend value → flat string/string[] for internal use */
     read: (rawValue: unknown) => string | string[];
-    /** Convert flat string/string[] → shape backend expects on save */
     write: (value: string | string[]) => unknown;
   };
 
-  // Text specific
-  minLength?: number;
-  maxLength?: number;
-  pattern?: RegExp;
-  patternMessage?: string;
-  multiline?: boolean; // textarea instead of input
-  rows?: number; // textarea rows
-
-  // Date specific
-  minDate?: string; // ISO string
-  maxDate?: string; // ISO string
-  dateFormat?: string; // display format e.g. 'dd/MM/yyyy'
-
-  // Aggregation (number columns only)
-  aggregation?: "sum" | "avg" | "min" | "max" | "count" | "none";
-
-  // ── Computed / formula column ──────────────────────────
+  // ── Computed / formula column ────────────────────────────────
   /**
-   * Mark this column as computed (read-only, auto-calculated).
-   * Computed columns cannot be edited inline or via the detail panel.
+   * Mark this column as computed — value is derived by a formula.
+   * Computed columns are read-only by default.
+   * Set editableWhenComputed=true to allow manual override.
    */
   computed?: boolean;
-
   /**
-   * User-defined formula. Receives the full row data (draft values
-   * take priority over committed values) and returns the computed value.
-   *
-   * @example
-   * formula: (row) => row.probability * severityWeight[row.severity]
+   * Allow the user to manually override the formula result.
+   * The formula still auto-recalculates on dependency changes,
+   * but the user can type a custom value that takes precedence.
+   */
+  editableWhenComputed?: boolean;
+  /**
+   * Formula function — receives the full row (draft values merged)
+   * and returns the computed value.
+   * @example formula: (row) => row.price * row.quantity
    */
   formula?: (row: TData) => unknown;
-
   /**
    * Declare which fields this formula reads.
-   * reaktiform only recalculates when one of these fields changes.
-   * If omitted — recalculates on every row render (less optimal).
-   *
-   * @example
-   * dependsOn: ['probability', 'severity']
+   * Enables fine-grained cache invalidation — formula only re-runs
+   * when a listed field changes.
+   * @example dependsOn: ['price', 'quantity']
    */
   dependsOn?: (keyof TData & string)[];
-
   /**
-   * Whether the computed result should be included when saving
-   * the row to the server. Default: false (never saved).
-   *
-   * @example
-   * saveable: true  // computed value will be sent in onSave payload
+   * Include the computed value in the save payload sent to the API.
+   * Default: false
    */
   saveable?: boolean;
 
-  // Custom render override (headless mode)
+  // ── Custom renderers ─────────────────────────────────────────
+  /**
+   * Fully custom read-mode cell renderer.
+   * Bypasses reaktiform's default cell — you control the output entirely.
+   * @example renderCell: (value, row) => <Avatar src={row.avatarUrl} />
+   */
   renderCell?: (value: unknown, row: TData) => React.ReactNode;
+  /**
+   * Fully custom edit-mode cell renderer.
+   * @example
+   * renderEditCell: (value, row, onChange, onBlur) => (
+   *   <MyCustomPicker value={value} onChange={onChange} onBlur={onBlur} />
+   * )
+   */
   renderEditCell?: (
     value: unknown,
     row: TData,
     onChange: (v: unknown) => void,
     onBlur: () => void,
   ) => React.ReactNode;
-
-  // Header
-  headerTooltip?: string;
 };
+
+// Re-export React for the type above without requiring consumers to import it
+import type React from "react";

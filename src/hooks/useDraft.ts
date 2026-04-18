@@ -19,6 +19,15 @@ type UseDraftOptions<TData> = {
   // Delete / add
   onDelete?: (id: string) => Promise<void> | void;
   onAdd?: (row: TData) => void;
+  // Save result hooks — for toasts, logging, etc.
+  onSaveSuccess?: (row: TData, isNew: boolean) => void;
+  onSaveError?: (err: Error, row: TData, isNew: boolean) => void;
+  // Internal: fires with the row's _id when a save fails.
+  // useReaktiform uses this to auto-open the error popover for that row.
+  onRowSaveError?: (rowInternalId: string) => void;
+  // Internal: marks/unmarks a row as in-flight during API call.
+  // Prevents data-sync effect from overwriting store with stale incoming data.
+  setSavingRow?: (rowId: string, saving: boolean) => void;
   // Computed columns engine
   computed?: ReturnType<typeof useComputedColumns<TData>>;
 };
@@ -32,6 +41,10 @@ export function useDraft<TData = Record<string, unknown>>({
   onBulkSave,
   onDelete,
   onAdd,
+  onSaveSuccess,
+  onSaveError,
+  onRowSaveError,
+  setSavingRow,
   computed,
 }: UseDraftOptions<TData>) {
   const rows = useGridStore((s) => s.rows) as Row<TData>[];
@@ -93,6 +106,20 @@ export function useDraft<TData = Record<string, unknown>>({
       if (!row) return;
 
       const oldVal = getVal(row, field);
+
+      // ── Skip if value hasn't actually changed.
+      // Handles primitives, arrays (JSON compare), and objects.
+      // This prevents marking a row dirty when user clicks a cell
+      // and immediately presses Enter/Tab without changing anything.
+      const isEqual = (a: unknown, b: unknown): boolean => {
+        if (a === b) return true;
+        if (Array.isArray(a) && Array.isArray(b))
+          return JSON.stringify(a) === JSON.stringify(b);
+        if (a === null && b === "") return true; // empty number cell
+        if (a === "" && b === null) return true;
+        return false;
+      };
+      if (isEqual(oldVal, newVal)) return;
 
       // Build new draft
       const newDraft = produce(
@@ -171,6 +198,16 @@ export function useDraft<TData = Record<string, unknown>>({
       // Apply valueTransform.write before sending to server so the API
       // receives the shape it expects (e.g. { owner: { id: 'alice_kwan' } }
       // instead of flat { owner: 'alice_kwan' })
+      // Mark this row as in-flight BEFORE the API call.
+      // This prevents the data-sync effect from overwriting store values
+      // if a re-render is triggered while the API is pending.
+      const realId = String(
+        (row as Record<string, unknown>)[rowIdKey] ?? row._id,
+      );
+      setSavingRow?.(realId, true);
+      // Mark row as saving so UI can show spinner and disable save button
+      actions.updateRowInStore(row._id, { _saving: true });
+
       let serverResponse: TData | void = undefined;
       try {
         // Build API payload — apply write transforms for columns that define them
@@ -200,18 +237,71 @@ export function useDraft<TData = Record<string, unknown>>({
             : await onSave?.(payload, false);
         }
       } catch (err) {
-        console.error("[reaktiform] save error:", err);
+        // ── API failure — keep the draft INTACT so user doesn't lose changes.
+        console.error("[reaktiform] save error — draft preserved:", err);
+        setSavingRow?.(realId, false); // unmark so next sync works normally
+        // Extract the most meaningful message from whatever was thrown.
+        // Handles: Error instances, plain strings, and structured objects
+        // like { message, detail, error_description } from API responses.
+        const extractMessage = (e: unknown): string => {
+          if (e instanceof Error) return e.message;
+          if (typeof e === "string") return e;
+          if (e && typeof e === "object") {
+            const obj = e as Record<string, unknown>;
+            const msg =
+              obj.message ?? obj.detail ?? obj.error_description ?? obj.error;
+            if (msg && typeof msg === "string") return msg;
+          }
+          return String(e);
+        };
+        actions.updateRowInStore(row._id, {
+          _saved: false,
+          _saving: false,
+          _saveError: extractMessage(err),
+        });
+        // Auto-open error popover for this row (via internal callback)
+        try {
+          onRowSaveError?.(row._id);
+        } catch {}
+        // Notify consumer (for toast / error UI)
+        try {
+          onSaveError?.(
+            err instanceof Error ? err : new Error(String(err)),
+            committed as unknown as TData,
+            isNew,
+          );
+        } catch {}
         throw err;
       }
 
-      // ── If server returned updated data — merge it in
-      // Handles server-generated fields: updatedAt, version, id, etc.
-      const finalData = serverResponse
-        ? { ...committed, ...(serverResponse as Record<string, unknown>) }
-        : committed;
+      // ── Commit the draft values to the store — this is the source of truth.
+      // We do NOT merge the server response back into the store for updates.
+      // Reason: different APIs return different shapes (full entity, partial,
+      // 204 No Content, etc.) and merging causes race conditions with the
+      // consumer's data prop (TanStack/SWR cache updates on mutation success).
+      // The draft values are already correct — the user typed them, validation
+      // passed, we sent them. Trust them.
+      //
+      // For NEW rows only: merge server response to capture the server-generated
+      // id and any server-computed fields (createdAt, version, etc.).
+      const finalData =
+        isNew && serverResponse
+          ? {
+              ...committed,
+              ...(serverResponse as Record<string, unknown>),
+              _saveError: undefined,
+            }
+          : { ...committed, _saveError: undefined };
 
-      actions.updateRowInStore(row._id, finalData);
+      actions.updateRowInStore(row._id, { ...finalData, _saving: false });
       computed?.invalidateRowAll(row._id);
+      setSavingRow?.(realId, false); // unmark — sync can resume for explicit refetches
+
+      // Notify consumer of success — use this for toasts only.
+      // Do NOT trigger a refetch here — consumer calls onRefresh explicitly.
+      try {
+        onSaveSuccess?.(finalData as unknown as TData, isNew);
+      } catch {}
 
       // Push to undo history
       actions.pushHistory({
@@ -225,7 +315,20 @@ export function useDraft<TData = Record<string, unknown>>({
 
       return true;
     },
-    [rows, rowIdKey, columns, actions, onCreate, onUpdate, onSave, computed],
+    [
+      rows,
+      rowIdKey,
+      columns,
+      actions,
+      onCreate,
+      onUpdate,
+      onSave,
+      computed,
+      onSaveSuccess,
+      onSaveError,
+      onRowSaveError,
+      setSavingRow,
+    ],
   );
 
   // ── Discard changes on a row
@@ -249,11 +352,12 @@ export function useDraft<TData = Record<string, unknown>>({
         });
         actions.removeRowFromStore(row._id);
       } else {
-        // Existing row — just clear draft
+        // Existing row — clear draft and any save error
         actions.updateRowInStore(row._id, {
           _draft: null,
           _saved: true,
           _errors: {},
+          _saveError: undefined,
         });
         // Invalidate computed cache — draft gone, values reverted
         computed?.invalidateRowAll(row._id);
@@ -395,13 +499,8 @@ export function useDraft<TData = Record<string, unknown>>({
       // Immediately put everything into draft so Save/Discard appear
       const draft = buildDraftFromRow(emptyRow as Row<TData>, columns);
       emptyRow._draft = draft;
-
-      // Validate immediately to show required fields
-      const errors = validateRow(columns as ColumnDef[], {
-        ...emptyRow,
-        ...draft,
-      });
-      emptyRow._errors = errors;
+      emptyRow._errors = {}; // start with no errors — validate on save, not on add
+      emptyRow._saveError = undefined; // no previous save attempt
 
       actions.addRowToStore(emptyRow);
       actions.pushHistory({
@@ -492,8 +591,11 @@ export function useDraft<TData = Record<string, unknown>>({
     [rows, rowIdKey, columns, actions],
   );
 
-  // ── Dirty count
+  // ── Dirty count and saving count
   const dirtyCount = rows.filter((r) => isDirty(r)).length;
+  const savingCount = rows.filter(
+    (r) => !!(r as Record<string, unknown>)["_saving"],
+  ).length;
 
   return {
     rows,
@@ -509,6 +611,7 @@ export function useDraft<TData = Record<string, unknown>>({
     deleteRow,
     duplicateRow,
     dirtyCount,
+    savingCount,
   };
 }
 

@@ -1,7 +1,7 @@
 import { useRef } from "react";
+import type { SelectOption } from "../../types";
 import { cn } from "../../utils";
 import { SelectOverlay } from "./SelectCell";
-import type { SelectOption } from "../../types";
 
 // ─────────────────────────────────────────────────────────────
 //  TAG PILL — read mode display for each selected value
@@ -95,6 +95,7 @@ type MultiSelectCellEditProps = {
   value: string[] | null | undefined;
   options: SelectOption[];
   searchable?: boolean;
+  isClearable?: boolean; // controlled by col.clearable
   loadOptions?: (input: string) => Promise<SelectOption[]>;
   onCreateOption?: (input: string) => Promise<SelectOption> | SelectOption;
   onCommit: (value: string[]) => void;
@@ -105,29 +106,49 @@ export function MultiSelectCellEdit({
   value,
   options,
   searchable,
+  isClearable = false,
   loadOptions,
   onCreateOption,
   onCommit,
   onCancel,
 }: MultiSelectCellEditProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const current = value ?? [];
+  const isAsync = !!loadOptions;
 
-  const handleSelect = (optValue: string) => {
-    const updated = current.includes(optValue)
-      ? current.filter((v) => v !== optValue)
-      : [...current, optValue];
-    onCommit(updated);
-  };
+  // For async multiselect: stored value is SelectOption[] ({ value, label }[]).
+  // For static multiselect: stored value is string[].
+  // Normalise to SelectOption[] for SelectOverlay in both cases.
+  const currentOpts: SelectOption[] = isAsync
+    ? Array.isArray(value)
+      ? (value as unknown as SelectOption[]).filter(
+          (v): v is SelectOption =>
+            v != null && typeof v === "object" && "value" in v,
+        )
+      : []
+    : Array.isArray(value)
+      ? (value as string[]).map(
+          (id) =>
+            options.find((o) => o.value === id) ?? { value: id, label: id },
+        )
+      : [];
 
   return (
     <div ref={ref} style={{ width: "100%" }}>
       <SelectOverlay
         options={options}
-        selected={current}
+        selectedOptions={currentOpts}
         multi={true}
-        searchable={searchable ?? options.length > 6}
-        onSelect={handleSelect}
+        searchable={searchable ?? (isAsync || options.length > 6)}
+        isClearable={isClearable}
+        onCommitMulti={(opts) => {
+          // Async: commit SelectOption[] so labels are preserved for display.
+          // Static: commit string[] (id values only) — unchanged behaviour.
+          if (isAsync) {
+            onCommit(opts as unknown as string[]);
+          } else {
+            onCommit(opts.map((o) => o.value));
+          }
+        }}
         onClose={onCancel}
         referenceEl={ref.current}
         {...(loadOptions !== undefined && { loadOptions })}

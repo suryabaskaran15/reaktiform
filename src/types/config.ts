@@ -1,6 +1,121 @@
-import type { ColumnDef } from "./column";
+import type React from "react";
+import type { ColumnDef, AggregationMode } from "./column";
 import type { CFRule, ActiveFilters } from "./filter";
 import type { RowAttachment, RowComment } from "./row";
+
+// ─────────────────────────────────────────────────────────────
+//  PERMISSIONS — role-based access control
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Fine-grained permission control for Reaktiform.
+ *
+ * All permissions default to `true` (fully open).
+ * Pass `false` to lock down a capability.
+ * Pass a function for row-level or column-level control.
+ *
+ * @example
+ * // Viewer role — read only
+ * permissions={{ canCreate: false, canEdit: false, canDelete: false }}
+ *
+ * @example
+ * // Editor role — can edit but not delete
+ * permissions={{ canCreate: true, canEdit: true, canDelete: false }}
+ *
+ * @example
+ * // Row-level: only edit rows you own
+ * permissions={{
+ *   canEdit: (row) => row.ownerId === currentUser.id,
+ *   canDelete: (row) => row.ownerId === currentUser.id || currentUser.role === 'admin',
+ * }}
+ *
+ * @example
+ * // Column-level: lock specific fields
+ * permissions={{
+ *   canEditColumn: (colKey) => !['id', 'createdAt', 'status'].includes(colKey),
+ * }}
+ */
+export type GridPermissions = {
+  /**
+   * Allow creating new rows via the "+ New Record" button.
+   * @default true
+   */
+  canCreate?: boolean;
+
+  /**
+   * Allow editing cell values inline.
+   * Pass a function for row-level control.
+   * @default true
+   */
+  canEdit?: boolean | ((row: Record<string, unknown>) => boolean);
+
+  /**
+   * Allow deleting rows.
+   * Pass a function for row-level control.
+   * @default true
+   */
+  canDelete?: boolean | ((row: Record<string, unknown>) => boolean);
+
+  /**
+   * Allow saving changes (Save / Save All buttons).
+   * Useful when you want to allow editing the UI state but block persistence.
+   * @default true
+   */
+  canSave?: boolean;
+
+  /**
+   * Allow exporting to CSV.
+   * @default true
+   */
+  canExport?: boolean;
+
+  /**
+   * Allow duplicating rows.
+   * @default true
+   */
+  canDuplicate?: boolean | ((row: Record<string, unknown>) => boolean);
+
+  /**
+   * Column-level edit control.
+   * Return false for a column key to make that column read-only.
+   * Applied on top of canEdit — both must pass for a cell to be editable.
+   *
+   * @example
+   * // Lock id, createdAt, and status to read-only
+   * canEditColumn: (colKey) => !['id', 'createdAt', 'status'].includes(colKey)
+   */
+  canEditColumn?: (colKey: string) => boolean;
+
+  /**
+   * Allow adding comments in the detail panel Activity tab.
+   * @default true
+   */
+  canComment?: boolean;
+
+  /**
+   * Allow uploading file attachments in the detail panel Files tab.
+   * @default true
+   */
+  canUploadFiles?: boolean;
+};
+
+// ─────────────────────────────────────────────────────────────
+//  PANEL TAB CONFIGURATION
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Which tabs to show in the detail side panel.
+ * Defaults to all three tabs.
+ *
+ * @example
+ * // Details only — no activity or files
+ * panelTabs={['details']}
+ *
+ * @example
+ * // Details + activity, no files
+ * panelTabs={['details', 'activity']}
+ */
+export type PanelTab = "details" | "activity" | "files";
 
 // ─────────────────────────────────────────────────────────────
 //  FEATURE FLAGS
@@ -39,8 +154,32 @@ export type GridFeatures = {
   columnReorder?: boolean;
   /** Enable arrow-key keyboard navigation between cells. Default: `true` */
   keyboardNav?: boolean;
-  /** Enable CSV export button in the toolbar. Default: `true` */
+  /**
+   * Enable export button in the toolbar. Default: `true`
+   * Controls both CSV and Excel buttons.
+   * Use `onExport` for server-side export (full dataset, not just loaded rows).
+   */
   export?: boolean;
+  /**
+   * Show the # row-number column. Default: `true`
+   * @example showRowNumbers={false}
+   */
+  showRowNumbers?: boolean;
+  /**
+   * Show the checkbox selection column. Default: `true`
+   * @example showSelectColumn={false}
+   */
+  showSelectColumn?: boolean;
+  /**
+   * Show the › expander column that opens the detail panel. Default: `true`
+   * @example showExpanderColumn={false}
+   */
+  showExpanderColumn?: boolean;
+  /**
+   * Show the Actions column (Save/Discard/Duplicate/Delete). Default: `true`
+   * @example showActionsColumn={false}
+   */
+  showActionsColumn?: boolean;
   /** Row drag-to-reorder. Coming in v2. */
   rowDrag?: boolean;
   /** Import from CSV/XLSX. Coming in v2. */
@@ -58,7 +197,7 @@ export type SortState = {
 } | null;
 
 /** Aggregation mode for number columns. Cycles via the Σ button in the column header. */
-export type AggregationMode = "none" | "sum" | "avg" | "min" | "max" | "count";
+// AggregationMode is defined in column.ts and re-exported from there
 
 /**
  * Controls where sorting, filtering, and search happen.
@@ -74,8 +213,16 @@ export type SortingMode = "client" | "server";
 
 /** Parameters passed to `onSortChange`. */
 export type SortChangeParams = {
+  /** Primary sort column key (first entry in sortModel). */
   sortBy: string;
+  /** Primary sort direction. */
   sortDir: "asc" | "desc";
+  /**
+   * Full multi-sort model — only present when >1 column is sorted (shift+click).
+   * Undefined for single-column sort (backward compatible).
+   * @example [{ colKey: 'name', direction: 'asc' }, { colKey: 'date', direction: 'desc' }]
+   */
+  sortModel?: { colKey: string; direction: "asc" | "desc" }[] | undefined;
 };
 
 /** Parameters passed to `onFetchMore` during infinite scroll. */
@@ -265,6 +412,40 @@ export type GridConfig<TData = Record<string, unknown>> = {
    */
   onSearchChange?: (search: string) => void;
 
+  /**
+   * Called when the user changes the aggregation mode for a column (server mode only).
+   * Fire an API request to compute the aggregate over the full dataset and
+   * update `aggregationValues` with the result.
+   *
+   * In client mode this is ignored — aggregation is computed in memory.
+   *
+   * Wrap in `useCallback` to prevent re-render loops.
+   *
+   * @example
+   * onAggregationChange={useCallback(async (colKey, mode) => {
+   *   if (mode === 'none') {
+   *     setAggValues(prev => { const n = { ...prev }; delete n[colKey]; return n })
+   *     return
+   *   }
+   *   const result = await api.post('/rows/aggregate', { colKey, mode, filters: query.filters })
+   *   setAggValues(prev => ({ ...prev, [colKey]: result.value }))
+   * }, [query.filters])}
+   */
+  onAggregationChange?: (colKey: string, mode: AggregationMode) => void;
+
+  /**
+   * Server-computed aggregation values per column key.
+   * Only used in server mode — displayed in the tfoot row instead of
+   * computing locally from the loaded page (which would be wrong for
+   * paginated data).
+   *
+   * Values are displayed as-is — format them server-side.
+   *
+   * @example
+   * aggregationValues={{ probability: 67.4, completion: 58.1 }}
+   */
+  aggregationValues?: Record<string, number | string>;
+
   // ── Row Mutation Callbacks ────────────────────────────────────
 
   /**
@@ -328,6 +509,68 @@ export type GridConfig<TData = Record<string, unknown>> = {
   /** Called when a new empty row is added via the "Add record" button. */
   onAdd?: (row: TData) => void;
 
+  // ── Save result callbacks ─────────────────────────────────
+
+  /**
+   * Called after a row is successfully saved (after onCreate/onUpdate resolves).
+   * Use this to show a toast or trigger other side effects.
+   *
+   * @example
+   * onSaveSuccess={(row, isNew) => toast.success(`${isNew ? 'Created' : 'Updated'} successfully`)}
+   */
+  onSaveSuccess?: (row: TData, isNew: boolean) => void;
+
+  /**
+   * Called when a row save fails (onCreate/onUpdate throws).
+   * Use this to show an error toast.
+   *
+   * @example
+   * onSaveError={(err, row) => toast.error(`Save failed: ${err.message}`)}
+   */
+  onSaveError?: (err: Error, row: TData, isNew: boolean) => void;
+
+  // ── Export callbacks ─────────────────────────────────────────
+
+  /**
+   * Server-side export callback.
+   *
+   * When provided, the Export button calls this instead of the built-in
+   * client-side export. Use this in server-side mode where only a page of
+   * records is loaded — your handler fetches ALL records and triggers a download.
+   *
+   * If not provided, the built-in client-side export runs on loaded rows.
+   *
+   * @param format  'csv' | 'xlsx'
+   *
+   * @example
+   * onExport={async (format) => {
+   *   const res  = await api.get(`/rows/export?format=${format}`)
+   *   const blob = await res.blob()
+   *   const url  = URL.createObjectURL(blob)
+   *   const a    = document.createElement('a')
+   *   a.href     = url
+   *   a.download = `export.${format}`
+   *   a.click()
+   *   URL.revokeObjectURL(url)
+   * }}
+   */
+  onExport?: (format: "csv" | "xlsx") => Promise<void> | void;
+
+  // ── Sync / Refresh ───────────────────────────────────────────
+
+  /**
+   * Provide this callback to show a Sync button in the toolbar.
+   * Clicking it calls this function and shows a loading spinner.
+   * Use it to re-fetch fresh data from the server.
+   *
+   * @example
+   * onRefresh={async () => {
+   *   const fresh = await api.get('/rows')
+   *   setData(fresh.data)
+   * }}
+   */
+  onRefresh?: () => Promise<void> | void;
+
   // ── Features ────────────────────────────────────────────────
 
   /**
@@ -338,6 +581,45 @@ export type GridConfig<TData = Record<string, unknown>> = {
    * features={{ undoRedo: true, export: true, sidePanel: true }}
    */
   features?: GridFeatures;
+
+  // ── Permissions (Role-based access control) ──────────────────
+
+  /**
+   * Fine-grained permission control.
+   * All permissions default to `true` (fully open).
+   *
+   * @example
+   * // Viewer — read only
+   * permissions={{ canCreate: false, canEdit: false, canDelete: false }}
+   *
+   * @example
+   * // Row-level edit control
+   * permissions={{
+   *   canEdit:   (row) => row.ownerId === currentUser.id,
+   *   canDelete: (row) => currentUser.role === 'admin',
+   * }}
+   */
+  permissions?: GridPermissions;
+
+  // ── Panel tabs ────────────────────────────────────────────────
+
+  /**
+   * Which tabs to show in the detail side panel.
+   * Defaults to all three: ['details', 'activity', 'files'].
+   *
+   * Tabs are also auto-hidden when their callback is not provided:
+   * - 'activity' tab is hidden if onAddComment is not provided
+   * - 'files' tab is hidden if onUploadFile is not provided
+   *
+   * @example
+   * // Details only
+   * panelTabs={['details']}
+   *
+   * @example
+   * // Details + activity, no files
+   * panelTabs={['details', 'activity']}
+   */
+  panelTabs?: PanelTab[];
 
   // ── Initial State ────────────────────────────────────────────
 
@@ -418,10 +700,10 @@ export type GridConfig<TData = Record<string, unknown>> = {
   maxHeight?: string | number;
 
   /**
-   * Max height of the scrollable table area.
-   * Defaults to `calc(100vh - 300px)`.
-   * @example minHeight={600}
-   * @example minHeight="70vh"
+   * Min height of the scrollable table area.
+   * Defaults to `380px`. Set to fit your layout.
+   * @example minHeight={200}
+   * @example minHeight="30vh"
    */
   minHeight?: string | number;
 
@@ -455,6 +737,140 @@ export type GridConfig<TData = Record<string, unknown>> = {
    * @example labels={{ newRecord: 'New Risk', saveAll: 'Publish All' }}
    */
   labels?: Partial<GridLabels>;
+
+  // ── Row events ───────────────────────────────────────────────
+
+  /**
+   * Called when the user clicks a row (not a cell — the row itself).
+   * Useful for navigation, selection, or preview panels.
+   * @example
+   * onRowClick={(row) => router.push(`/records/${row.id}`)}
+   */
+  onRowClick?: (row: TData) => void;
+
+  /**
+   * Called on double-click of a row.
+   * @example
+   * onRowDoubleClick={(row) => openModal(row)}
+   */
+  onRowDoubleClick?: (row: TData) => void;
+
+  /**
+   * Called whenever the selected row IDs change.
+   * @example
+   * onSelectionChange={(ids, rows) => setSelectedItems(rows)}
+   */
+  onSelectionChange?: (ids: string[], rows: TData[]) => void;
+
+  // ── Row appearance ───────────────────────────────────────────
+
+  /**
+   * Dynamic CSS class applied to each row.
+   * Runs on every row render — keep it fast (avoid side effects).
+   * @example
+   * rowClassName={(row) => row.status === 'overdue' ? 'rf-row-danger' : undefined}
+   */
+  rowClassName?: (row: TData) => string | undefined;
+
+  /**
+   * Dynamic inline style applied to each row.
+   * @example
+   * rowStyle={(row) => ({ opacity: row.archived ? 0.5 : 1 })}
+   */
+  rowStyle?: (row: TData) => React.CSSProperties | undefined;
+
+  /**
+   * Row height in pixels. Default: 46.
+   * Increasing this gives more room for multi-line text or larger cells.
+   * @default 46
+   * @example rowHeight={64}
+   */
+  rowHeight?: number;
+
+  // ── Row-level permissions ────────────────────────────────────
+
+  /**
+   * Disable interaction for specific rows — they appear greyed out
+   * and cannot be selected, edited, or deleted.
+   * @example
+   * isRowDisabled={(row) => row.status === 'locked'}
+   */
+  isRowDisabled?: (row: TData) => boolean;
+
+  /**
+   * Control which rows can be selected via the checkbox column.
+   * @example
+   * isRowSelectable={(row) => row.status !== 'archived'}
+   */
+  isRowSelectable?: (row: TData) => boolean;
+
+  // ── Selection mode ───────────────────────────────────────────
+
+  /**
+   * Selection behavior for the checkbox column.
+   * - 'multi'  — checkboxes, select-all, range select (shift+click). Default.
+   * - 'single' — radio-like, only one row selected at a time.
+   * - 'none'   — no selection column, no selection state.
+   * @default 'multi'
+   */
+  selectionMode?: "multi" | "single" | "none";
+
+  // ── Expanded row ─────────────────────────────────────────────
+
+  /**
+   * Render custom JSX below an expanded row.
+   * The › expand button (showExpanderColumn) opens/closes the expanded area.
+   *
+   * Use for sub-tables, detail cards, embedded charts, etc.
+   *
+   * @example
+   * renderExpandedRow={(row) => (
+   *   <SubTaskTable parentId={row.id} />
+   * )}
+   */
+  renderExpandedRow?: (row: TData) => React.ReactNode;
+
+  /**
+   * Height of the expanded row area in pixels. Default: auto.
+   * If not set, the expanded area grows to fit its content.
+   */
+  expandedRowHeight?: number;
+
+  // ── Empty state ──────────────────────────────────────────────
+
+  /**
+   * Custom content rendered when there are no rows to display.
+   * Replaces the default "No records found" message.
+   *
+   * @example
+   * emptyState={
+   *   <div style={{ textAlign: 'center', padding: 40 }}>
+   *     <EmptyIcon />
+   *     <p>No records yet. Click "+ New Record" to create one.</p>
+   *   </div>
+   * }
+   */
+  emptyState?: React.ReactNode;
+
+  // ── Toolbar ──────────────────────────────────────────────────
+
+  /**
+   * Render additional content inside the toolbar — to the left of the
+   * row count / action buttons.
+   *
+   * @example
+   * toolbarLeft={<StatusFilterTabs value={tab} onChange={setTab} />}
+   */
+  toolbarLeft?: React.ReactNode;
+
+  /**
+   * Render additional content inside the toolbar — to the right of the
+   * standard buttons (before "+ New Record").
+   *
+   * @example
+   * toolbarRight={<ImportButton onImport={handleImport} />}
+   */
+  toolbarRight?: React.ReactNode;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -496,6 +912,20 @@ export type GridLabels = {
   uploadFile: string;
   postComment: string;
   saveChanges: string;
+  // New in v1.1
+  sync: string;
+  undo: string;
+  redo: string;
+  selected: string;
+  deleteSelected: string;
+  exportSelected: string;
+  showAll: string;
+  hideColumn: string;
+  reorderColumns: string;
+  loadingMore: string;
+  rowsLoaded: string;
+  saveFailed: string;
+  saving: string;
 };
 
 export type { FilterValue, ActiveFilters } from "./filter";

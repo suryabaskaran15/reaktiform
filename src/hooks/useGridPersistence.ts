@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
 import type { GridStoreInstance } from "../store/gridStore";
-import type { SortState, ActiveFilters, CFRule } from "../types";
+import type { ActiveFilters, CFRule } from "../types";
 
 // ─────────────────────────────────────────────────────────────
 //  PERSISTED STATE SHAPE
-//  Only user preferences — never raw row data or transient UI state
+//  Only user preferences — never raw row data or transient UI state.
+//  Sort and groupBy are intentionally excluded — they are session-only
+//  (resetting them on reload prevents confusing "why is this sorted?" UX).
 // ─────────────────────────────────────────────────────────────
 type PersistedState = {
   version: number;
@@ -12,14 +14,17 @@ type PersistedState = {
   hiddenColumns: string[];
   pinnedColumns: string[];
   columnOrder: string[];
-  sortState: SortState;
   activeFilters: ActiveFilters;
-  groupByCol: string | null;
   aggregations: Record<string, string>;
   cfRules: CFRule[];
 };
 
-const STORAGE_VERSION = 1;
+// ─────────────────────────────────────────────────────────────
+//  VERSION — bump this whenever the persisted shape changes.
+//  Old data is automatically cleared on version mismatch.
+//  v1 → v2: added sortModel to store state
+// ─────────────────────────────────────────────────────────────
+const STORAGE_VERSION = 2;
 
 // ─────────────────────────────────────────────────────────────
 //  SAFE READ — never throws, returns null on any error
@@ -79,21 +84,13 @@ export function loadPersistedState(
   if (saved.columnOrder?.length) {
     state.setColumnOrder(saved.columnOrder);
   }
-  if (saved.sortState) {
-    state.setSort(saved.sortState.colKey);
-    // If direction was desc, setSort again to toggle to desc
-    if (saved.sortState.direction === "desc") {
-      state.setSort(saved.sortState.colKey);
-    }
-  }
+  // sortState and groupByCol intentionally not restored — session-only
   if (saved.activeFilters && Object.keys(saved.activeFilters).length) {
     Object.entries(saved.activeFilters).forEach(([col, filter]) => {
       state.setFilter(col, filter);
     });
   }
-  if (saved.groupByCol) {
-    state.setGroupBy(saved.groupByCol);
-  }
+  // NOTE: sortState and groupByCol are NOT restored — session-only preferences
   if (saved.aggregations && Object.keys(saved.aggregations).length) {
     Object.entries(saved.aggregations).forEach(([col, mode]) => {
       state.setAggregation(col, mode);
@@ -135,11 +132,10 @@ export function useGridPersistence(
           hiddenColumns: [...state.hiddenColumns],
           pinnedColumns: [...state.pinnedColumns],
           columnOrder: state.columnOrder,
-          sortState: state.sortState,
           activeFilters: state.activeFilters,
-          groupByCol: state.groupByCol,
           aggregations: state.aggregations,
           cfRules: state.cfRules,
+          // sortState and groupByCol intentionally excluded
         };
         writeStorage(storageKey, persisted);
       }, 300);

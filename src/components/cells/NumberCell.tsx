@@ -57,15 +57,15 @@ export function NumberCellRead({
 // ── EDIT MODE
 type NumberCellEditProps = {
   value: number | null | undefined;
-  min?: number;
-  max?: number;
-  decimals?: number;
-  suffix?: string;
-  prefix?: string;
+  min?: number | undefined;
+  max?: number | undefined;
+  decimals?: number | undefined;
+  suffix?: string | undefined;
+  prefix?: string | undefined;
   autoFocus?: boolean;
   onCommit: (value: number | null) => void;
   onCancel: () => void;
-  className?: string;
+  className?: string | undefined;
 };
 
 export function NumberCellEdit({

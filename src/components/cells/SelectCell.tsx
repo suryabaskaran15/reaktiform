@@ -14,7 +14,225 @@ import { OptionBadge } from "../primitives/Badge";
 import type { SelectOption } from "../../types";
 
 // ─────────────────────────────────────────────────────────────
-//  READ MODE
+//  OPTION CACHE
+//  Module-level cache keyed by loadOptions function reference.
+//  Results survive across cell open/close cycles — every re-open
+//  after the first is instant with zero API calls.
+//  Invalidate after onCreateOption so new items appear next open.
+// ─────────────────────────────────────────────────────────────
+type LoadOptionsFn = (input: string) => Promise<SelectOption[]>;
+const optionCache = new Map<LoadOptionsFn, Map<string, SelectOption[]>>();
+
+export function cachedLoadOptions(fn: LoadOptionsFn): LoadOptionsFn {
+  return async (input: string): Promise<SelectOption[]> => {
+    let fnCache = optionCache.get(fn);
+    if (!fnCache) {
+      fnCache = new Map();
+      optionCache.set(fn, fnCache);
+    }
+    const key = input.trim().toLowerCase();
+    if (fnCache.has(key)) return fnCache.get(key)!;
+    const results = await fn(input);
+    fnCache.set(key, results);
+    return results;
+  };
+}
+
+export function invalidateLoadOptionsCache(fn: LoadOptionsFn): void {
+  optionCache.delete(fn);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  DESIGN TOKENS
+//  Hardcoded — menus render in document.body where [data-reaktiform]
+//  CSS variables are not inherited.
+// ─────────────────────────────────────────────────────────────
+const T = {
+  surface: "#FFFFFF",
+  bg: "#F4F6FA",
+  border: "#E2E5ED",
+  text1: "#0F172A",
+  text2: "#475569",
+  text3: "#94A3B8",
+  accent: "#3B5BDB",
+  accentBg: "#EEF2FF",
+  accentBr: "#C7D2FE",
+  rowHover: "#F8FAFF",
+  err: "#DC2626",
+  errBg: "#FFF1F2",
+} as const;
+
+// ─────────────────────────────────────────────────────────────
+//  SHARED STYLES — single source of truth for all select variants
+// ─────────────────────────────────────────────────────────────
+function makeSelectStyles<IsMulti extends boolean>(
+  compact = false,
+): StylesConfig<SelectOption, IsMulti, GroupBase<SelectOption>> {
+  return {
+    container: (b) => ({ ...b, width: "100%" }),
+    control: (b, s) => ({
+      ...b,
+      minHeight: compact ? 30 : 32,
+      height: compact ? 30 : "auto",
+      border: `1.5px solid ${s.isFocused ? T.accent : T.border}`,
+      boxShadow: s.isFocused ? `0 0 0 3px rgba(59,91,219,.12)` : "none",
+      borderRadius: 6,
+      background: T.bg,
+      cursor: "pointer",
+      flexWrap: "wrap",
+      "&:hover": { borderColor: T.accent },
+    }),
+    valueContainer: (b) => ({
+      ...b,
+      padding: compact ? "0 8px" : "2px 8px",
+      flexWrap: "wrap",
+      overflow: "visible",
+      gap: 2,
+    }),
+    input: (b) => ({
+      ...b,
+      margin: 0,
+      padding: 0,
+      color: T.text1,
+      fontSize: 12.5,
+    }),
+    singleValue: (b) => ({ ...b, color: T.text1, fontSize: 12.5 }),
+    multiValue: (b) => ({
+      ...b,
+      background: T.accentBg,
+      borderRadius: 100,
+      border: `1px solid ${T.accentBr}`,
+      margin: "1px 2px",
+    }),
+    multiValueLabel: (b) => ({
+      ...b,
+      color: T.accent,
+      fontSize: 11,
+      fontWeight: 600,
+      padding: "1px 6px",
+    }),
+    multiValueRemove: (b) => ({
+      ...b,
+      color: T.accent,
+      borderRadius: "0 100px 100px 0",
+      "&:hover": { background: T.errBg, color: T.err },
+    }),
+    placeholder: (b) => ({
+      ...b,
+      color: T.text3,
+      fontSize: 12,
+      fontStyle: "italic",
+    }),
+    indicatorSeparator: () => ({ display: "none" }),
+    dropdownIndicator: (b) => ({ ...b, padding: "0 6px", color: T.text3 }),
+    clearIndicator: (b) => ({
+      ...b,
+      padding: "0 4px",
+      color: T.text3,
+      "&:hover": { color: T.err },
+    }),
+    // menuPortal must be highest z-index to escape table stacking context
+    menuPortal: (b) => ({ ...b, zIndex: 9999, pointerEvents: "auto" }),
+    menu: (b) => ({
+      ...b,
+      border: `1px solid ${T.border}`,
+      boxShadow: "0 8px 32px rgba(15,23,42,.18)",
+      borderRadius: 10,
+      background: T.surface,
+      overflow: "hidden",
+      marginTop: 4,
+      minWidth: 160,
+    }),
+    menuList: (b) => ({
+      ...b,
+      padding: "4px 0",
+      maxHeight: 280,
+      overflowY: "auto",
+    }),
+    option: (b, s) => ({
+      ...b,
+      padding: "7px 10px",
+      fontSize: 12.5,
+      cursor: "pointer",
+      minHeight: 34,
+      display: "flex",
+      alignItems: "center",
+      background: s.isSelected
+        ? T.accentBg
+        : s.isFocused
+          ? T.rowHover
+          : "transparent",
+      color: s.isSelected ? T.accent : T.text1,
+    }),
+    noOptionsMessage: (b) => ({
+      ...b,
+      fontSize: 12.5,
+      color: T.text3,
+      padding: "8px 10px",
+    }),
+    loadingMessage: (b) => ({
+      ...b,
+      fontSize: 12.5,
+      color: T.text3,
+      padding: "8px 10px",
+    }),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+//  CUSTOM OPTION — renders color badge if option.color is set
+// ─────────────────────────────────────────────────────────────
+function CustomOption(props: React.ComponentProps<typeof components.Option>) {
+  const opt = props.data as SelectOption;
+  return (
+    <components.Option {...props}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          width: "100%",
+        }}
+      >
+        {opt.color ? (
+          <OptionBadge option={opt} />
+        ) : (
+          <span style={{ fontSize: 12.5, color: T.text1 }}>{opt.label}</span>
+        )}
+        {props.isSelected && (
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={T.accent}
+            strokeWidth="2.5"
+            style={{ flexShrink: 0, marginLeft: 6 }}
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+      </div>
+    </components.Option>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+//  COMMON PROPS — shared across all variants
+// ─────────────────────────────────────────────────────────────
+function getCommonProps(compact = false) {
+  return {
+    menuPortalTarget: typeof document !== "undefined" ? document.body : null,
+    menuPosition: "fixed" as const,
+    menuShouldScrollIntoView: false,
+    classNamePrefix: "rf-rs",
+    components: { Option: CustomOption as never },
+    styles: makeSelectStyles(compact),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+//  READ MODE — single select display
 // ─────────────────────────────────────────────────────────────
 type SelectCellReadProps = {
   value: string | null | undefined;
@@ -52,188 +270,35 @@ export function SelectCellRead({
 }
 
 // ─────────────────────────────────────────────────────────────
-//  SHARED STYLES
-// ─────────────────────────────────────────────────────────────
-function makeSelectStyles<IsMulti extends boolean>(): StylesConfig<
-  SelectOption,
-  IsMulti,
-  GroupBase<SelectOption>
-> {
-  return {
-    container: (base) => ({ ...base, width: "100%" }),
-    control: (base, state) => ({
-      ...base,
-      minHeight: 30,
-      height: 30,
-      border: `1.5px solid ${state.isFocused ? "var(--rf-accent)" : "var(--rf-border)"}`,
-      boxShadow: state.isFocused ? "0 0 0 3px rgba(59,91,219,.12)" : "none",
-      borderRadius: 6,
-      background: "var(--rf-bg)",
-      cursor: "pointer",
-      flexWrap: "nowrap",
-      "&:hover": { borderColor: "var(--rf-accent)" },
-    }),
-    valueContainer: (base) => ({
-      ...base,
-      padding: "0 8px",
-      flexWrap: "nowrap",
-      overflow: "hidden",
-    }),
-    input: (base) => ({
-      ...base,
-      margin: 0,
-      padding: 0,
-      color: "var(--rf-text-1)",
-      fontFamily: "var(--rf-font-sans)",
-      fontSize: 12.5,
-    }),
-    singleValue: (base) => ({
-      ...base,
-      color: "var(--rf-text-1)",
-      fontFamily: "var(--rf-font-sans)",
-      fontSize: 12.5,
-    }),
-    placeholder: (base) => ({
-      ...base,
-      color: "var(--rf-text-3)",
-      fontSize: 12,
-      fontStyle: "italic",
-    }),
-    indicatorSeparator: () => ({ display: "none" }),
-    dropdownIndicator: (base) => ({
-      ...base,
-      padding: "0 6px",
-      color: "var(--rf-text-3)",
-    }),
-    clearIndicator: (base) => ({
-      ...base,
-      padding: "0 4px",
-      color: "var(--rf-text-3)",
-      "&:hover": { color: "var(--rf-err)" },
-    }),
-    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-    menu: (base) => ({
-      ...base,
-      border: "1px solid var(--rf-border)",
-      boxShadow: "0 8px 32px rgba(15,23,42,.16)",
-      borderRadius: 10,
-      background: "var(--rf-surface)",
-      overflow: "hidden",
-      marginTop: 2,
-    }),
-    menuList: (base) => ({ ...base, padding: "4px 0" }),
-    option: (base, state) => ({
-      ...base,
-      padding: "7px 10px",
-      fontSize: 12.5,
-      cursor: "pointer",
-      background: state.isSelected
-        ? "var(--rf-accent-bg)"
-        : state.isFocused
-          ? "var(--rf-row-hover)"
-          : "transparent",
-      color: state.isSelected ? "var(--rf-accent)" : "var(--rf-text-1)",
-    }),
-    multiValue: (base) => ({
-      ...base,
-      background: "var(--rf-accent-bg)",
-      borderRadius: 100,
-      border: "1px solid var(--rf-accent-br)",
-    }),
-    multiValueLabel: (base) => ({
-      ...base,
-      color: "var(--rf-accent)",
-      fontSize: 11,
-      fontWeight: 600,
-      padding: "1px 6px",
-    }),
-    multiValueRemove: (base) => ({
-      ...base,
-      color: "var(--rf-accent)",
-      borderRadius: "0 100px 100px 0",
-      "&:hover": { background: "var(--rf-err-bg)", color: "var(--rf-err)" },
-    }),
-    noOptionsMessage: (base) => ({
-      ...base,
-      fontSize: 12.5,
-      color: "var(--rf-text-3)",
-    }),
-    loadingMessage: (base) => ({
-      ...base,
-      fontSize: 12.5,
-      color: "var(--rf-text-3)",
-    }),
-  };
-}
-
-// ─────────────────────────────────────────────────────────────
-//  CUSTOM OPTION — renders badge if option has color
-// ─────────────────────────────────────────────────────────────
-function CustomOption(props: React.ComponentProps<typeof components.Option>) {
-  const opt = props.data as SelectOption;
-  return (
-    <components.Option {...props}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        {opt.color ? (
-          <OptionBadge option={opt} />
-        ) : (
-          <span style={{ fontSize: 12.5, color: "var(--rf-text-1)" }}>
-            {opt.label}
-          </span>
-        )}
-        {props.isSelected && (
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--rf-accent)"
-            strokeWidth="2.5"
-          >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        )}
-      </div>
-    </components.Option>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-//  COMMON PROPS — shared across all select variants
-// ─────────────────────────────────────────────────────────────
-const COMMON_PROPS = {
-  menuPortalTarget: typeof document !== "undefined" ? document.body : null,
-  menuPosition: "fixed" as const,
-  menuShouldScrollIntoView: false,
-  classNamePrefix: "rf-rs",
-  components: { Option: CustomOption as never },
-};
-
-// ─────────────────────────────────────────────────────────────
 //  SINGLE SELECT — EDIT MODE
-//  Supports: static options, async loading, creatable, or both
+//  Supports: static | async | creatable | async+creatable
+//
+//  isClearable (default false):
+//    When true, renders an ✕ button letting the user remove the
+//    current selection and set the field to null/empty.
+//    Set via col.clearable in your column definition.
+//
+//  currentLabel:
+//    The human-readable label for the currently selected value.
+//    Required for async selects — since options=[] on mount,
+//    React Select cannot look up the label from options[].
+//    Without this, it would show the raw id (uuid) on edit open.
 // ─────────────────────────────────────────────────────────────
 type SelectCellEditProps = {
   value: string | null | undefined;
+  currentLabel?: string | null;
   options?: SelectOption[];
   searchable?: boolean;
-  isClearable?: boolean;
-  // Async
+  isClearable?: boolean; // controlled by col.clearable prop
   loadOptions?: (input: string) => Promise<SelectOption[]>;
-  // Creatable
   onCreateOption?: (input: string) => Promise<SelectOption> | SelectOption;
-  onCommit: (value: string) => void;
+  onCommit: (value: string, label?: string) => void;
   onCancel: () => void;
 };
 
 export function SelectCellEdit({
   value,
+  currentLabel,
   options = [],
   searchable,
   isClearable = false,
@@ -243,24 +308,47 @@ export function SelectCellEdit({
   onCancel,
 }: SelectCellEditProps) {
   const selected = options.find((o) => o.value === value) ?? null;
-  const styles = makeSelectStyles<false>();
+  const COMMON = getCommonProps();
+
+  // For async: build the value prop from stored id + currentLabel
+  // currentLabel prevents the raw uuid from showing in edit mode
+  const asyncValue =
+    loadOptions && value
+      ? { value: String(value), label: currentLabel ?? String(value) }
+      : selected;
+
+  // Track whether the user committed a value (selected OR cleared).
+  // onMenuClose should only call onCancel if nothing was committed —
+  // otherwise clicking ✕ would close AND cancel instead of clearing.
+  let committed = false;
 
   const commonProps = {
-    ...COMMON_PROPS,
+    ...COMMON,
     autoFocus: true,
     openMenuOnFocus: true,
-    menuIsOpen: true,
     isClearable,
     isSearchable: searchable ?? (!!loadOptions || options.length > 6),
     placeholder: "Select…",
-    styles,
-    value: selected,
-    defaultOptions: options,
+    value: loadOptions ? asyncValue : selected,
+    defaultOptions: loadOptions ? true : options,
+    cacheOptions: !!loadOptions,
     onChange: (opt: SingleValue<SelectOption>) => {
-      if (opt) onCommit(opt.value);
-      else onCancel();
+      committed = true;
+      if (opt) {
+        // User selected an option — commit value + label
+        onCommit(opt.value, opt.label);
+      } else {
+        // User clicked ✕ to clear — commit empty string so field is cleared
+        // onCommit('') signals "cleared" to CellRenderer which stores null
+        onCommit("", undefined);
+      }
     },
-    onMenuClose: onCancel,
+    // Only cancel (close without saving) when the user clicks outside
+    // the dropdown without making a selection. If they already committed
+    // (selected or cleared), onMenuClose is a no-op.
+    onMenuClose: () => {
+      if (!committed) onCancel();
+    },
   };
 
   const wrap = (children: React.ReactNode) => (
@@ -274,99 +362,110 @@ export function SelectCellEdit({
     </div>
   );
 
-  // Both async + creatable
   if (loadOptions && onCreateOption) {
     return wrap(
       <AsyncCreatableSelect<SelectOption, false>
         {...commonProps}
-        loadOptions={loadOptions}
+        defaultMenuIsOpen
+        loadOptions={cachedLoadOptions(loadOptions)}
         onCreateOption={async (input) => {
           const created = await onCreateOption(input);
-          onCommit(created.value);
+          invalidateLoadOptionsCache(loadOptions);
+          onCommit(created.value, created.label);
         }}
       />,
     );
   }
 
-  // Async only
   if (loadOptions) {
     return wrap(
       <AsyncSelect<SelectOption, false>
         {...commonProps}
-        loadOptions={loadOptions}
+        defaultMenuIsOpen
+        loadOptions={cachedLoadOptions(loadOptions)}
       />,
     );
   }
 
-  // Creatable only
   if (onCreateOption) {
     return wrap(
       <CreatableSelect<SelectOption, false>
         {...commonProps}
+        defaultMenuIsOpen
         options={options}
         onCreateOption={async (input) => {
           const created = await onCreateOption(input);
-          onCommit(created.value);
+          onCommit(created.value, created.label);
         }}
       />,
     );
   }
 
-  // Static only (default)
   return wrap(
-    <ReactSelect<SelectOption, false> {...commonProps} options={options} />,
+    <ReactSelect<SelectOption, false>
+      {...commonProps}
+      defaultMenuIsOpen
+      options={options}
+    />,
   );
 }
 
 // ─────────────────────────────────────────────────────────────
 //  MULTI SELECT OVERLAY — used by MultiSelectCellEdit
-//  Supports: static options, async loading, creatable, or both
+//  Supports: static | async | creatable | async+creatable
+//
+//  selectedOptions: SelectOption[] — normalised by the caller.
+//    Static:  string[]    → caller maps to SelectOption[] via options[]
+//    Async:   SelectOption[] passthrough (already full objects)
+//
+//  onCommitMulti: called with full SelectOption[] after every change.
+//    Caller decides what to persist (string[] static, SelectOption[] async).
+//
+//  isClearable: when true shows the ✕ clear-all button.
 // ─────────────────────────────────────────────────────────────
 type SelectOverlayProps = {
   options: SelectOption[];
-  selected: string[];
+  selectedOptions: SelectOption[];
   multi?: boolean;
   searchable?: boolean;
+  isClearable?: boolean;
   loadOptions?: (input: string) => Promise<SelectOption[]>;
   onCreateOption?: (input: string) => Promise<SelectOption> | SelectOption;
-  onSelect: (value: string) => void;
+  onCommitMulti: (opts: SelectOption[]) => void;
   onClose: () => void;
   referenceEl: HTMLElement | null;
 };
 
 export function SelectOverlay({
   options,
-  selected,
+  selectedOptions,
   multi = false,
   searchable,
+  isClearable = false,
   loadOptions,
   onCreateOption,
-  onSelect,
+  onCommitMulti,
   onClose,
 }: SelectOverlayProps) {
-  const selectedOptions = options.filter((o) => selected.includes(o.value));
-  const styles = makeSelectStyles<true>();
+  const COMMON = getCommonProps();
 
   const handleMultiChange = useCallback(
     (vals: MultiValue<SelectOption>) => {
-      const newVals = vals.map((v) => v.value);
-      const added = newVals.find((v) => !selected.includes(v));
-      const removed = selected.find((v) => !newVals.includes(v));
-      if (added) onSelect(added);
-      if (removed) onSelect(removed);
+      onCommitMulti([...vals]);
     },
-    [selected, onSelect],
+    [onCommitMulti],
   );
 
   const commonProps = {
-    ...COMMON_PROPS,
+    ...COMMON,
     autoFocus: true,
     openMenuOnFocus: true,
     menuIsOpen: true,
     isSearchable: searchable ?? (!!loadOptions || options.length > 6),
     placeholder: "Select…",
-    styles,
-    defaultOptions: options,
+    isClearable,
+    defaultOptions: loadOptions ? true : options,
+    cacheOptions: !!loadOptions,
     onMenuClose: onClose,
   };
 
@@ -374,21 +473,25 @@ export function SelectOverlay({
     <div style={{ padding: "0 2px", width: "100%" }}>{children}</div>
   );
 
+  // ── Single (non-multi) mode
   if (!multi) {
     return wrap(
       <ReactSelect<SelectOption, false>
-        {...COMMON_PROPS}
+        {...COMMON}
         autoFocus
         openMenuOnFocus
         menuIsOpen
+        isClearable={isClearable}
         isSearchable={searchable ?? options.length > 6}
         placeholder="Select…"
-        styles={makeSelectStyles<false>()}
         value={selectedOptions[0] ?? null}
         options={options}
         onChange={(opt: SingleValue<SelectOption>) => {
           if (opt) {
-            onSelect(opt.value);
+            onCommitMulti([opt]);
+            onClose();
+          } else {
+            onCommitMulti([]);
             onClose();
           }
         }}
@@ -397,34 +500,38 @@ export function SelectOverlay({
     );
   }
 
+  // ── Async + Creatable
   if (loadOptions && onCreateOption) {
     return wrap(
       <AsyncCreatableSelect<SelectOption, true>
         {...commonProps}
         isMulti
         value={selectedOptions}
-        loadOptions={loadOptions}
+        loadOptions={cachedLoadOptions(loadOptions)}
         onChange={handleMultiChange}
         onCreateOption={async (input) => {
           const created = await onCreateOption(input);
-          onSelect(created.value);
+          invalidateLoadOptionsCache(loadOptions);
+          onCommitMulti([...selectedOptions, created]);
         }}
       />,
     );
   }
 
+  // ── Async only
   if (loadOptions) {
     return wrap(
       <AsyncSelect<SelectOption, true>
         {...commonProps}
         isMulti
         value={selectedOptions}
-        loadOptions={loadOptions}
+        loadOptions={cachedLoadOptions(loadOptions)}
         onChange={handleMultiChange}
       />,
     );
   }
 
+  // ── Creatable (static options)
   if (onCreateOption) {
     return wrap(
       <CreatableSelect<SelectOption, true>
@@ -435,12 +542,13 @@ export function SelectOverlay({
         onChange={handleMultiChange}
         onCreateOption={async (input) => {
           const created = await onCreateOption(input);
-          onSelect(created.value);
+          onCommitMulti([...selectedOptions, created]);
         }}
       />,
     );
   }
 
+  // ── Static only (default)
   return wrap(
     <ReactSelect<SelectOption, true>
       {...commonProps}
