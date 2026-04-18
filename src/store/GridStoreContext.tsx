@@ -4,7 +4,6 @@ import {
   useRef,
   useMemo,
   type ReactNode,
-  useEffect,
 } from "react";
 import { useStore } from "zustand";
 import {
@@ -17,16 +16,15 @@ import {
   loadPersistedState,
   useGridPersistence,
 } from "../hooks/useGridPersistence";
-import { enableMapSet } from "immer";
+
 // ── Context
 const GridStoreContext = createContext<GridStoreInstance | null>(null);
 
-// ── Provider — wraps each PMGrid instance
+// ── Provider — wraps each Reaktiform instance
 type GridStoreProviderProps = {
   children: ReactNode;
   initialState?: Partial<GridState>;
-  // storageKey — if provided, user preferences persist across page refreshes
-  storageKey?: string | undefined;
+  storageKey?: string;
 };
 
 export function GridStoreProvider({
@@ -38,19 +36,11 @@ export function GridStoreProvider({
 
   if (!storeRef.current) {
     storeRef.current = createGridStore(initialState);
-
-    // Load persisted state SYNCHRONOUSLY before first render
-    // so columns/filters/CF rules are applied immediately — no flash
     if (storageKey) {
       loadPersistedState(storageKey, storeRef.current);
     }
   }
-  useEffect(() => {
-    enableMapSet();
-  }, []);
 
-  // Subscribe to store changes and persist to localStorage
-  // This hook is a no-op if storageKey is undefined
   useGridPersistence(storageKey, storeRef.current);
 
   return (
@@ -60,21 +50,33 @@ export function GridStoreProvider({
   );
 }
 
-// ── Hook — access store inside any child component
+// ── Hook — subscribe to store with a selector
 export function useGridStore<T>(selector: (state: GridStore) => T): T {
   const store = useContext(GridStoreContext);
   if (!store) {
     throw new Error(
       "useGridStore must be used inside <GridStoreProvider>. " +
-        "Make sure your component is wrapped in <PMGrid>.",
+        "Make sure your component is wrapped in <Reaktiform>.",
     );
   }
   return useStore(store, selector);
 }
 
-// ── Hook — access store actions with stable memoized reference
+// ── Hook — access the raw store instance (for getState() in effects)
+export function useGridStoreInstance(): GridStoreInstance {
+  const store = useContext(GridStoreContext);
+  if (!store) {
+    throw new Error(
+      "useGridStoreInstance must be used inside <GridStoreProvider>.",
+    );
+  }
+  return store;
+}
+
+// ── Hook — access store actions with stable memoized references
 export function useGridActions() {
   const setRows = useGridStore((s) => s.setRows);
+  const mergeRows = useGridStore((s) => s.mergeRows);
   const addRowToStore = useGridStore((s) => s.addRowToStore);
   const removeRowFromStore = useGridStore((s) => s.removeRowFromStore);
   const updateRowInStore = useGridStore((s) => s.updateRowInStore);
@@ -84,6 +86,7 @@ export function useGridActions() {
   const showAllColumns = useGridStore((s) => s.showAllColumns);
   const setColumnOrder = useGridStore((s) => s.setColumnOrder);
   const setSort = useGridStore((s) => s.setSort);
+  const setSortMulti = useGridStore((s) => s.setSortMulti);
   const clearSort = useGridStore((s) => s.clearSort);
   const setFilter = useGridStore((s) => s.setFilter);
   const clearFilter = useGridStore((s) => s.clearFilter);
@@ -117,6 +120,7 @@ export function useGridActions() {
   return useMemo(
     () => ({
       setRows,
+      mergeRows,
       addRowToStore,
       removeRowFromStore,
       updateRowInStore,
@@ -126,6 +130,7 @@ export function useGridActions() {
       showAllColumns,
       setColumnOrder,
       setSort,
+      setSortMulti,
       clearSort,
       setFilter,
       clearFilter,
@@ -158,6 +163,7 @@ export function useGridActions() {
     }),
     [
       setRows,
+      mergeRows,
       addRowToStore,
       removeRowFromStore,
       updateRowInStore,
@@ -167,6 +173,7 @@ export function useGridActions() {
       showAllColumns,
       setColumnOrder,
       setSort,
+      setSortMulti,
       clearSort,
       setFilter,
       clearFilter,

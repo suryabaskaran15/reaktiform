@@ -1,5 +1,11 @@
-export type { SelectOption, ColumnDef, ColumnType } from "./column";
-export type { Row, RowMeta, RowState, RowComment, RowAttachment } from "./row";
+export type { SelectOption, ColumnDef, ColumnType, AggregationMode } from './column'
+export type {
+  Row,
+  RowMeta,
+  RowState,
+  RowComment,
+  RowAttachment,
+} from './row'
 export type {
   FilterValue,
   TextFilterValue,
@@ -12,15 +18,17 @@ export type {
   CFConditionOperator,
   CFRule,
   CFResult,
-} from "./filter";
+} from './filter'
 export type {
   GridConfig,
   GridFeatures,
   GridLabels,
+  GridPermissions,
+  PanelTab,
   SortState,
+  SortChangeParams,
   SortingMode,
-  AggregationMode,
   FetchMoreParams,
   FetchParams,
-  SortChangeParams,
-} from "./config";
+  UseReaktiformReturn,
+} from './config'

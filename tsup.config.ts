@@ -1,8 +1,9 @@
 import { defineConfig } from "tsup";
-import { execSync } from "child_process";
-import { mkdirSync } from "fs";
-import { resolve } from "path";
+import { copyFileSync, mkdirSync, writeFileSync } from "fs";
 
+// ── All peer / heavy runtime deps are external.
+// Consumers install these via their own package.json.
+// This prevents duplicate instances (two React, two Zustand, etc.)
 const EXTERNAL = [
   "react",
   "react-dom",
@@ -25,41 +26,52 @@ const EXTERNAL = [
 ];
 
 export default defineConfig([
-  // ── Main bundle
+  // ─────────────────────────────────────────────────────────────
+  // BUNDLE 1 — Full UI
+  // import { Reaktiform } from 'reaktiform'
+  // import 'reaktiform/styles'
+  // ─────────────────────────────────────────────────────────────
   {
     entry: { index: "src/index.ts" },
     format: ["esm", "cjs"],
+    outExtension: ({ format }) => ({ js: format === "esm" ? ".mjs" : ".js" }),
     dts: true,
-    splitting: true,
+    splitting: true, // code-split shared chunks (avoids duplicating cell code)
     sourcemap: true,
     clean: true,
     treeshake: true,
-    minify: false,
+    minify: false, // consumers' bundlers will minify
     external: EXTERNAL,
-    esbuildOptions(options) {
-      options.banner = { js: '"use client"' };
+    esbuildOptions(opts) {
+      opts.banner = { js: '"use client"' };
     },
     async onSuccess() {
       mkdirSync("dist", { recursive: true });
+      copyFileSync("src/styles/reaktiform.css", "dist/reaktiform.css");
 
-      // Build the complete self-contained CSS:
-      // Tailwind scans all .tsx source files and generates ONLY the
-      // utility classes actually used — plus our CSS variable tokens.
-      // Output: dist/reaktiform.css
-      // Consumers: import 'reaktiform/styles'  — no Tailwind config needed.
-      console.log("📦 Building CSS...");
-      execSync(
-        "npx @tailwindcss/cli -i src/styles/build-entry.css -o dist/reaktiform.css --minify",
-        { stdio: "inherit" },
+      // Copy pre-made CSS type declaration stubs into dist/.
+      // These stubs are also committed in dist-types/ so TypeScript can
+      // find them immediately after install, before any build step runs.
+      copyFileSync(
+        "dist-types/reaktiform.css.d.ts",
+        "dist/reaktiform.css.d.ts",
       );
-      console.log("✅ Main bundle + CSS built");
+      copyFileSync("dist-types/cells.css.d.ts", "dist/cells.css.d.ts");
+
+      console.log("✅ Full UI      → dist/index.{mjs,js,d.ts}");
+      console.log("✅ CSS          → dist/reaktiform.css");
+      console.log("✅ CSS types    → dist/reaktiform.css.d.ts");
     },
   },
 
-  // ── Headless bundle
+  // ─────────────────────────────────────────────────────────────
+  // BUNDLE 2 — Headless (hooks + logic, ZERO UI, ZERO CSS)
+  // import { useReaktiform } from 'reaktiform/headless'
+  // ─────────────────────────────────────────────────────────────
   {
     entry: { headless: "src/headless.ts" },
     format: ["esm", "cjs"],
+    outExtension: ({ format }) => ({ js: format === "esm" ? ".mjs" : ".js" }),
     dts: true,
     splitting: false,
     sourcemap: true,
@@ -67,7 +79,73 @@ export default defineConfig([
     minify: false,
     external: EXTERNAL,
     async onSuccess() {
-      console.log("✅ Headless bundle built");
+      console.log("✅ Headless     → dist/headless.{mjs,js,d.ts}");
+    },
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // BUNDLE 3 — Cell components (standalone inputs + display cells)
+  // import { TextCellEdit, NumberCellEdit } from 'reaktiform/cells'
+  // import 'reaktiform/styles'   (uses same CSS vars)
+  // ─────────────────────────────────────────────────────────────
+  {
+    entry: { cells: "src/cells.ts" },
+    format: ["esm", "cjs"],
+    outExtension: ({ format }) => ({ js: format === "esm" ? ".mjs" : ".js" }),
+    dts: true,
+    splitting: true,
+    sourcemap: true,
+    treeshake: true,
+    minify: false,
+    external: EXTERNAL,
+    esbuildOptions(opts) {
+      opts.banner = { js: '"use client"' };
+    },
+    async onSuccess() {
+      console.log("✅ Cells        → dist/cells.{mjs,js,d.ts}");
+    },
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // BUNDLE 4 — Primitives (Badge, ProgressBar)
+  // import { Badge, ProgressBar } from 'reaktiform/primitives'
+  // ─────────────────────────────────────────────────────────────
+  {
+    entry: { primitives: "src/primitives.ts" },
+    format: ["esm", "cjs"],
+    outExtension: ({ format }) => ({ js: format === "esm" ? ".mjs" : ".js" }),
+    dts: true,
+    splitting: false,
+    sourcemap: true,
+    treeshake: true,
+    minify: false,
+    external: EXTERNAL,
+    esbuildOptions(opts) {
+      opts.banner = { js: '"use client"' };
+    },
+    async onSuccess() {
+      console.log("✅ Primitives   → dist/primitives.{mjs,js,d.ts}");
+    },
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // BUNDLE 5 — Utils (formatters, validators, helpers — zero React)
+  // import { formatDate, formatCurrency } from 'reaktiform/utils'
+  // ─────────────────────────────────────────────────────────────
+  {
+    entry: { utils: "src/utils-entry.ts" },
+    format: ["esm", "cjs"],
+    outExtension: ({ format }) => ({ js: format === "esm" ? ".mjs" : ".js" }),
+    dts: true,
+    splitting: false,
+    sourcemap: true,
+    treeshake: true,
+    minify: false,
+    // No react/react-dom needed — utils are pure functions
+    external: ["zod", "clsx", "tailwind-merge"],
+    async onSuccess() {
+      console.log("✅ Utils        → dist/utils.{mjs,js,d.ts}");
+      console.log("\n🎉 Build complete!");
     },
   },
 ]);

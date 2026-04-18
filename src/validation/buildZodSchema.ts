@@ -15,6 +15,10 @@ export function buildZodSchema<TData = Record<string, unknown>>(
   const shape: z.ZodRawShape = {};
 
   for (const col of columns) {
+    // ── Computed columns are formula-driven — never user-editable,
+    // never validated by Zod. Their values are auto-calculated.
+    if (col.computed) continue;
+
     let fieldSchema: z.ZodTypeAny;
 
     switch (col.type) {
@@ -67,7 +71,28 @@ export function buildZodSchema<TData = Record<string, unknown>>(
 
       // ── Select ────────────────────────────────────────────
       case "select": {
-        if (col.options && col.options.length > 0) {
+        // Async select (loadOptions) — value is { id, name } object, not a string.
+        // z.unknown() + superRefine avoids "Expected string, received object" error.
+        if (col.loadOptions) {
+          // Async select value is { value: string, label: string } — a SelectOption object.
+          // z.unknown() + superRefine: accepts both plain strings and SelectOption objects,
+          // validates required by checking the .value property (the id).
+          fieldSchema = z.unknown().superRefine((val, ctx) => {
+            if (!col.required) return;
+            const isEmpty =
+              val == null ||
+              val === "" ||
+              // { value, label } object — check .value (the id field)
+              (typeof val === "object" &&
+                !(val as Record<string, unknown>).value);
+            if (isEmpty) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `${col.label} is required`,
+              });
+            }
+          });
+        } else if (col.options && col.options.length > 0) {
           const values = col.options.map((o) => o.value) as [
             string,
             ...string[],
@@ -79,7 +104,7 @@ export function buildZodSchema<TData = Record<string, unknown>>(
           });
           fieldSchema = col.required ? s : s.optional();
         } else {
-          // No options defined — fallback to string
+          // No options, no loadOptions — plain string fallback
           fieldSchema = col.required
             ? z.string().min(1, { message: `${col.label} is required` })
             : z.string().optional();
@@ -89,15 +114,26 @@ export function buildZodSchema<TData = Record<string, unknown>>(
 
       // ── Multiselect ───────────────────────────────────────
       case "multiselect": {
-        let s = z.array(z.string());
-
-        if (col.required) {
-          s = s.min(1, {
-            message: `${col.label} requires at least one selection`,
+        if (col.loadOptions) {
+          // Async multiselect: stored as SelectOption[] ({ value, label }[]).
+          // z.array(z.unknown()) accepts both SelectOption[] and string[].
+          fieldSchema = z.array(z.unknown()).superRefine((arr, ctx) => {
+            if (col.required && arr.length === 0) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `${col.label} requires at least one selection`,
+              });
+            }
           });
+        } else {
+          let s = z.array(z.string());
+          if (col.required) {
+            s = s.min(1, {
+              message: `${col.label} requires at least one selection`,
+            });
+          }
+          fieldSchema = col.required ? s : s.optional();
         }
-
-        fieldSchema = col.required ? s : s.optional();
         break;
       }
 
@@ -144,6 +180,85 @@ export function buildZodSchema<TData = Record<string, unknown>>(
         });
 
         fieldSchema = col.required ? s : s.optional();
+        break;
+      }
+
+      // ── Email ─────────────────────────────────────────────
+      case "email": {
+        const s = z
+          .string()
+          .email({ message: `${col.label} must be a valid email address` });
+        fieldSchema = col.required
+          ? s.min(1, { message: `${col.label} is required` })
+          : s.optional();
+        break;
+      }
+
+      // ── URL ───────────────────────────────────────────────
+      case "url": {
+        const s = z
+          .string()
+          .url({ message: `${col.label} must be a valid URL` });
+        fieldSchema = col.required
+          ? s.min(1, { message: `${col.label} is required` })
+          : s.optional();
+        break;
+      }
+
+      // ── Currency — numeric, same as number
+      case "currency": {
+        let s = z.number({
+          invalid_type_error: `${col.label} must be a number`,
+        });
+        if (col.min !== undefined)
+          s = s.min(col.min, {
+            message: `${col.label} must be at least ${col.min}`,
+          });
+        if (col.max !== undefined)
+          s = s.max(col.max, {
+            message: `${col.label} must be at most ${col.max}`,
+          });
+        fieldSchema = col.required ? s : s.optional();
+        break;
+      }
+
+      // ── Percentage — numeric 0–100
+      case "percentage": {
+        let s = z
+          .number({ invalid_type_error: `${col.label} must be a number` })
+          .min(col.min ?? 0, {
+            message: `${col.label} must be at least ${col.min ?? 0}`,
+          })
+          .max(col.max ?? 100, {
+            message: `${col.label} must be at most ${col.max ?? 100}`,
+          });
+        fieldSchema = col.required ? s : s.optional();
+        break;
+      }
+
+      // ── Rating — integer 0–N
+      case "rating": {
+        const max = col.ratingMax ?? 5;
+        const s = z
+          .number({ invalid_type_error: `${col.label} must be a number` })
+          .int({ message: `${col.label} must be a whole number` })
+          .min(0, { message: `${col.label} must be at least 0` })
+          .max(max, { message: `${col.label} must be at most ${max}` });
+        fieldSchema = col.required
+          ? s.min(1, { message: `${col.label} is required` })
+          : s.optional();
+        break;
+      }
+
+      // ── Badge — read-only enum, no validation needed
+      case "badge": {
+        fieldSchema = z.unknown();
+        break;
+      }
+
+      // ── Progress — read-only 0–100, no validation needed
+      case "progress": {
+        fieldSchema = z.unknown();
         break;
       }
 
@@ -222,7 +337,8 @@ export function validateRow<TData = Record<string, unknown>>(
 ): Record<string, string> {
   // Step 1 — Use provided schema or build one
   const zodSchema = schema ?? buildZodSchema(columns);
-  const result = zodSchema.parse(rowData);
+  const result = zodSchema.safeParse(rowData); // ← was missing
+
   const errors: Record<string, string> = {};
 
   if (!result.success) {
@@ -239,6 +355,7 @@ export function validateRow<TData = Record<string, unknown>>(
   // Runs even if Zod already has an error for that field, so custom
   // errors can override built-in ones (last write wins).
   for (const col of columns) {
+    if (col.computed) continue; // computed columns are never user-editable
     if (!col.validate) continue;
     const key = col.key as string;
     const fieldValue = rowData[key];

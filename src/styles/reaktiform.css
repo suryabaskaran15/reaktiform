@@ -1,61 +1,67 @@
 /*
- * reaktiform — Tailwind + CSS Design Tokens
- * This file includes Tailwind's directives so utilities are generated
- * during development/build. Consumers bundling this package should
- * ensure Tailwind is configured (see `tailwind.config.ts` preset).
+ * reaktiform — Self-contained stylesheet
+ * ─────────────────────────────────────────────────────────────
+ * ISOLATION STRATEGY:
  *
- * Import this in your app: import 'reaktiform/styles'
+ * 1. CSS custom properties (--rf-*) are scoped to [data-reaktiform]
+ *    so they never pollute the consumer's :root.
+ *    Dark mode: add class="dark" on [data-reaktiform] or any ancestor.
  *
- * Override any variable in your own CSS to customise:
- *   :root { --rf-accent: #your-brand-color; }
+ * 2. All utility classes (.flex, .hidden etc.) are scoped to
+ *    [data-reaktiform] descendants — they cannot affect consumer UI.
+ *
+ * 3. Consumer styles cannot reach inside [data-reaktiform] via
+ *    generic selectors — full two-way isolation.
+ *
+ * Usage:
+ *   import 'reaktiform/styles'
+ *   // No configuration needed
  */
 
-@tailwind utilities;
-
-:root {
-  /* ── Backgrounds */
+/* ─────────────────────────────────────────────────────────────
+   DESIGN TOKENS — scoped to [data-reaktiform]
+   Does NOT touch :root — zero conflict with consumer variables
+   ───────────────────────────────────────────────────────────── */
+[data-reaktiform] {
+  /* Backgrounds */
   --rf-bg: #f4f6fa;
   --rf-surface: #ffffff;
   --rf-header: #f1f3f9;
   --rf-header-sorted: #e8edfb;
 
-  /* ── Borders */
+  /* Borders */
   --rf-border: #e2e5ed;
   --rf-border-strong: #c5cad6;
 
-  /* ── Text */
+  /* Text */
   --rf-text-1: #0f172a;
   --rf-text-2: #475569;
   --rf-text-3: #94a3b8;
 
-  /* ── Accent (primary brand color) */
+  /* Accent */
   --rf-accent: #3b5bdb;
   --rf-accent-hover: #2f4ac4;
   --rf-accent-bg: #eef2ff;
   --rf-accent-br: #c7d2fe;
 
-  /* ── Semantic colors */
+  /* Status */
   --rf-ok: #16a34a;
   --rf-ok-bg: #f0fdf4;
   --rf-ok-br: #bbf7d0;
-
   --rf-warn: #d97706;
   --rf-warn-bg: #fffbeb;
   --rf-warn-br: #fde68a;
-
   --rf-err: #dc2626;
   --rf-err-bg: #fff1f2;
   --rf-err-br: #fecdd3;
-
   --rf-purple: #7c3aed;
   --rf-purple-bg: #f5f3ff;
   --rf-purple-br: #ddd6fe;
-
   --rf-amber: #b45309;
   --rf-amber-bg: #fffbeb;
   --rf-amber-br: #fde68a;
 
-  /* ── Row states */
+  /* Row states */
   --rf-row-hover: #f8faff;
   --rf-row-selected: #eef2ff;
   --rf-row-dirty: #fffdf0;
@@ -63,125 +69,1825 @@
   --rf-row-error-border: #dc2626;
   --rf-cell-focus: #3b5bdb;
 
-  /* ── Pin shadow */
-  --rf-pin-shadow: 4px 0 10px rgba(15, 23, 42, 0.08);
-
-  /* ── Shadows */
+  /* Shadows */
   --rf-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
   --rf-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.05);
   --rf-shadow-lg:
     0 16px 48px rgba(0, 0, 0, 0.14), 0 4px 8px rgba(0, 0, 0, 0.06);
 
-  /* ── Typography */
+  /* Typography */
   --rf-font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --rf-font-mono: "JetBrains Mono", "Fira Code", monospace;
 
-  /* ── Border radius */
+  /* Radius */
   --rf-radius-xs: 4px;
   --rf-radius-sm: 6px;
   --rf-radius-md: 8px;
   --rf-radius-lg: 12px;
   --rf-radius-xl: 16px;
 
-  /* ── Sizing */
+  /* Sizing */
   --rf-row-height: 46px;
-  --rf-header-height: 64px;
-  --rf-agg-row-height: 32px;
   --rf-panel-width: 440px;
-}
 
-/* Apply design tokens as sensible page defaults so colors appear
- * even if some utility classes are missing during development. */
-body {
-  background: var(--rf-bg);
-  color: var(--rf-text-1);
+  /* Base reset — only inside reaktiform, never leaks out */
+  box-sizing: border-box;
   font-family: var(--rf-font-sans);
+  color: var(--rf-text-1);
+  line-height: 1.5;
 }
 
-/* ── Dark mode overrides */
-.dark {
+/* Dark mode — add .dark class on [data-reaktiform] or any ancestor */
+.dark [data-reaktiform],
+[data-reaktiform].dark {
   --rf-bg: #0f172a;
   --rf-surface: #1e293b;
   --rf-header: #1a2744;
   --rf-header-sorted: #1e2f5a;
-
   --rf-border: #334155;
   --rf-border-strong: #475569;
-
   --rf-text-1: #f1f5f9;
   --rf-text-2: #94a3b8;
   --rf-text-3: #64748b;
-
   --rf-accent: #6b8ef0;
   --rf-accent-hover: #8aa3f5;
   --rf-accent-bg: #1e2a4a;
   --rf-accent-br: #2d3f6e;
-
   --rf-ok: #4ade80;
   --rf-ok-bg: #052e16;
   --rf-ok-br: #166534;
-
   --rf-warn: #fcd34d;
   --rf-warn-bg: #1c1400;
   --rf-warn-br: #713f12;
-
   --rf-err: #f87171;
   --rf-err-bg: #2d0b0b;
   --rf-err-br: #7f1d1d;
-
   --rf-row-hover: #1a2744;
   --rf-row-selected: #1e2a4a;
   --rf-row-dirty: #1c1400;
 }
 
-/* Map CSS variables → Tailwind utility classes */
-@theme {
-  /* Colors */
-  --color-rf-bg: var(--rf-bg);
-  --color-rf-surface: var(--rf-surface);
-  --color-rf-header: var(--rf-header);
-  --color-rf-border: var(--rf-border);
-  --color-rf-border-strong: var(--rf-border-strong);
-  --color-rf-text-1: var(--rf-text-1);
-  --color-rf-text-2: var(--rf-text-2);
-  --color-rf-text-3: var(--rf-text-3);
-  --color-rf-accent: var(--rf-accent);
-  --color-rf-accent-hover: var(--rf-accent-hover);
-  --color-rf-accent-bg: var(--rf-accent-bg);
-  --color-rf-accent-br: var(--rf-accent-br);
-  --color-rf-ok: var(--rf-ok);
-  --color-rf-ok-bg: var(--rf-ok-bg);
-  --color-rf-ok-br: var(--rf-ok-br);
-  --color-rf-warn: var(--rf-warn);
-  --color-rf-warn-bg: var(--rf-warn-bg);
-  --color-rf-warn-br: var(--rf-warn-br);
-  --color-rf-err: var(--rf-err);
-  --color-rf-err-bg: var(--rf-err-bg);
-  --color-rf-err-br: var(--rf-err-br);
-  --color-rf-purple: var(--rf-purple);
-  --color-rf-purple-bg: var(--rf-purple-bg);
-  --color-rf-purple-br: var(--rf-purple-br);
-  --color-rf-amber: var(--rf-amber);
-  --color-rf-amber-bg: var(--rf-amber-bg);
-  --color-rf-amber-br: var(--rf-amber-br);
-  --color-rf-row-hover: var(--rf-row-hover);
-  --color-rf-row-selected: var(--rf-row-selected);
-  --color-rf-row-dirty: var(--rf-row-dirty);
-  --color-rf-row-dirty-border: var(--rf-row-dirty-b);
+/* ─────────────────────────────────────────────────────────────
+   BASE ELEMENT RESETS — scoped to [data-reaktiform]
+   Consumer apps often use Tailwind preflight, Bootstrap normalize,
+   or custom resets that destroy button/input/table/select styles.
+   These rules re-establish safe defaults ONLY inside reaktiform.
+   ───────────────────────────────────────────────────────────── */
 
-  /* Border radius */
-  --radius-rf-xs: var(--rf-radius-xs);
-  --radius-rf-sm: var(--rf-radius-sm);
-  --radius-rf-md: var(--rf-radius-md);
-  --radius-rf-lg: var(--rf-radius-lg);
-  --radius-rf-xl: var(--rf-radius-xl);
+/* Buttons — remove browser/framework styling */
+[data-reaktiform] button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+[data-reaktiform] button:disabled {
+  cursor: not-allowed;
+}
+[data-reaktiform] button:focus-visible {
+  outline: 2px solid var(--rf-accent);
+  outline-offset: 2px;
+}
 
-  /* Shadows */
-  --shadow-rf-sm: var(--rf-shadow-sm);
-  --shadow-rf-md: var(--rf-shadow-md);
-  --shadow-rf-lg: var(--rf-shadow-lg);
+/* Inputs — remove browser/framework styling */
+[data-reaktiform] input,
+[data-reaktiform] textarea,
+[data-reaktiform] select {
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  margin: 0;
+  padding: 0;
+  line-height: inherit;
+}
 
-  /* Fonts */
-  --font-rf-sans: var(--rf-font-sans);
-  --font-rf-mono: var(--rf-font-mono);
+/* Checkbox — keep browser default appearance */
+[data-reaktiform] input[type="checkbox"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--rf-accent);
+  flex-shrink: 0;
+}
+
+/* Labels */
+[data-reaktiform] label {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Tables */
+[data-reaktiform] table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+[data-reaktiform] th,
+[data-reaktiform] td {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  vertical-align: middle;
+  font-weight: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+[data-reaktiform] th {
+  font-weight: 500;
+}
+
+/* SVG icons — prevent inherited color issues */
+[data-reaktiform] svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Anchor tags */
+[data-reaktiform] a {
+  color: var(--rf-accent);
+  text-decoration: none;
+}
+
+/* Lists */
+[data-reaktiform] ul,
+[data-reaktiform] ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* hr */
+[data-reaktiform] hr {
+  border: none;
+  border-top: 1px solid var(--rf-border);
+  margin: 0;
+}
+
+/* ── Form field utility classes — used by ReaktiformPanel inputs ── */
+/* These re-apply styling that consumer resets strip from form elements */
+[data-reaktiform] .rf-input {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  font-family: var(--rf-font-sans);
+  color: var(--rf-text-1);
+  background-color: var(--rf-bg);
+  border: 1.5px solid var(--rf-border);
+  border-radius: var(--rf-radius-md);
+  outline: none;
+  box-sizing: border-box;
+  line-height: 1.5;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+[data-reaktiform] .rf-input:focus {
+  border-color: var(--rf-accent);
+  box-shadow: 0 0 0 3px rgba(59, 91, 219, 0.1);
+}
+[data-reaktiform] .rf-input.rf-input-error {
+  border-color: var(--rf-err);
+  background-color: var(--rf-err-bg);
+}
+[data-reaktiform] .rf-input.rf-input-error:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+Generic names like .flex and .hidden ONLY apply inside
+   a reaktiform component. They cannot affect consumer UI.
+   ───────────────────────────────────────────────────────────── */
+
+/* Scope prefix for brevity */
+[data-reaktiform] *,
+[data-reaktiform] *::before,
+[data-reaktiform] *::after {
+  box-sizing: border-box;
+}
+
+/* ── Backgrounds ── */
+[data-reaktiform] .bg-rf-bg {
+  background-color: var(--rf-bg);
+}
+[data-reaktiform] .bg-rf-surface {
+  background-color: var(--rf-surface);
+}
+[data-reaktiform] .bg-rf-header {
+  background-color: var(--rf-header);
+}
+[data-reaktiform] .bg-rf-header-sorted {
+  background-color: var(--rf-header-sorted);
+}
+[data-reaktiform] .bg-rf-accent {
+  background-color: var(--rf-accent);
+}
+[data-reaktiform] .bg-rf-accent-bg {
+  background-color: var(--rf-accent-bg);
+}
+[data-reaktiform] .bg-rf-ok {
+  background-color: var(--rf-ok);
+}
+[data-reaktiform] .bg-rf-ok-bg {
+  background-color: var(--rf-ok-bg);
+}
+[data-reaktiform] .bg-rf-warn {
+  background-color: var(--rf-warn);
+}
+[data-reaktiform] .bg-rf-warn-bg {
+  background-color: var(--rf-warn-bg);
+}
+[data-reaktiform] .bg-rf-err {
+  background-color: var(--rf-err);
+}
+[data-reaktiform] .bg-rf-err-bg {
+  background-color: var(--rf-err-bg);
+}
+[data-reaktiform] .bg-rf-amber-bg {
+  background-color: var(--rf-amber-bg);
+}
+[data-reaktiform] .bg-rf-purple-bg {
+  background-color: var(--rf-purple-bg);
+}
+[data-reaktiform] .bg-rf-row-hover {
+  background-color: var(--rf-row-hover);
+}
+[data-reaktiform] .bg-rf-border {
+  background-color: var(--rf-border);
+}
+[data-reaktiform] .bg-rf-border-strong {
+  background-color: var(--rf-border-strong);
+}
+[data-reaktiform] .bg-white {
+  background-color: #ffffff;
+}
+[data-reaktiform] .bg-transparent {
+  background-color: transparent;
+}
+[data-reaktiform] .bg-\[\#0F172A\] {
+  background-color: #0f172a;
+}
+[data-reaktiform] .bg-\[\#1E293B\] {
+  background-color: #1e293b;
+}
+[data-reaktiform] .bg-black\/\[\.015\] {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+[data-reaktiform] .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+[data-reaktiform] .bg-white\/15 {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+[data-reaktiform] .bg-white\/20 {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+[data-reaktiform] .bg-green-50 {
+  background-color: #f0fdf4;
+}
+[data-reaktiform] .bg-green-100 {
+  background-color: #dcfce7;
+}
+[data-reaktiform] .bg-amber-50 {
+  background-color: #fffbeb;
+}
+[data-reaktiform] .bg-amber-100 {
+  background-color: #fef3c7;
+}
+
+/* hover backgrounds */
+[data-reaktiform] .hover\:bg-rf-surface:hover {
+  background-color: var(--rf-surface);
+}
+[data-reaktiform] .hover\:bg-rf-header:hover {
+  background-color: var(--rf-header);
+}
+[data-reaktiform] .hover\:bg-rf-accent-bg:hover {
+  background-color: var(--rf-accent-bg);
+}
+[data-reaktiform] .hover\:bg-rf-accent-hover:hover {
+  background-color: var(--rf-accent-hover);
+}
+[data-reaktiform] .hover\:bg-rf-err-bg:hover {
+  background-color: var(--rf-err-bg);
+}
+[data-reaktiform] .hover\:bg-rf-row-hover:hover {
+  background-color: var(--rf-row-hover);
+}
+[data-reaktiform] .hover\:bg-white\/20:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+[data-reaktiform] .hover\:bg-green-100:hover {
+  background-color: #dcfce7;
+}
+[data-reaktiform] .hover\:bg-yellow-100:hover {
+  background-color: #fef9c3;
+}
+
+/* group-hover backgrounds */
+[data-reaktiform] .group\/resize:hover .group-hover\/resize\:bg-rf-accent {
+  background-color: var(--rf-accent);
+}
+
+/* ── Text colors ── */
+[data-reaktiform] .text-rf-text-1 {
+  color: var(--rf-text-1);
+}
+[data-reaktiform] .text-rf-text-2 {
+  color: var(--rf-text-2);
+}
+[data-reaktiform] .text-rf-text-3 {
+  color: var(--rf-text-3);
+}
+[data-reaktiform] .text-rf-accent {
+  color: var(--rf-accent);
+}
+[data-reaktiform] .text-rf-err {
+  color: var(--rf-err);
+}
+[data-reaktiform] .text-rf-amber {
+  color: var(--rf-amber);
+}
+[data-reaktiform] .text-rf-purple {
+  color: var(--rf-purple);
+}
+[data-reaktiform] .text-rf-ok {
+  color: var(--rf-ok);
+}
+[data-reaktiform] .text-rf-warn {
+  color: var(--rf-warn);
+}
+[data-reaktiform] .text-white {
+  color: #ffffff;
+}
+[data-reaktiform] .text-\[\#F1F5F9\] {
+  color: #f1f5f9;
+}
+[data-reaktiform] .text-\[\#F8FAFC\] {
+  color: #f8fafc;
+}
+[data-reaktiform] .text-green-700 {
+  color: #15803d;
+}
+[data-reaktiform] .text-amber-700 {
+  color: #b45309;
+}
+[data-reaktiform] .text-amber-800 {
+  color: #92400e;
+}
+[data-reaktiform] .text-purple-700 {
+  color: #7e22ce;
+}
+[data-reaktiform] .text-red-800 {
+  color: #991b1b;
+}
+
+/* hover text */
+[data-reaktiform] .hover\:text-rf-text-1:hover {
+  color: var(--rf-text-1);
+}
+[data-reaktiform] .hover\:text-rf-accent:hover {
+  color: var(--rf-accent);
+}
+[data-reaktiform] .hover\:text-rf-err:hover {
+  color: var(--rf-err);
+}
+
+/* ── Borders ── */
+[data-reaktiform] .border-rf-border {
+  border-color: var(--rf-border);
+}
+[data-reaktiform] .border-rf-accent {
+  border-color: var(--rf-accent);
+}
+[data-reaktiform] .border-rf-accent-br {
+  border-color: var(--rf-accent-br);
+}
+[data-reaktiform] .border-rf-ok-br {
+  border-color: var(--rf-ok-br);
+}
+[data-reaktiform] .border-rf-warn-br {
+  border-color: var(--rf-warn-br);
+}
+[data-reaktiform] .border-rf-err-br {
+  border-color: var(--rf-err-br);
+}
+[data-reaktiform] .border-rf-amber-br {
+  border-color: var(--rf-amber-br);
+}
+[data-reaktiform] .border-rf-purple-br {
+  border-color: var(--rf-purple-br);
+}
+[data-reaktiform] .border-transparent {
+  border-color: transparent;
+}
+[data-reaktiform] .border-amber-200 {
+  border-color: #fde68a;
+}
+[data-reaktiform] .hover\:border-rf-accent:hover {
+  border-color: var(--rf-accent);
+}
+[data-reaktiform] .hover\:border-rf-accent-br:hover {
+  border-color: var(--rf-accent-br);
+}
+[data-reaktiform] .hover\:border-rf-err-br:hover {
+  border-color: var(--rf-err-br);
+}
+
+/* ── Border radius ── */
+[data-reaktiform] .rounded-rf-md {
+  border-radius: var(--rf-radius-md);
+}
+[data-reaktiform] .rounded-rf-lg {
+  border-radius: var(--rf-radius-lg);
+}
+[data-reaktiform] .rounded-rf-xl {
+  border-radius: var(--rf-radius-xl);
+}
+[data-reaktiform] .rounded-t-rf-lg {
+  border-top-left-radius: var(--rf-radius-lg);
+  border-top-right-radius: var(--rf-radius-lg);
+}
+[data-reaktiform] .rounded-b-rf-lg {
+  border-bottom-left-radius: var(--rf-radius-lg);
+  border-bottom-right-radius: var(--rf-radius-lg);
+}
+[data-reaktiform] .rounded-l-rf-md {
+  border-top-left-radius: var(--rf-radius-md);
+  border-bottom-left-radius: var(--rf-radius-md);
+}
+[data-reaktiform] .rounded-r-rf-md {
+  border-top-right-radius: var(--rf-radius-md);
+  border-bottom-right-radius: var(--rf-radius-md);
+}
+[data-reaktiform] .rounded {
+  border-radius: 0.25rem;
+}
+[data-reaktiform] .rounded-sm {
+  border-radius: 6px;
+}
+[data-reaktiform] .rounded-\[3px\] {
+  border-radius: 3px;
+}
+[data-reaktiform] .rounded-full {
+  border-radius: 9999px;
+}
+[data-reaktiform] .rounded-\[3px\] {
+  border-radius: 3px;
+}
+
+/* ── Shadows ── */
+[data-reaktiform] .shadow-rf-sm {
+  box-shadow: var(--rf-shadow-sm);
+}
+[data-reaktiform] .shadow-rf-md {
+  box-shadow: var(--rf-shadow-md);
+}
+[data-reaktiform] .shadow-rf-lg {
+  box-shadow: var(--rf-shadow-lg);
+}
+[data-reaktiform] .hover\:shadow-rf-sm:hover {
+  box-shadow: var(--rf-shadow-sm);
+}
+[data-reaktiform] .shadow-sm {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+}
+[data-reaktiform] .shadow-\[4px_0_10px_rgba\(15\,23\,42\,\.08\)\] {
+  box-shadow: 4px 0 10px rgba(15, 23, 42, 0.08);
+}
+[data-reaktiform] .focus\:shadow-\[0_0_0_3px_rgba\(59\,91\,219\,\.10\)\]:focus {
+  box-shadow: 0 0 0 3px rgba(59, 91, 219, 0.1);
+}
+[data-reaktiform] .focus\:shadow-\[0_0_0_3px_rgba\(220\,38\,38\,\.10\)\]:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+/* ── Accent ── */
+[data-reaktiform] .accent-\[var\(--rf-accent\)\] {
+  accent-color: var(--rf-accent);
+}
+
+/* ── Focus ── */
+[data-reaktiform] .focus\:border-rf-accent:focus {
+  border-color: var(--rf-accent);
+}
+[data-reaktiform] .focus\:bg-rf-surface:focus {
+  background-color: var(--rf-surface);
+}
+[data-reaktiform] .outline-rf-accent {
+  outline-color: var(--rf-accent);
+}
+
+/* ── Layout ── */
+[data-reaktiform] .flex {
+  display: flex;
+}
+[data-reaktiform] .inline-flex {
+  display: inline-flex;
+}
+[data-reaktiform] .grid {
+  display: grid;
+}
+[data-reaktiform] .block {
+  display: block;
+}
+[data-reaktiform] .inline {
+  display: inline;
+}
+[data-reaktiform] .hidden {
+  display: none;
+}
+[data-reaktiform] .table {
+  display: table;
+}
+
+/* ── Position ── */
+[data-reaktiform] .relative {
+  position: relative;
+}
+[data-reaktiform] .absolute {
+  position: absolute;
+}
+[data-reaktiform] .fixed {
+  position: fixed;
+}
+[data-reaktiform] .sticky {
+  position: sticky;
+}
+[data-reaktiform] .static {
+  position: static;
+}
+
+/* ── Inset ── */
+[data-reaktiform] .inset-0 {
+  inset: 0;
+}
+[data-reaktiform] .top-0 {
+  top: 0;
+}
+[data-reaktiform] .top-14 {
+  top: 3.5rem;
+}
+[data-reaktiform] .top-20 {
+  top: 5rem;
+}
+[data-reaktiform] .top-1\/2 {
+  top: 50%;
+}
+[data-reaktiform] .top-\[2px\] {
+  top: 2px;
+}
+[data-reaktiform] .bottom-0 {
+  bottom: 0;
+}
+[data-reaktiform] .bottom-6 {
+  bottom: 1.5rem;
+}
+[data-reaktiform] .bottom-\[calc\(100\%\+5px\)\] {
+  bottom: calc(100% + 5px);
+}
+[data-reaktiform] .right-0 {
+  right: 0;
+}
+[data-reaktiform] .right-4 {
+  right: 1rem;
+}
+[data-reaktiform] .right-2\.5 {
+  right: 0.625rem;
+}
+[data-reaktiform] .left-1\/2 {
+  left: 50%;
+}
+[data-reaktiform] .left-2 {
+  left: 0.5rem;
+}
+[data-reaktiform] .left-2\.5 {
+  left: 0.625rem;
+}
+
+/* ── Z-index ── */
+[data-reaktiform] .z-40 {
+  z-index: 40;
+}
+[data-reaktiform] .z-50 {
+  z-index: 50;
+}
+[data-reaktiform] .z-\[45\] {
+  z-index: 45;
+}
+[data-reaktiform] .z-\[149\] {
+  z-index: 149;
+}
+[data-reaktiform] .z-\[150\] {
+  z-index: 150;
+}
+[data-reaktiform] .z-\[800\] {
+  z-index: 800;
+}
+[data-reaktiform] .z-\[900\] {
+  z-index: 900;
+}
+[data-reaktiform] .z-\[999\] {
+  z-index: 999;
+}
+
+/* ── Flex ── */
+[data-reaktiform] .flex-col {
+  flex-direction: column;
+}
+[data-reaktiform] .flex-wrap {
+  flex-wrap: wrap;
+}
+[data-reaktiform] .flex-1 {
+  flex: 1 1 0%;
+}
+[data-reaktiform] .flex-shrink-0 {
+  flex-shrink: 0;
+}
+[data-reaktiform] .items-center {
+  align-items: center;
+}
+[data-reaktiform] .items-start {
+  align-items: flex-start;
+}
+[data-reaktiform] .justify-center {
+  justify-content: center;
+}
+[data-reaktiform] .justify-between {
+  justify-content: space-between;
+}
+[data-reaktiform] .justify-end {
+  justify-content: flex-end;
+}
+[data-reaktiform] .ml-auto {
+  margin-left: auto;
+}
+
+/* ── Gap ── */
+[data-reaktiform] .gap-0\.5 {
+  gap: 0.125rem;
+}
+[data-reaktiform] .gap-1 {
+  gap: 0.25rem;
+}
+[data-reaktiform] .gap-1\.5 {
+  gap: 0.375rem;
+}
+[data-reaktiform] .gap-2 {
+  gap: 0.5rem;
+}
+[data-reaktiform] .gap-2\.5 {
+  gap: 0.625rem;
+}
+[data-reaktiform] .gap-3 {
+  gap: 0.75rem;
+}
+[data-reaktiform] .gap-4 {
+  gap: 1rem;
+}
+[data-reaktiform] .gap-8 {
+  gap: 2rem;
+}
+
+/* ── Width ── */
+[data-reaktiform] .w-px {
+  width: 1px;
+}
+[data-reaktiform] .w-2\.5 {
+  width: 0.625rem;
+}
+[data-reaktiform] .w-3 {
+  width: 0.75rem;
+}
+[data-reaktiform] .w-3\.5 {
+  width: 0.875rem;
+}
+[data-reaktiform] .w-4 {
+  width: 1rem;
+}
+[data-reaktiform] .w-5 {
+  width: 1.25rem;
+}
+[data-reaktiform] .w-6 {
+  width: 1.5rem;
+}
+[data-reaktiform] .w-7 {
+  width: 1.75rem;
+}
+[data-reaktiform] .w-8 {
+  width: 2rem;
+}
+[data-reaktiform] .w-10 {
+  width: 2.5rem;
+}
+[data-reaktiform] .w-24 {
+  width: 6rem;
+}
+[data-reaktiform] .w-64 {
+  width: 16rem;
+}
+[data-reaktiform] .w-72 {
+  width: 18rem;
+}
+[data-reaktiform] .w-\[2px\] {
+  width: 2px;
+}
+[data-reaktiform] .w-\[5px\] {
+  width: 5px;
+}
+[data-reaktiform] .w-\[6px\] {
+  width: 6px;
+}
+[data-reaktiform] .w-\[10px\] {
+  width: 10px;
+}
+[data-reaktiform] .w-\[11px\] {
+  width: 11px;
+}
+[data-reaktiform] .w-\[13px\] {
+  width: 13px;
+}
+[data-reaktiform] .w-\[14px\] {
+  width: 14px;
+}
+[data-reaktiform] .w-\[240px\] {
+  width: 240px;
+}
+[data-reaktiform] .w-\[480px\] {
+  width: 480px;
+}
+[data-reaktiform] .w-full {
+  width: 100%;
+}
+[data-reaktiform] .min-w-0 {
+  min-width: 0;
+}
+[data-reaktiform] .min-w-\[100px\] {
+  min-width: 100px;
+}
+[data-reaktiform] .min-w-\[160px\] {
+  min-width: 160px;
+}
+[data-reaktiform] .max-w-\[240px\] {
+  max-width: 240px;
+}
+
+/* ── Height ── */
+[data-reaktiform] .h-2\.5 {
+  height: 0.625rem;
+}
+[data-reaktiform] .h-3 {
+  height: 0.75rem;
+}
+[data-reaktiform] .h-3\.5 {
+  height: 0.875rem;
+}
+[data-reaktiform] .h-4 {
+  height: 1rem;
+}
+[data-reaktiform] .h-5 {
+  height: 1.25rem;
+}
+[data-reaktiform] .h-6 {
+  height: 1.5rem;
+}
+[data-reaktiform] .h-7 {
+  height: 1.75rem;
+}
+[data-reaktiform] .h-8 {
+  height: 2rem;
+}
+[data-reaktiform] .h-10 {
+  height: 2.5rem;
+}
+[data-reaktiform] .h-\[3px\] {
+  height: 3px;
+}
+[data-reaktiform] .h-\[4px\] {
+  height: 4px;
+}
+[data-reaktiform] .h-\[5px\] {
+  height: 5px;
+}
+[data-reaktiform] .h-\[11px\] {
+  height: 11px;
+}
+[data-reaktiform] .h-\[13px\] {
+  height: 13px;
+}
+[data-reaktiform] .h-\[14px\] {
+  height: 14px;
+}
+[data-reaktiform] .h-\[18px\] {
+  height: 18px;
+}
+[data-reaktiform] .h-\[28px\] {
+  height: 28px;
+}
+[data-reaktiform] .h-\[36px\] {
+  height: 36px;
+}
+[data-reaktiform] .h-\[64px\] {
+  height: 64px;
+}
+[data-reaktiform] .h-full {
+  height: 100%;
+}
+[data-reaktiform] .max-h-\[80vh\] {
+  max-height: 80vh;
+}
+[data-reaktiform] .max-h-\[140px\] {
+  max-height: 140px;
+}
+[data-reaktiform] .max-h-\[180px\] {
+  max-height: 180px;
+}
+[data-reaktiform] .max-h-\[360px\] {
+  max-height: 360px;
+}
+[data-reaktiform] .min-h-\[70px\] {
+  min-height: 70px;
+}
+
+/* ── Padding ── */
+[data-reaktiform] .p-1 {
+  padding: 0.25rem;
+}
+[data-reaktiform] .p-3 {
+  padding: 0.75rem;
+}
+[data-reaktiform] .p-4 {
+  padding: 1rem;
+}
+[data-reaktiform] .p-6 {
+  padding: 1.5rem;
+}
+[data-reaktiform] .px-1 {
+  padding-inline: 0.25rem;
+}
+[data-reaktiform] .px-1\.5 {
+  padding-inline: 0.375rem;
+}
+[data-reaktiform] .px-2 {
+  padding-inline: 0.5rem;
+}
+[data-reaktiform] .px-2\.5 {
+  padding-inline: 0.625rem;
+}
+[data-reaktiform] .px-3 {
+  padding-inline: 0.75rem;
+}
+[data-reaktiform] .px-4 {
+  padding-inline: 1rem;
+}
+[data-reaktiform] .px-\[6px\] {
+  padding-inline: 6px;
+}
+[data-reaktiform] .px-\[10px\] {
+  padding-inline: 10px;
+}
+[data-reaktiform] .py-0\.5 {
+  padding-block: 0.125rem;
+}
+[data-reaktiform] .py-1 {
+  padding-block: 0.25rem;
+}
+[data-reaktiform] .py-1\.5 {
+  padding-block: 0.375rem;
+}
+[data-reaktiform] .py-2 {
+  padding-block: 0.5rem;
+}
+[data-reaktiform] .py-2\.5 {
+  padding-block: 0.625rem;
+}
+[data-reaktiform] .py-3 {
+  padding-block: 0.75rem;
+}
+[data-reaktiform] .py-4 {
+  padding-block: 1rem;
+}
+[data-reaktiform] .py-6 {
+  padding-block: 1.5rem;
+}
+[data-reaktiform] .py-8 {
+  padding-block: 2rem;
+}
+[data-reaktiform] .py-\[1px\] {
+  padding-block: 1px;
+}
+[data-reaktiform] .py-\[2px\] {
+  padding-block: 2px;
+}
+[data-reaktiform] .py-\[7px\] {
+  padding-block: 7px;
+}
+[data-reaktiform] .pt-1 {
+  padding-top: 0.25rem;
+}
+[data-reaktiform] .pt-3 {
+  padding-top: 0.75rem;
+}
+[data-reaktiform] .pt-14 {
+  padding-top: 3.5rem;
+}
+[data-reaktiform] .pr-2 {
+  padding-right: 0.5rem;
+}
+[data-reaktiform] .pr-4 {
+  padding-right: 1rem;
+}
+[data-reaktiform] .pr-7 {
+  padding-right: 1.75rem;
+}
+[data-reaktiform] .pr-8 {
+  padding-right: 2rem;
+}
+[data-reaktiform] .pb-1 {
+  padding-bottom: 0.25rem;
+}
+[data-reaktiform] .pb-1\.5 {
+  padding-bottom: 0.375rem;
+}
+[data-reaktiform] .pb-4 {
+  padding-bottom: 1rem;
+}
+[data-reaktiform] .pl-6 {
+  padding-left: 1.5rem;
+}
+[data-reaktiform] .pl-7 {
+  padding-left: 1.75rem;
+}
+
+/* ── Margin ── */
+[data-reaktiform] .-mt-px {
+  margin-top: -1px;
+}
+[data-reaktiform] .mt-1 {
+  margin-top: 0.25rem;
+}
+[data-reaktiform] .mt-1\.5 {
+  margin-top: 0.375rem;
+}
+[data-reaktiform] .mb-0\.5 {
+  margin-bottom: 0.125rem;
+}
+[data-reaktiform] .mb-1 {
+  margin-bottom: 0.25rem;
+}
+[data-reaktiform] .mb-1\.5 {
+  margin-bottom: 0.375rem;
+}
+[data-reaktiform] .mb-2 {
+  margin-bottom: 0.5rem;
+}
+[data-reaktiform] .mb-3 {
+  margin-bottom: 0.75rem;
+}
+[data-reaktiform] .mb-4 {
+  margin-bottom: 1rem;
+}
+[data-reaktiform] .ml-0\.5 {
+  margin-left: 0.125rem;
+}
+[data-reaktiform] .ml-1 {
+  margin-left: 0.25rem;
+}
+[data-reaktiform] .ml-2 {
+  margin-left: 0.5rem;
+}
+[data-reaktiform] .mr-0\.5 {
+  margin-right: 0.125rem;
+}
+[data-reaktiform] .mx-\[1px\] {
+  margin-inline: 1px;
+}
+
+/* Space-y helper */
+[data-reaktiform] .space-y-2 > * + * {
+  margin-top: 0.5rem;
+}
+[data-reaktiform] .space-y-2\.5 > * + * {
+  margin-top: 0.625rem;
+}
+[data-reaktiform] .space-y-3 > * + * {
+  margin-top: 0.75rem;
+}
+
+/* ── Grid ── */
+[data-reaktiform] .grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* ── Overflow ── */
+[data-reaktiform] .overflow-hidden {
+  overflow: hidden;
+}
+[data-reaktiform] .overflow-x-auto {
+  overflow-x: auto;
+}
+[data-reaktiform] .overflow-y-auto {
+  overflow-y: auto;
+}
+[data-reaktiform] .overflow-clip {
+  overflow: clip;
+}
+
+/* ── Border ── */
+[data-reaktiform] .border {
+  border-width: 1px;
+  border-style: solid;
+}
+[data-reaktiform] .border-2 {
+  border-width: 2px;
+  border-style: solid;
+}
+[data-reaktiform] .border-b-2 {
+  border-bottom-width: 2px;
+  border-bottom-style: solid;
+}
+[data-reaktiform] .border-b {
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+}
+[data-reaktiform] .border-b-0 {
+  border-bottom-width: 0;
+}
+[data-reaktiform] .border-t {
+  border-top-width: 1px;
+  border-top-style: solid;
+}
+[data-reaktiform] .border-t-0 {
+  border-top-width: 0;
+}
+[data-reaktiform] .border-r {
+  border-right-width: 1px;
+  border-right-style: solid;
+}
+[data-reaktiform] .border-l {
+  border-left-width: 1px;
+  border-left-style: solid;
+}
+[data-reaktiform] .border-none {
+  border-style: none;
+}
+[data-reaktiform] .border-dashed {
+  border-style: dashed;
+}
+[data-reaktiform] .border-separate {
+  border-collapse: separate;
+}
+[data-reaktiform] .border-spacing-0 {
+  border-spacing: 0;
+}
+
+/* ── Opacity ── */
+[data-reaktiform] .opacity-0 {
+  opacity: 0;
+}
+[data-reaktiform] .opacity-30 {
+  opacity: 0.3;
+}
+[data-reaktiform] .opacity-35 {
+  opacity: 0.35;
+}
+[data-reaktiform] .opacity-40 {
+  opacity: 0.4;
+}
+[data-reaktiform] .opacity-60 {
+  opacity: 0.6;
+}
+[data-reaktiform] .opacity-70 {
+  opacity: 0.7;
+}
+[data-reaktiform] .opacity-100 {
+  opacity: 1;
+}
+[data-reaktiform] .\!opacity-100 {
+  opacity: 1 !important;
+}
+[data-reaktiform] .disabled\:opacity-35:disabled {
+  opacity: 0.35;
+}
+[data-reaktiform] .disabled\:cursor-not-allowed:disabled {
+  cursor: not-allowed;
+}
+[data-reaktiform] .hover\:opacity-80:hover {
+  opacity: 0.8;
+}
+[data-reaktiform] .hover\:opacity-100:hover {
+  opacity: 1;
+}
+
+/* ── Typography ── */
+[data-reaktiform] .text-center {
+  text-align: center;
+}
+[data-reaktiform] .text-left {
+  text-align: left;
+}
+[data-reaktiform] .text-right {
+  text-align: right;
+}
+[data-reaktiform] .uppercase {
+  text-transform: uppercase;
+}
+[data-reaktiform] .italic {
+  font-style: italic;
+}
+[data-reaktiform] .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-reaktiform] .whitespace-nowrap {
+  white-space: nowrap;
+}
+[data-reaktiform] .text-ellipsis {
+  text-overflow: ellipsis;
+}
+[data-reaktiform] .underline {
+  text-decoration-line: underline;
+}
+[data-reaktiform] .hover\:underline:hover {
+  text-decoration-line: underline;
+}
+[data-reaktiform] .select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+[data-reaktiform] .text-\[9px\] {
+  font-size: 9px;
+}
+[data-reaktiform] .text-\[10px\] {
+  font-size: 10px;
+}
+[data-reaktiform] .text-\[10\.5px\] {
+  font-size: 10.5px;
+}
+[data-reaktiform] .text-\[11px\] {
+  font-size: 11px;
+}
+[data-reaktiform] .text-\[11\.5px\] {
+  font-size: 11.5px;
+}
+[data-reaktiform] .text-\[12px\] {
+  font-size: 12px;
+}
+[data-reaktiform] .text-\[12\.5px\] {
+  font-size: 12.5px;
+}
+[data-reaktiform] .text-\[13px\] {
+  font-size: 13px;
+}
+[data-reaktiform] .text-\[14px\] {
+  font-size: 14px;
+}
+
+[data-reaktiform] .font-medium {
+  font-weight: 500;
+}
+[data-reaktiform] .font-semibold {
+  font-weight: 600;
+}
+[data-reaktiform] .font-bold {
+  font-weight: 700;
+}
+[data-reaktiform] .font-mono {
+  font-family: var(--rf-font-mono);
+}
+
+[data-reaktiform] .tracking-\[\.04em\] {
+  letter-spacing: 0.04em;
+}
+[data-reaktiform] .tracking-\[\.05em\] {
+  letter-spacing: 0.05em;
+}
+[data-reaktiform] .tracking-\[\.06em\] {
+  letter-spacing: 0.06em;
+}
+[data-reaktiform] .tracking-wider {
+  letter-spacing: 0.05em;
+}
+
+/* ── Cursor ── */
+[data-reaktiform] .cursor-pointer {
+  cursor: pointer;
+}
+[data-reaktiform] .cursor-col-resize {
+  cursor: col-resize;
+}
+[data-reaktiform] .cursor-grab {
+  cursor: grab;
+}
+[data-reaktiform] .cursor-not-allowed {
+  cursor: not-allowed;
+}
+[data-reaktiform] .active\:cursor-grabbing:active {
+  cursor: grabbing;
+}
+
+/* ── Pointer events ── */
+[data-reaktiform] .pointer-events-none {
+  pointer-events: none;
+}
+
+/* ── Transitions ── */
+[data-reaktiform] .transition {
+  transition-property:
+    color, background-color, border-color, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+[data-reaktiform] .transition-colors {
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+[data-reaktiform] .transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+[data-reaktiform] .transition-opacity {
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+[data-reaktiform] .transition-transform {
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+[data-reaktiform] .duration-150 {
+  transition-duration: 150ms;
+}
+[data-reaktiform] .duration-300 {
+  transition-duration: 300ms;
+}
+
+/* ── Transforms ── */
+[data-reaktiform] .-translate-x-1\/2 {
+  transform: translateX(-50%);
+}
+[data-reaktiform] .-translate-y-1\/2 {
+  transform: translateY(-50%);
+}
+[data-reaktiform] .translate-x-\[2px\] {
+  transform: translateX(2px);
+}
+[data-reaktiform] .translate-x-\[18px\] {
+  transform: translateX(18px);
+}
+[data-reaktiform] .scale-105 {
+  transform: scale(1.05);
+}
+[data-reaktiform] .scale-110 {
+  transform: scale(1.1);
+}
+[data-reaktiform] .hover\:scale-105:hover {
+  transform: scale(1.05);
+}
+
+/* ── Outline ── */
+[data-reaktiform] .outline {
+  outline-style: solid;
+  outline-width: 1px;
+}
+[data-reaktiform] .outline-2 {
+  outline-style: solid;
+  outline-width: 2px;
+}
+[data-reaktiform] .outline-none {
+  outline: none;
+}
+[data-reaktiform] .outline-offset-\[-2px\] {
+  outline-offset: -2px;
+}
+
+/* ── Visibility ── */
+[data-reaktiform] .visible {
+  visibility: visible;
+}
+
+/* ── Resize ── */
+[data-reaktiform] .resize-y {
+  resize: vertical;
+}
+[data-reaktiform] .resize-none {
+  resize: none;
+}
+
+/* ── Table ── */
+[data-reaktiform] .table-fixed {
+  table-layout: fixed;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ROW ACTION BUTTONS — shown via CSS hover on the <tr>
+   This avoids the JS onMouseEnter/Leave flicker bug where
+   moving from wrapper div to a child button fires mouseleave.
+   ───────────────────────────────────────────────────────────── */
+[data-reaktiform] .rf-row-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 1; /* always visible — no hover-reveal needed */
+  transition: opacity 120ms ease;
+}
+/* Dim when row is not hovered so focused row's actions stand out */
+[data-reaktiform] tr:not(:hover) .rf-row-actions {
+  opacity: 0.35;
+}
+[data-reaktiform] tr:hover .rf-row-actions {
+  opacity: 1;
+}
+[data-reaktiform] .rf-row-actions:hover {
+  opacity: 1;
+}
+/* Actions cell — min-width so buttons don't get squished */
+[data-reaktiform] .rf-actions-cell {
+  min-width: 72px;
+}
+[data-reaktiform] .group {
+}
+[data-reaktiform] .group\/resize {
+}
+[data-reaktiform] .group:hover .group-hover\:opacity-60 {
+  opacity: 0.6;
+}
+[data-reaktiform] .group:hover .group-hover\:opacity-100 {
+  opacity: 1;
+}
+
+/* ── Additional missing utilities ── */
+/* Grid columns */
+[data-reaktiform] .col-span-1 {
+  grid-column: span 1 / span 1;
+}
+[data-reaktiform] .col-span-2 {
+  grid-column: span 2 / span 2;
+}
+
+/* Gap column */
+[data-reaktiform] .gap-x-3 {
+  column-gap: 0.75rem;
+}
+
+/* Margin extras */
+[data-reaktiform] .mt-4 {
+  margin-top: 1rem;
+}
+[data-reaktiform] .mb-2\.5 {
+  margin-bottom: 0.625rem;
+}
+
+/* Leading */
+[data-reaktiform] .leading-relaxed {
+  line-height: 1.625;
+}
+
+/* Transition width */
+[data-reaktiform] .transition-\[width\] {
+  transition-property: width;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Appearance (number input spinners) */
+[data-reaktiform] .appearance-none {
+  appearance: none;
+  -webkit-appearance: none;
+}
+[data-reaktiform] .\[appearance\:textfield\] {
+  appearance: textfield;
+}
+[data-reaktiform]
+  .\[&\:\:-webkit-inner-spin-button\]\:appearance-none::-webkit-inner-spin-button {
+  appearance: none;
+}
+
+/* Placeholder text color */
+[data-reaktiform] .placeholder\:text-rf-text-3::placeholder {
+  color: var(--rf-text-3);
+}
+
+/* Divide */
+[data-reaktiform] .divide-y > * + * {
+  border-top-width: 1px;
+  border-top-style: solid;
+}
+[data-reaktiform] .divide-rf-border > * + * {
+  border-color: var(--rf-border);
+}
+
+/* Border top transparent */
+[data-reaktiform] .border-t-transparent {
+  border-top-color: transparent;
+}
+
+/* Background colors - dark mode specific */
+[data-reaktiform] .bg-\[\#0F172A\] {
+  background-color: #0f172a;
+}
+[data-reaktiform] .bg-\[\#1E293B\] {
+  background-color: #1e293b;
+}
+[data-reaktiform] .bg-black\/\[\.015\] {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+/* Text colors */
+[data-reaktiform] .text-\[\#F1F5F9\] {
+  color: #f1f5f9;
+}
+[data-reaktiform] .text-\[\#F8FAFC\] {
+  color: #f8fafc;
+}
+[data-reaktiform] .text-purple-600 {
+  color: #9333ea;
+}
+
+/* Shadow */
+[data-reaktiform] .shadow-\[4px_0_10px_rgba\(15\,23\,42\,\.08\)\] {
+  box-shadow: 4px 0 10px rgba(15, 23, 42, 0.08);
+}
+
+/* Focus shadow */
+[data-reaktiform] .focus\:shadow-\[0_0_0_3px_rgba\(59\,91\,219\,\.10\)\]:focus {
+  box-shadow: 0 0 0 3px rgba(59, 91, 219, 0.1);
+}
+
+/* Font */
+[data-reaktiform] .font-\[var\(--rf-font-sans\)\] {
+  font-family: var(--rf-font-sans);
+}
+
+/* Hover opacity important */
+[data-reaktiform] .hover\:\!opacity-100:hover {
+  opacity: 1 !important;
+}
+
+/* ── Tooltip arrow pseudo-element ── */
+[data-reaktiform] .after\:absolute::after {
+  content: "";
+  position: absolute;
+}
+[data-reaktiform] .after\:top-full::after {
+  top: 100%;
+}
+[data-reaktiform] .after\:left-3::after {
+  left: 0.75rem;
+}
+[data-reaktiform] .after\:border-4::after {
+  border-width: 4px;
+  border-style: solid;
+}
+[data-reaktiform] .after\:border-transparent::after {
+  border-color: transparent;
+}
+[data-reaktiform] .after\:border-t-\[\#1E293B\]::after {
+  border-top-color: #1e293b;
+}
+
+/* ── Animations ── */
+@keyframes rf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rf-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.3);
+  }
+}
+@keyframes rf-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rf-fetch {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(150%);
+  }
+}
+
+/* Animations are used via inline styles in the component, not via class names */
+
+/* ─────────────────────────────────────────────────────────────
+   PORTAL ELEMENTS — react-select dropdowns, filter panels etc.
+   These render in document.body outside [data-reaktiform] so
+   they need special treatment.
+   ───────────────────────────────────────────────────────────── */
+
+/* react-select portal */
+.rf-rs__menu-portal {
+  z-index: 9999 !important;
+}
+
+/* Filter panel / CF panel / Column visibility panel (rendered in fixed overlay) */
+/* These panels render outside [data-reaktiform] via createPortal / fixed positioning.
+   We re-apply the design tokens and scoped classes via a separate portal scope. */
+[data-rf-portal] {
+  --rf-bg: #f4f6fa;
+  --rf-surface: #ffffff;
+  --rf-header: #f1f3f9;
+  --rf-border: #e2e5ed;
+  --rf-border-strong: #c5cad6;
+  --rf-text-1: #0f172a;
+  --rf-text-2: #475569;
+  --rf-text-3: #94a3b8;
+  --rf-accent: #3b5bdb;
+  --rf-accent-hover: #2f4ac4;
+  --rf-accent-bg: #eef2ff;
+  --rf-accent-br: #c7d2fe;
+  --rf-ok: #16a34a;
+  --rf-ok-bg: #f0fdf4;
+  --rf-ok-br: #bbf7d0;
+  --rf-warn: #d97706;
+  --rf-warn-bg: #fffbeb;
+  --rf-warn-br: #fde68a;
+  --rf-err: #dc2626;
+  --rf-err-bg: #fff1f2;
+  --rf-err-br: #fecdd3;
+  --rf-purple: #7c3aed;
+  --rf-purple-bg: #f5f3ff;
+  --rf-purple-br: #ddd6fe;
+  --rf-amber: #b45309;
+  --rf-amber-bg: #fffbeb;
+  --rf-amber-br: #fde68a;
+  --rf-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07);
+  --rf-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --rf-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14);
+  --rf-font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --rf-font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --rf-radius-md: 8px;
+  --rf-radius-lg: 12px;
+  font-family: var(--rf-font-sans);
+  box-sizing: border-box;
+}
+.dark [data-rf-portal],
+[data-rf-portal].dark {
+  --rf-surface: #1e293b;
+  --rf-header: #1a2744;
+  --rf-border: #334155;
+  --rf-text-1: #f1f5f9;
+  --rf-text-2: #94a3b8;
+  --rf-text-3: #64748b;
+  --rf-accent: #6b8ef0;
+  --rf-accent-bg: #1e2a4a;
+  --rf-err: #f87171;
+  --rf-err-bg: #2d0b0b;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   NEW CELL TYPES — email, url, currency, percentage, rating,
+   badge, progress
+   All scoped under [data-reaktiform] for zero pollution.
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Link cells (email, url) ─────────────────────────────── */
+[data-reaktiform] .rf-cell-link {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 100%;
+  min-width: 0;
+}
+[data-reaktiform] .rf-cell-link a {
+  font-size: 12.5px;
+  color: var(--rf-accent);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 120ms;
+}
+[data-reaktiform] .rf-cell-link a:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+/* ── Currency cell ───────────────────────────────────────── */
+[data-reaktiform] .rf-cell-currency {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  height: 100%;
+}
+[data-reaktiform] .rf-cell-currency span {
+  font-size: 12.5px;
+  font-family: var(--rf-font-mono);
+  color: var(--rf-text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Percentage cell ─────────────────────────────────────── */
+[data-reaktiform] .rf-cell-percentage {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 100%;
+  gap: 8px;
+}
+[data-reaktiform] .rf-cell-percentage__bar-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rf-border);
+  overflow: hidden;
+}
+[data-reaktiform] .rf-cell-percentage__bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--rf-accent);
+  transition: width 300ms ease;
+}
+[data-reaktiform] .rf-cell-percentage__label {
+  font-size: 11.5px;
+  font-family: var(--rf-font-mono);
+  color: var(--rf-text-1);
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Progress cell ───────────────────────────────────────── */
+[data-reaktiform] .rf-cell-progress {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 100%;
+  gap: 8px;
+}
+[data-reaktiform] .rf-cell-progress__track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--rf-border);
+  overflow: hidden;
+}
+[data-reaktiform] .rf-cell-progress__fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 300ms ease;
+}
+[data-reaktiform] .rf-cell-progress__fill--low {
+  background: var(--rf-err);
+}
+[data-reaktiform] .rf-cell-progress__fill--mid {
+  background: #f59e0b;
+}
+[data-reaktiform] .rf-cell-progress__fill--high {
+  background: var(--rf-accent);
+}
+[data-reaktiform] .rf-cell-progress__fill--done {
+  background: var(--rf-ok);
+}
+[data-reaktiform] .rf-cell-progress__label {
+  font-size: 11px;
+  font-family: var(--rf-font-mono);
+  color: var(--rf-text-2);
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Rating cell ─────────────────────────────────────────── */
+[data-reaktiform] .rf-cell-rating {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 100%;
+  gap: 1px;
+}
+[data-reaktiform] .rf-cell-rating__star {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--rf-border);
+  transition: color 100ms;
+}
+[data-reaktiform] .rf-cell-rating__star--filled {
+  color: #f59e0b;
+}
+[data-reaktiform] .rf-cell-rating__star--btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 1px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--rf-border);
+  transition:
+    color 100ms,
+    transform 80ms;
+}
+[data-reaktiform] .rf-cell-rating__star--btn:hover,
+[data-reaktiform] .rf-cell-rating__star--btn.filled {
+  color: #f59e0b;
+  transform: scale(1.15);
+}
+[data-reaktiform] .rf-cell-rating__count {
+  font-size: 11px;
+  color: var(--rf-text-3);
+  margin-left: 3px;
+}
+
+/* ── Badge cell ──────────────────────────────────────────── */
+[data-reaktiform] .rf-cell-badge {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 100%;
+}
+[data-reaktiform] .rf-cell-badge__pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  /* Colors set via inline style from option.color */
+}
+
+/* ── Expanded row ────────────────────────────────────────── */
+[data-reaktiform] .rf-expanded-row {
+  background: var(--rf-accent-bg);
+  border-bottom: 2px solid var(--rf-accent-br);
+}
+[data-reaktiform] .rf-expanded-row__content {
+  padding: 12px 16px;
+  animation: rf-slide-in 150ms ease;
+}
+
+/* ── Multi-sort priority badge ───────────────────────────── */
+[data-reaktiform] .rf-sort-priority {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--rf-accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── Selection mode: single (radio) ─────────────────────── */
+[data-reaktiform] input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--rf-accent);
+  cursor: pointer;
+}
+
+/* ── Disabled rows ───────────────────────────────────────── */
+[data-reaktiform] tr[data-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Dark mode adjustments for new cell types */
+.dark [data-reaktiform] .rf-cell-rating__star,
+[data-reaktiform].dark .rf-cell-rating__star {
+  color: var(--rf-border);
 }

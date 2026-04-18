@@ -1,6 +1,14 @@
 import { cn } from "../../utils";
 import type { SelectOption } from "../../types";
 
+// ─────────────────────────────────────────────────────────────
+//  BADGE VARIANT SYSTEM
+//  Supports both named semantic colors AND arbitrary CSS color strings.
+//
+//  Named variants map to CSS variables so they respect dark mode.
+//  Custom hex/rgb/hsl strings are applied directly as inline styles.
+// ─────────────────────────────────────────────────────────────
+
 type BadgeVariant =
   | "default"
   | "success"
@@ -9,6 +17,20 @@ type BadgeVariant =
   | "info"
   | "purple";
 
+const NAMED_VARIANTS = new Set<BadgeVariant>([
+  "default",
+  "success",
+  "warning",
+  "error",
+  "info",
+  "purple",
+]);
+
+function isNamedVariant(color: string): color is BadgeVariant {
+  return NAMED_VARIANTS.has(color as BadgeVariant);
+}
+
+// Named variant → Tailwind class sets (scoped via [data-reaktiform])
 const variantClasses: Record<BadgeVariant, string> = {
   default: "bg-rf-header text-rf-text-2 border-rf-border",
   success: "bg-rf-ok-bg text-green-700 border-rf-ok-br",
@@ -27,9 +49,16 @@ const dotClasses: Record<BadgeVariant, string> = {
   purple: "bg-rf-purple",
 };
 
+// ─────────────────────────────────────────────────────────────
+//  BADGE COMPONENT
+// ─────────────────────────────────────────────────────────────
 type BadgeProps = {
   label: string;
-  variant?: BadgeVariant;
+  /**
+   * Named variant: 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'
+   * Custom color:  Any CSS color string — '#FF5733', 'rgb(255,87,51)', 'hsl(11,100%,60%)'
+   */
+  variant?: string;
   showDot?: boolean;
   className?: string | undefined;
 };
@@ -40,21 +69,48 @@ export function Badge({
   showDot = true,
   className,
 }: BadgeProps) {
+  // Named variant — use Tailwind classes + CSS vars (dark mode safe)
+  if (isNamedVariant(variant)) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 text-[11px] font-semibold",
+          "px-2 py-[2px] rounded-full border whitespace-nowrap",
+          variantClasses[variant],
+          className,
+        )}
+      >
+        {showDot && (
+          <span
+            className={cn(
+              "w-[5px] h-[5px] rounded-full flex-shrink-0",
+              dotClasses[variant],
+            )}
+          />
+        )}
+        {label}
+      </span>
+    );
+  }
+
+  // Custom color — use inline styles so any CSS color works
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 text-[11px] font-semibold",
         "px-2 py-[2px] rounded-full border whitespace-nowrap",
-        variantClasses[variant],
         className,
       )}
+      style={{
+        backgroundColor: `${variant}22`, // 13% opacity background
+        borderColor: `${variant}55`, // 33% opacity border
+        color: variant, // solid text color
+      }}
     >
       {showDot && (
         <span
-          className={cn(
-            "w-[5px] h-[5px] rounded-full flex-shrink-0",
-            dotClasses[variant],
-          )}
+          className="w-[5px] h-[5px] rounded-full flex-shrink-0"
+          style={{ backgroundColor: variant }}
         />
       )}
       {label}
@@ -62,22 +118,11 @@ export function Badge({
   );
 }
 
-// ── Helper: get variant from SelectOption color
-export function getOptionVariant(color: SelectOption["color"]): BadgeVariant {
-  switch (color) {
-    case "success":
-      return "success";
-    case "warning":
-      return "warning";
-    case "error":
-      return "error";
-    case "info":
-      return "info";
-    case "purple":
-      return "purple";
-    default:
-      return "default";
-  }
+// ── Helper: map SelectOption.color → badge variant
+export function getOptionVariant(color: SelectOption["color"]): string {
+  if (!color) return "default";
+  // Named variants pass through; custom colors pass through too
+  return color;
 }
 
 // ── Helper: render a select option as a badge

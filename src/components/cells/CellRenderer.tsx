@@ -1,4 +1,4 @@
-import { cn } from "../../utils";
+import React, { useState } from "react";
 import { TextCellRead, TextCellEdit } from "./TextCell";
 import { NumberCellRead, NumberCellEdit } from "./NumberCell";
 import { SelectCellRead, SelectCellEdit } from "./SelectCell";
@@ -21,6 +21,72 @@ type CellRendererProps<TData> = {
   className?: string | undefined;
 };
 
+// ── Error tooltip wrapper — shows tooltip on hover only
+function WithErrorTooltip({
+  isError,
+  errorMessage,
+  children,
+}: {
+  isError: boolean;
+  errorMessage?: string | undefined;
+  children: React.ReactNode;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  if (!isError || !errorMessage) {
+    return <div className="relative h-full">{children}</div>;
+  }
+
+  return (
+    <div
+      className="relative h-full"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Tooltip — only rendered when hovered to keep DOM clean */}
+      {hovered && (
+        <div
+          style={
+            {
+              position: "absolute",
+              bottom: "calc(100% + 6px)",
+              left: "8px",
+              background: "#1E293B",
+              color: "#F8FAFC",
+              fontSize: 11,
+              fontWeight: 500,
+              padding: "5px 10px",
+              borderRadius: 6,
+              whiteSpace: "nowrap",
+              zIndex: 9999,
+              pointerEvents: "none",
+              boxShadow: "0 4px 16px rgba(0,0,0,.2)",
+              maxWidth: 260,
+              whiteSpaceSafe: "normal",
+            } as React.CSSProperties
+          }
+        >
+          {errorMessage}
+          {/* Arrow */}
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: 12,
+              width: 0,
+              height: 0,
+              borderLeft: "4px solid transparent",
+              borderRight: "4px solid transparent",
+              borderTop: "4px solid #1E293B",
+            }}
+          />
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
 export function CellRenderer<TData = Record<string, unknown>>({
   row,
   colDef,
@@ -36,7 +102,10 @@ export function CellRenderer<TData = Record<string, unknown>>({
   // ── Custom render override
   if (isEditing && colDef.renderEditCell) {
     return (
-      <div className={cn("h-full", className)}>
+      <div
+        style={{ height: "100%", overflow: "visible" }}
+        className={className}
+      >
         {colDef.renderEditCell(
           value,
           row as unknown as TData,
@@ -48,14 +117,29 @@ export function CellRenderer<TData = Record<string, unknown>>({
   }
   if (!isEditing && colDef.renderCell) {
     return (
-      <div className={cn("h-full", className)}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          height: "100%",
+          padding: "0 10px",
+          fontSize: 12.5,
+          color: "var(--rf-text-1)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+        className={className}
+      >
         {colDef.renderCell(value, row as unknown as TData)}
       </div>
     );
   }
 
-  // ── Computed column — always read-only
-  if (colDef.computed) {
+  // ── Computed column
+  // If editableWhenComputed=true, allow edit mode — formula still auto-calculates
+  // when dependencies change, but user can manually override the value.
+  if (colDef.computed && !(colDef.editableWhenComputed && isEditing)) {
     return (
       <ComputedCell
         value={computedValue}
@@ -65,15 +149,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
     );
   }
 
-  // ── Error tooltip
-  const errorEl =
-    isError && errorMessage ? (
-      <div className="absolute bottom-[calc(100%+5px)] left-2 bg-[#1E293B] text-[#F8FAFC] text-[10.5px] font-medium px-2 py-1 rounded-rf-md whitespace-nowrap z-[999] pointer-events-none shadow-rf-md after:content-[''] after:absolute after:top-full after:left-3 after:border-4 after:border-transparent after:border-t-[#1E293B]">
-        {errorMessage}
-      </div>
-    ) : null;
-
-  // ── Cell by type
+  // ── Cell by type — all non-editing variants wrapped in WithErrorTooltip
   switch (colDef.type) {
     case "text":
       return isEditing ? (
@@ -89,13 +165,12 @@ export function CellRenderer<TData = Record<string, unknown>>({
           {...(className !== undefined && { className })}
         />
       ) : (
-        <div className="relative h-full">
-          {errorEl}
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
           <TextCellRead
             value={value != null ? String(value) : null}
             {...(className !== undefined && { className })}
           />
-        </div>
+        </WithErrorTooltip>
       );
 
     case "number":
@@ -110,8 +185,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
           {...(className !== undefined && { className })}
         />
       ) : (
-        <div className="relative h-full w-full">
-          {errorEl}
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
           <NumberCellRead
             value={value != null ? Number(value) : null}
             showProgress={colDef.suffix === "%"}
@@ -122,18 +196,47 @@ export function CellRenderer<TData = Record<string, unknown>>({
             })}
             {...(className !== undefined && { className })}
           />
-        </div>
+        </WithErrorTooltip>
       );
 
-    case "select":
+    case "select": {
+      // ── Async select: value stored as { value: id, label: name } (SelectOption shape).
+      // ── Static select: value stored as a plain string (the option's value).
+      const isAsync = !!colDef.loadOptions;
+      const storedObj =
+        isAsync && value != null && typeof value === "object"
+          ? (value as { value: string; label: string })
+          : null;
+      // id to pass to SelectCellEdit for matching/searching
+      const selectId = storedObj
+        ? storedObj.value
+        : value != null
+          ? String(value)
+          : null;
+      // human-readable label — passed to SelectCellEdit so it shows the name, not uuid
+      const selectLabel = storedObj?.label ?? null;
+
       return isEditing ? (
         <SelectCellEdit
-          value={value != null ? String(value) : null}
+          value={selectId}
+          currentLabel={selectLabel} // ← solves "shows uuid in edit mode"
           options={colDef.options ?? []}
-          onCommit={(v) => onCommit(v)}
+          onCommit={(v, label) => {
+            // Cleared (✕ clicked) — v is '' — store null so field is truly empty
+            if (v === "") {
+              onCommit(null);
+              return;
+            }
+            // Async: store { value, label } so label is available for display
+            // Static: store plain string — label resolved from options[] at render
+            onCommit(isAsync ? { value: v, label: label ?? v } : v);
+          }}
           onCancel={onCancel}
           {...(colDef.searchable !== undefined && {
             searchable: colDef.searchable,
+          })}
+          {...(colDef.clearable !== undefined && {
+            isClearable: colDef.clearable,
           })}
           {...(colDef.loadOptions !== undefined && {
             loadOptions: colDef.loadOptions,
@@ -143,25 +246,63 @@ export function CellRenderer<TData = Record<string, unknown>>({
           })}
         />
       ) : (
-        <div className="relative h-full">
-          {errorEl}
-          <SelectCellRead
-            value={value != null ? String(value) : null}
-            {...(colDef.options !== undefined && { options: colDef.options })}
-            {...(className !== undefined && { className })}
-          />
-        </div>
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+          {isAsync && selectLabel ? (
+            // Async read: show stored label — no options[] lookup needed
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                height: "100%",
+                padding: "0 10px",
+                fontSize: 12.5,
+                color: "var(--rf-text-1)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {selectLabel}
+            </div>
+          ) : (
+            // Static read: look up label from options[]
+            <SelectCellRead
+              value={value != null ? String(value) : null}
+              {...(colDef.options !== undefined && { options: colDef.options })}
+              {...(className !== undefined && { className })}
+            />
+          )}
+        </WithErrorTooltip>
       );
+    }
 
-    case "multiselect":
+    case "multiselect": {
+      // Async multiselect stores SelectOption[] ({ value, label }[]).
+      // Static multiselect stores string[].
+      const isAsyncMulti = !!colDef.loadOptions;
+      // Normalise to string[] for MultiSelectCellEdit (it re-normalises internally)
+      const multiVal = Array.isArray(value) ? (value as unknown[]) : [];
+      // For read mode: extract id strings and pass options so labels can be resolved
+      const multiReadVals: string[] = isAsyncMulti
+        ? multiVal
+            .filter(
+              (v): v is { value: string; label: string } =>
+                v != null && typeof v === "object" && "value" in (v as object),
+            )
+            .map((v) => v.value)
+        : (multiVal as string[]);
+
       return isEditing ? (
         <MultiSelectCellEdit
-          value={Array.isArray(value) ? (value as string[]) : null}
+          value={multiVal as string[]}
           options={colDef.options ?? []}
           onCommit={(v) => onCommit(v)}
           onCancel={onCancel}
           {...(colDef.searchable !== undefined && {
             searchable: colDef.searchable,
+          })}
+          {...(colDef.clearable !== undefined && {
+            isClearable: colDef.clearable,
           })}
           {...(colDef.loadOptions !== undefined && {
             loadOptions: colDef.loadOptions,
@@ -171,15 +312,78 @@ export function CellRenderer<TData = Record<string, unknown>>({
           })}
         />
       ) : (
-        <div className="relative h-full">
-          {errorEl}
-          <MultiSelectCellRead
-            value={Array.isArray(value) ? (value as string[]) : null}
-            {...(colDef.options !== undefined && { options: colDef.options })}
-            {...(className !== undefined && { className })}
-          />
-        </div>
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+          {isAsyncMulti ? (
+            // Async read: show stored labels directly without options[] lookup
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                height: "100%",
+                padding: "0 8px",
+                overflow: "hidden",
+              }}
+            >
+              {multiVal.length === 0 ? (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "var(--rf-text-3)",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Add tags…
+                </span>
+              ) : (
+                (multiVal as { value: string; label: string }[])
+                  .filter(
+                    (v) => v != null && typeof v === "object" && "label" in v,
+                  )
+                  .slice(0, 3)
+                  .map((opt) => (
+                    <span
+                      key={opt.value}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        fontSize: 10.5,
+                        fontWeight: 500,
+                        padding: "1px 7px",
+                        borderRadius: 20,
+                        border: "1px solid var(--rf-border)",
+                        background: "var(--rf-header)",
+                        color: "var(--rf-text-2)",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {opt.label}
+                    </span>
+                  ))
+              )}
+              {multiVal.length > 3 && (
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    color: "var(--rf-text-3)",
+                    flexShrink: 0,
+                  }}
+                >
+                  +{multiVal.length - 3}
+                </span>
+              )}
+            </div>
+          ) : (
+            <MultiSelectCellRead
+              value={multiReadVals}
+              {...(colDef.options !== undefined && { options: colDef.options })}
+              {...(className !== undefined && { className })}
+            />
+          )}
+        </WithErrorTooltip>
       );
+    }
 
     case "date":
       return isEditing ? (
@@ -192,26 +396,286 @@ export function CellRenderer<TData = Record<string, unknown>>({
           {...(className !== undefined && { className })}
         />
       ) : (
-        <div className="relative h-full">
-          {errorEl}
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
           <DateCellRead
             value={value != null ? String(value) : null}
             {...(className !== undefined && { className })}
           />
-        </div>
+        </WithErrorTooltip>
       );
 
     case "checkbox":
       return (
-        <div className="relative h-full">
-          {errorEl}
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
           <CheckboxCell
             value={!!value}
             onChange={(v) => onCommit(v)}
             {...(className !== undefined && { className })}
           />
+        </WithErrorTooltip>
+      );
+
+    // ── Email — text input + mailto link in read mode
+    case "email":
+      return isEditing ? (
+        <TextCellEdit
+          value={String(value ?? "")}
+          placeholder="email@example.com"
+          onCommit={(v) => onCommit(v)}
+          onCancel={onCancel}
+          {...(className !== undefined && { className })}
+        />
+      ) : (
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+          <div className="flex items-center px-[10px] h-full min-w-0">
+            {value ? (
+              <a
+                href={`mailto:${value}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-[12.5px] text-rf-accent hover:underline truncate"
+                title={String(value)}
+              >
+                {String(value)}
+              </a>
+            ) : (
+              <span className="text-[12px] text-rf-text-3 italic">—</span>
+            )}
+          </div>
+        </WithErrorTooltip>
+      );
+
+    // ── URL — text input + clickable link in read mode
+    case "url":
+      return isEditing ? (
+        <TextCellEdit
+          value={String(value ?? "")}
+          placeholder="https://example.com"
+          onCommit={(v) => onCommit(v)}
+          onCancel={onCancel}
+          {...(className !== undefined && { className })}
+        />
+      ) : (
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+          <div className="flex items-center px-[10px] h-full min-w-0">
+            {value ? (
+              <a
+                href={
+                  String(value).startsWith("http")
+                    ? String(value)
+                    : `https://${value}`
+                }
+                target={colDef.openInNewTab !== false ? "_blank" : undefined}
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-[12.5px] text-rf-accent hover:underline truncate"
+                title={String(value)}
+              >
+                {String(value)}
+              </a>
+            ) : (
+              <span className="text-[12px] text-rf-text-3 italic">—</span>
+            )}
+          </div>
+        </WithErrorTooltip>
+      );
+
+    // ── Currency — number formatted as currency
+    case "currency": {
+      const currCode = colDef.currency ?? "USD";
+      const currLocale = colDef.locale ?? "en-US";
+      return isEditing ? (
+        <NumberCellEdit
+          value={value != null ? Number(value) : null}
+          min={colDef.min}
+          max={colDef.max}
+          decimals={colDef.decimals ?? 2}
+          onCommit={(v) => onCommit(v)}
+          onCancel={onCancel}
+          {...(className !== undefined && { className })}
+        />
+      ) : (
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+          <div className="flex items-center justify-end px-[10px] h-full">
+            <span className="text-[12.5px] font-mono text-rf-text-1">
+              {value != null && isFinite(Number(value)) ? (
+                Intl.NumberFormat(currLocale, {
+                  style: "currency",
+                  currency: currCode,
+                  minimumFractionDigits: colDef.decimals ?? 2,
+                  maximumFractionDigits: colDef.decimals ?? 2,
+                }).format(Number(value))
+              ) : (
+                <span className="text-rf-text-3 italic">—</span>
+              )}
+            </span>
+          </div>
+        </WithErrorTooltip>
+      );
+    }
+
+    // ── Percentage — number shown as N%
+    case "percentage":
+      return isEditing ? (
+        <NumberCellEdit
+          value={value != null ? Number(value) : null}
+          min={colDef.min ?? 0}
+          max={colDef.max ?? 100}
+          decimals={colDef.decimals ?? 1}
+          suffix="%"
+          onCommit={(v) => onCommit(v)}
+          onCancel={onCancel}
+          {...(className !== undefined && { className })}
+        />
+      ) : (
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+          <div className="flex items-center px-[10px] h-full gap-2">
+            <div
+              style={{
+                flex: 1,
+                height: 4,
+                borderRadius: 2,
+                background: "var(--rf-border)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  borderRadius: 2,
+                  background: "var(--rf-accent)",
+                  width: `${Math.min(100, Math.max(0, Number(value ?? 0)))}%`,
+                  transition: "width 300ms ease",
+                }}
+              />
+            </div>
+            <span className="text-[11.5px] font-mono text-rf-text-1 flex-shrink-0">
+              {value != null
+                ? `${Number(value).toFixed(colDef.decimals ?? 1)}%`
+                : "—"}
+            </span>
+          </div>
+        </WithErrorTooltip>
+      );
+
+    // ── Rating — 1–N stars
+    case "rating": {
+      const maxStars = colDef.ratingMax ?? 5;
+      const rating = Math.round(Number(value ?? 0));
+      return isEditing ? (
+        <div className="flex items-center px-[10px] h-full gap-0.5">
+          {Array.from({ length: maxStars }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => onCommit(rating === i + 1 ? 0 : i + 1)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0 1px",
+                fontSize: 18,
+                lineHeight: 1,
+                color: i < rating ? "#F59E0B" : "var(--rf-border)",
+                transition: "color 100ms",
+              }}
+              title={`Rate ${i + 1} of ${maxStars}`}
+            >
+              ★
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-center px-[10px] h-full gap-px">
+          {Array.from({ length: maxStars }, (_, i) => (
+            <span
+              key={i}
+              style={{
+                fontSize: 14,
+                color: i < rating ? "#F59E0B" : "var(--rf-border)",
+              }}
+            >
+              ★
+            </span>
+          ))}
+          {rating > 0 && (
+            <span className="text-[11px] text-rf-text-3 ml-1">
+              {rating}/{maxStars}
+            </span>
+          )}
         </div>
       );
+    }
+
+    // ── Badge — read-only enum display (like select but never editable)
+    case "badge": {
+      const opt = colDef.options?.find((o) => o.value === String(value ?? ""));
+      const label = opt?.label ?? (value != null ? String(value) : null);
+      return (
+        <div className="flex items-center px-[10px] h-full">
+          {label ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                fontSize: 11,
+                fontWeight: 600,
+                borderRadius: 20,
+                padding: "2px 8px",
+                whiteSpace: "nowrap",
+                background: opt?.color ? `${opt.color}20` : "var(--rf-header)",
+                color: opt?.color ?? "var(--rf-text-2)",
+                border: `1px solid ${opt?.color ? `${opt.color}40` : "var(--rf-border)"}`,
+              }}
+            >
+              {label}
+            </span>
+          ) : (
+            <span className="text-[12px] text-rf-text-3 italic">—</span>
+          )}
+        </div>
+      );
+    }
+
+    // ── Progress — 0–100 read-only progress bar
+    case "progress": {
+      const pct = Math.min(100, Math.max(0, Number(value ?? 0)));
+      const color =
+        pct >= 100
+          ? "var(--rf-ok)"
+          : pct >= 66
+            ? "var(--rf-accent)"
+            : pct >= 33
+              ? "#F59E0B"
+              : "var(--rf-err)";
+      return (
+        <div className="flex items-center px-[10px] h-full gap-2">
+          <div
+            style={{
+              flex: 1,
+              height: 6,
+              borderRadius: 3,
+              background: "var(--rf-border)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                borderRadius: 3,
+                background: color,
+                width: `${pct}%`,
+                transition: "width 300ms ease",
+              }}
+            />
+          </div>
+          <span
+            className="text-[11px] font-mono text-rf-text-2 flex-shrink-0"
+            style={{ minWidth: 32, textAlign: "right" }}
+          >
+            {pct.toFixed(0)}%
+          </span>
+        </div>
+      );
+    }
 
     default:
       return (

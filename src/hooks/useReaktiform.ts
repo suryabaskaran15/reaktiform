@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from "react";
+import { useMemo, useEffect, useRef, useCallback } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,13 +9,13 @@ import {
   type ColumnDef as TanstackColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { useGridStore, useGridActions } from "../store";
+import { useGridStore, useGridActions, useGridStoreInstance } from "../store";
 import { useDraft } from "./useDraft";
 import { useUndo } from "./useUndo";
 import { useConditionalFormat } from "./useConditionalFormat";
 import { useComputedColumns } from "./useComputedColumns";
 import { generateId } from "../utils";
-import type { GridConfig, Row, SortingMode } from "../types";
+import type { GridConfig, Row, SortingMode, AggregationMode } from "../types";
 
 export function useReaktiform<TData = Record<string, unknown>>(
   config: GridConfig<TData>,
@@ -26,6 +26,8 @@ export function useReaktiform<TData = Record<string, unknown>>(
     rowIdKey = "id",
     sortingMode = "client",
     features = {},
+    permissions = {},
+    panelTabs,
     isLoading: isLoadingProp = false,
     isFetching: isFetchingProp = false,
     isFetchingMore: isFetchingMoreProp = false,
@@ -38,6 +40,8 @@ export function useReaktiform<TData = Record<string, unknown>>(
     onSortChange,
     onFilterChange,
     onSearchChange,
+    onAggregationChange,
+    aggregationValues,
     // Row mutation
     onCreate,
     onUpdate,
@@ -45,6 +49,8 @@ export function useReaktiform<TData = Record<string, unknown>>(
     onBulkSave,
     onDelete,
     onAdd,
+    onSaveSuccess,
+    onSaveError,
     // Initial state
     initialSort,
     initialGroupBy,
@@ -55,6 +61,32 @@ export function useReaktiform<TData = Record<string, unknown>>(
 
   const isServerMode = sortingMode === "server";
 
+  // ── Permission helpers — resolve boolean or function permissions
+  const resolvePermission = (
+    perm: boolean | ((row: Record<string, unknown>) => boolean) | undefined,
+    row?: Record<string, unknown>,
+  ): boolean => {
+    if (perm === undefined) return true;
+    if (typeof perm === "boolean") return perm;
+    if (row) return perm(row);
+    return true;
+  };
+
+  const canCreate = permissions.canCreate !== false;
+  const canExport = permissions.canExport !== false;
+  const canSave = permissions.canSave !== false;
+
+  const canEditRow = (row: Record<string, unknown>) =>
+    resolvePermission(permissions.canEdit, row);
+  const canDeleteRow = (row: Record<string, unknown>) =>
+    resolvePermission(permissions.canDelete, row);
+  const canDuplicateRow = (row: Record<string, unknown>) =>
+    resolvePermission(permissions.canDuplicate, row);
+  const canEditCol = (colKey: string) =>
+    permissions.canEditColumn ? permissions.canEditColumn(colKey) : true;
+  const canComment = permissions.canComment !== false;
+  const canUploadFiles = permissions.canUploadFiles !== false;
+
   // ── Stable action ref
   const actions = useGridActions();
   const actionsRef = useRef(actions);
@@ -62,6 +94,7 @@ export function useReaktiform<TData = Record<string, unknown>>(
 
   // ── Zustand state
   const sortState = useGridStore((s) => s.sortState);
+  const sortModel = useGridStore((s) => s.sortModel);
   const activeFilters = useGridStore((s) => s.activeFilters);
   const searchQuery = useGridStore((s) => s.searchQuery);
   const groupByCol = useGridStore((s) => s.groupByCol);
@@ -109,28 +142,76 @@ export function useReaktiform<TData = Record<string, unknown>>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Sync external data → store when data prop changes (server mode re-fetch)
-  const prevDataRef = useRef(data);
+  // ── Sync external data → store when data prop changes
+  //
+  // The store is the source of truth. This effect only updates rows that
+  // are clean (no draft, not mid-save). Rows being edited or currently
+  // saving are always preserved from the store.
+  //
+  // Key: we track a "saving" set of row IDs. While a save is in-flight,
+  // any incoming data change for that row is ignored. Once the save
+  // completes (or fails), the ID is removed from the set and normal
+  // sync resumes for explicit refetches.
+  const storeInstance = useGridStoreInstance();
+  const savingRowIdsRef = useRef<Set<string>>(new Set());
+
+  // Called by useDraft BEFORE the API call — marks row as saving
+  // Called by useDraft AFTER success or failure — clears the mark
+  const setSavingRow = useCallback((rowId: string, saving: boolean) => {
+    if (saving) {
+      savingRowIdsRef.current.add(rowId);
+    } else {
+      savingRowIdsRef.current.delete(rowId);
+    }
+  }, []);
+  const setSavingRowRef = useRef(setSavingRow);
+  setSavingRowRef.current = setSavingRow;
+
   useEffect(() => {
     if (!initialized.current) return;
-    if (data === prevDataRef.current) return;
-    prevDataRef.current = data;
 
-    const enrichedRows = data.map((item) => {
+    // Build the set of protected row IDs — rows that must NOT be overwritten:
+    //   1. Rows with an active draft (user is mid-edit)
+    //   2. Rows whose API save is in-flight (setSavingRow called)
+    const latestRows = storeInstance.getState().rows as Row<TData>[];
+    const skipIds = new Set<string>(savingRowIdsRef.current);
+
+    for (const r of latestRows) {
+      if (r._draft !== null && r._draft !== undefined) {
+        const id = String((r as Record<string, unknown>)[rowIdKey] ?? r._id);
+        skipIds.add(id);
+      }
+    }
+
+    // Build enriched incoming rows — add reaktiform meta fields
+    // preserving existing _id, _comments, _attachments from the store
+    const storeRowMap = new Map<string, Row<TData>>();
+    for (const r of latestRows) {
+      const id = String((r as Record<string, unknown>)[rowIdKey] ?? r._id);
+      storeRowMap.set(id, r);
+    }
+
+    const enrichedIncoming = data.map((item) => {
       const record = item as Record<string, unknown>;
+      const itemId = String(record[rowIdKey] ?? "");
+      const existing = storeRowMap.get(itemId);
       return {
         ...record,
-        _id: String(record[rowIdKey] ?? generateId("row")),
+        _id: existing?._id ?? String(record[rowIdKey] ?? generateId("row")),
         _saved: true,
         _new: false,
         _draft: null,
         _errors: {},
-        _comments: record["_comments"] ?? [],
-        _attachments: record["_attachments"] ?? [],
+        _saveError: undefined,
+        _comments: existing?._comments ?? record["_comments"] ?? [],
+        _attachments: existing?._attachments ?? record["_attachments"] ?? [],
       };
     });
-    actionsRef.current.setRows(enrichedRows);
-  }, [data, rowIdKey]);
+
+    // Use mergeRows — O(changed rows), Immer structural sharing
+    // means React skips re-rendering unchanged rows entirely
+    actionsRef.current.mergeRows(enrichedIncoming, rowIdKey, skipIds);
+  }, [data, rowIdKey, storeInstance]);
 
   // ── SERVER MODE: stable callback refs
   // Callbacks from consumer are often inline arrows that recreate every render.
@@ -148,21 +229,31 @@ export function useReaktiform<TData = Record<string, unknown>>(
   const skipFirstFilter = useRef(true);
   const skipFirstSearch = useRef(true);
 
-  // Server sort — fire when sortState changes
+  // Server sort — fire when sortModel/sortState changes
+  // For multi-sort: pass full sortModel array; for single sort: pass sortBy/sortDir
   useEffect(() => {
     if (!isServerMode) return;
     if (skipFirstSort.current) {
       skipFirstSort.current = false;
       return;
     }
-    if (!sortState) return;
+    if (sortModel.length === 0 && !sortState) return;
+    // Always pass sortBy/sortDir for backward compat (first sort entry)
+    // Also pass sortModel array for consumers that support multi-sort
+    const primary = sortModel[0] ?? sortState;
+    if (!primary) return;
     onSortChangeRef.current?.({
-      sortBy: sortState.colKey,
-      sortDir: sortState.direction,
+      sortBy: primary.colKey,
+      sortDir: primary.direction,
+      // Filter nulls before passing — SortState is nullable
+      sortModel:
+        sortModel.length > 1
+          ? sortModel.filter((s): s is NonNullable<typeof s> => s !== null)
+          : undefined,
     });
-    // Only sortState and isServerMode as deps — ref is stable
+    // sortModel ref is stable between renders; sortState stays in sync
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortState, isServerMode]);
+  }, [sortModel, sortState, isServerMode]);
 
   // Server filter — fire when activeFilters changes
   useEffect(() => {
@@ -204,16 +295,35 @@ export function useReaktiform<TData = Record<string, unknown>>(
   const computed = useComputedColumns<TData>({ columns });
 
   // ── Draft operations
+  // Stable wrapper so useDraft always calls the current setSavingRow
+  const setSavingRowStable = useCallback((rowId: string, saving: boolean) => {
+    setSavingRowRef.current(rowId, saving);
+  }, []);
+
+  // onRowSaveError: called by useDraft when a save API call fails.
+  // Stored in a ref so Reaktiform.tsx can imperatively set it to
+  // auto-open the error popover for the failed row.
+  const onRowSaveErrorRef = useRef<
+    ((rowInternalId: string) => void) | undefined
+  >(undefined);
+  const onRowSaveErrorStable = useCallback((rowInternalId: string) => {
+    onRowSaveErrorRef.current?.(rowInternalId);
+  }, []);
+
   const draft = useDraft<TData>({
     columns,
     rowIdKey,
     computed,
+    setSavingRow: setSavingRowStable,
+    onRowSaveError: onRowSaveErrorStable,
     ...(onCreate !== undefined && { onCreate }),
     ...(onUpdate !== undefined && { onUpdate }),
     ...(onSave !== undefined && { onSave }),
     ...(onBulkSave !== undefined && { onBulkSave }),
     ...(onDelete !== undefined && { onDelete }),
     ...(onAdd !== undefined && { onAdd }),
+    ...(onSaveSuccess !== undefined && { onSaveSuccess }),
+    ...(onSaveError !== undefined && { onSaveError }),
   });
 
   // ── Undo / Redo
@@ -246,11 +356,18 @@ export function useReaktiform<TData = Record<string, unknown>>(
     );
   }, [columns, draft]);
 
-  // ── Sort state for TanStack
+  // ── Sort state for TanStack — uses sortModel for multi-column sort
   const sorting = useMemo<SortingState>(() => {
+    if (sortModel.length > 0) {
+      // Multi-sort: map all entries in order
+      // Filter nulls — SortState is { colKey, direction } | null
+      return sortModel
+        .filter((s): s is NonNullable<typeof s> => s !== null)
+        .map((s) => ({ id: s.colKey, desc: s.direction === "desc" }));
+    }
     if (!sortState) return [];
     return [{ id: sortState.colKey, desc: sortState.direction === "desc" }];
-  }, [sortState]);
+  }, [sortModel, sortState]);
 
   // ── Memoized table state slices
   const columnVisibility = useMemo(
@@ -396,34 +513,79 @@ export function useReaktiform<TData = Record<string, unknown>>(
   });
 
   // ── Aggregation helper
-  const computeAggregation = (
-    colKey: string,
-    mode: string,
-  ): number | string | null => {
-    const col = columns.find((c) => c.key === colKey);
-    if (!col || col.type !== "number" || mode === "none") return null;
-    const vals = table
-      .getFilteredRowModel()
-      .rows.map((r) =>
-        parseFloat(String(draft.getVal(r.original, colKey) ?? "")),
-      )
-      .filter((v) => !isNaN(v));
-    if (!vals.length) return "—";
-    switch (mode) {
-      case "sum":
-        return vals.reduce((a, b) => a + b, 0).toFixed(2);
-      case "avg":
-        return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
-      case "min":
-        return Math.min(...vals).toFixed(2);
-      case "max":
-        return Math.max(...vals).toFixed(2);
-      case "count":
-        return vals.length;
-      default:
-        return null;
-    }
-  };
+  // ── Keep onAggregationChange in a ref — stable across renders
+  const onAggregationChangeRef = useRef(onAggregationChange);
+  onAggregationChangeRef.current = onAggregationChange;
+
+  // ── aggregationValues in a ref — always current for the tfoot render
+  const aggregationValuesRef = useRef(aggregationValues);
+  aggregationValuesRef.current = aggregationValues;
+
+  /**
+   * setAggregation — wraps store action + fires server callback in server mode.
+   * In client mode: just updates store, computeAggregation handles the math.
+   * In server mode: updates store (for mode display) + fires onAggregationChange
+   *   so consumer can fetch server-computed result and pass back via aggregationValues.
+   */
+  const setAggregation = useCallback(
+    (colKey: string, mode: string) => {
+      actions.setAggregation(colKey, mode);
+      if (isServerMode && onAggregationChangeRef.current) {
+        onAggregationChangeRef.current(colKey, mode as AggregationMode);
+      }
+    },
+    [actions, isServerMode],
+  );
+
+  /**
+   * computeAggregation — dual mode:
+   *
+   * CLIENT MODE: compute from the full filtered row set in memory.
+   *   Accurate because all data is loaded.
+   *
+   * SERVER MODE: return value from aggregationValues prop.
+   *   The consumer fetches this from their API via onAggregationChange.
+   *   Falls back to a loading indicator if value hasn't arrived yet.
+   */
+  const computeAggregation = useCallback(
+    (colKey: string, mode: string): number | string | null => {
+      const col = columns.find((c) => c.key === colKey);
+      if (!col || col.type !== "number" || mode === "none") return null;
+
+      // Server mode — use consumer-provided aggregation values
+      if (isServerMode) {
+        const serverVal = aggregationValuesRef.current?.[colKey];
+        if (serverVal !== undefined && serverVal !== null) return serverVal;
+        // Value not yet available — show loading indicator
+        return "…";
+      }
+
+      // Client mode — compute in memory from filtered rows
+      const vals = table
+        .getFilteredRowModel()
+        .rows.map((r) =>
+          parseFloat(String(draft.getVal(r.original, colKey) ?? "")),
+        )
+        .filter((v) => !isNaN(v));
+
+      if (!vals.length) return "—";
+      switch (mode) {
+        case "sum":
+          return vals.reduce((a, b) => a + b, 0).toFixed(2);
+        case "avg":
+          return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
+        case "min":
+          return Math.min(...vals).toFixed(2);
+        case "max":
+          return Math.max(...vals).toFixed(2);
+        case "count":
+          return vals.length;
+        default:
+          return null;
+      }
+    },
+    [columns, isServerMode, table, draft],
+  );
 
   const processedRows = table.getRowModel().rows;
 
@@ -432,6 +594,7 @@ export function useReaktiform<TData = Record<string, unknown>>(
     processedRows,
     columns,
     sortState,
+    sortModel,
     sortingMode: sortingMode as SortingMode,
     activeFilters,
     searchQuery,
@@ -449,12 +612,33 @@ export function useReaktiform<TData = Record<string, unknown>>(
     isFetching: isFetchingProp,
     isFetchingMore: isFetchingMoreProp,
     // Infinite scroll
-    totalRows: totalRows ?? draft.rows.length,
+    // totalRows: use prop only when it's a positive number.
+    // Jmix (and some other APIs) return X-Total-Count: 0 on first page
+    // even when rows exist — fall back to loaded row count in that case.
+    totalRows:
+      totalRows != null && totalRows > 0 ? totalRows : draft.rows.length,
     pageSize,
     fetchThreshold,
-    hasMore: totalRows !== undefined && draft.rows.length < totalRows,
+    hasMore:
+      totalRows != null && totalRows > 0 && draft.rows.length < totalRows,
+    // Permissions — resolved helpers
+    permissions: {
+      canCreate,
+      canExport,
+      canSave,
+      canEditRow,
+      canDeleteRow,
+      canDuplicateRow,
+      canEditCol,
+      canComment,
+      canUploadFiles,
+    },
+    // Panel tabs config
+    panelTabs,
     onFetchMoreRef,
     isFetchingMoreRef,
+    // Reaktiform.tsx sets this to auto-open the error popover on save failure
+    onRowSaveErrorRef,
     ...draft,
     ...undoRedo,
     ...cf,
@@ -464,8 +648,9 @@ export function useReaktiform<TData = Record<string, unknown>>(
     isComputed: computed.isComputed,
     computedCols: computed.computedCols,
     computeAggregation,
-    setAggregation: actions.setAggregation,
+    setAggregation,
     setSort: actions.setSort,
+    setSortMulti: actions.setSortMulti,
     clearSort: actions.clearSort,
     setFilter: actions.setFilter,
     clearFilter: actions.clearFilter,
