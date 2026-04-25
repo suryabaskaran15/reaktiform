@@ -21,7 +21,7 @@ import {
   Check,
   Lock,
 } from "lucide-react";
-import { cn } from "../../utils";
+import { cn, resolveConstraint } from "../../utils";
 import AsyncSelect from "react-select/async";
 import AsyncCreatableSelect from "react-select/async-creatable";
 import {
@@ -104,14 +104,14 @@ function FormField({
 }) {
   return (
     <div className={cn("mb-3", className)}>
-      <label className="flex items-center gap-1 text-[11px] font-semibold text-rf-text-2 uppercase tracking-[.04em] mb-1.5">
+      <label className="rf-flex rf-items-center rf-gap-1 text-[11px] rf-font-semibold text-rf-text-2 rf-uppercase tracking-[.04em] mb-1.5">
         {label}
-        {required && <span className="text-rf-err font-bold">*</span>}
+        {required && <span className="text-rf-err rf-font-bold">*</span>}
       </label>
       {children}
       {error && (
-        <div className="flex items-center gap-1 mt-1 text-[11px] text-rf-err">
-          <AlertCircle className="w-[11px] h-[11px] flex-shrink-0" />
+        <div className="rf-flex rf-items-center rf-gap-1 mt-1 text-[11px] text-rf-err">
+          <AlertCircle className="w-[11px] h-[11px] rf-flex-shrink-0" />
           {error}
         </div>
       )}
@@ -181,6 +181,15 @@ function DetailsTab<TData = Record<string, unknown>>({
     const k = col.key as string;
     const err = getFieldError(k);
     const currentVal = row._draft?.[k] ?? (row as Record<string, unknown>)[k];
+    // Resolve readOnly — boolean or (row) => boolean
+    const rowForConstraint = {
+      ...(row as Record<string, unknown>),
+      ...(row._draft ?? {}),
+    };
+    const isFieldReadOnly =
+      col.readOnly === true ||
+      (typeof col.readOnly === "function" &&
+        col.readOnly(rowForConstraint as TData));
 
     // ── Custom renderEditCell — same as inline grid, takes priority
     if (col.renderEditCell) {
@@ -190,7 +199,7 @@ function DetailsTab<TData = Record<string, unknown>>({
           label={col.label}
           required={col.required}
           error={err}
-          className="col-span-2"
+          className="rf-col-span-2"
         >
           {col.renderEditCell(
             currentVal,
@@ -200,6 +209,40 @@ function DetailsTab<TData = Record<string, unknown>>({
             }, // onCommit
             () => {}, // onCancel (no-op in panel)
           )}
+        </FormField>
+      );
+    }
+
+    // ── Read-only guard — applies to ALL field types.
+    // When isFieldReadOnly, show a static display instead of an editable input.
+    if (isFieldReadOnly) {
+      const displayVal = currentVal != null ? String(currentVal) : "—";
+      return (
+        <FormField
+          key={k}
+          label={col.label}
+          required={false}
+          error={undefined}
+          className="rf-col-span-2"
+        >
+          <div
+            style={{
+              padding: "6px 10px",
+              fontSize: 12.5,
+              color: "var(--rf-text-2)",
+              background: "var(--rf-header)",
+              borderRadius: 7,
+              border: "1px solid var(--rf-border)",
+              opacity: 0.72,
+              minHeight: 34,
+              display: "flex",
+              alignItems: "center",
+              fontStyle: "italic",
+              userSelect: "none",
+            }}
+          >
+            {displayVal}
+          </div>
         </FormField>
       );
     }
@@ -214,7 +257,7 @@ function DetailsTab<TData = Record<string, unknown>>({
             label={col.label}
             required={col.required}
             error={err}
-            className="col-span-2"
+            className="rf-col-span-2"
           >
             {col.multiline ? (
               <textarea
@@ -253,7 +296,7 @@ function DetailsTab<TData = Record<string, unknown>>({
             label={col.label}
             required={col.required}
             error={err}
-            className="col-span-1"
+            className="rf-col-span-1"
           >
             {/* Wrapper positions prefix/suffix absolutely inside the input box */}
             <div
@@ -284,8 +327,12 @@ function DetailsTab<TData = Record<string, unknown>>({
               <input
                 {...register(k, { valueAsNumber: true })}
                 type="number"
-                {...(col.min !== undefined && { min: col.min })}
-                {...(col.max !== undefined && { max: col.max })}
+                {...(col.min !== undefined && {
+                  min: resolveConstraint(col.min, row),
+                })}
+                {...(col.max !== undefined && {
+                  max: resolveConstraint(col.max, row),
+                })}
                 placeholder="0"
                 style={{
                   paddingLeft: col.prefix
@@ -428,7 +475,7 @@ function DetailsTab<TData = Record<string, unknown>>({
             label={col.label}
             required={col.required}
             error={err}
-            className="col-span-1"
+            className="rf-col-span-1"
           >
             <Controller
               name={k}
@@ -463,7 +510,7 @@ function DetailsTab<TData = Record<string, unknown>>({
                         loadOptions={cachedLoadOptions(col.loadOptions!)}
                         defaultOptions // calls loadOptions('') on open — shows initial list
                         cacheOptions // caches results so re-opens are instant (no API call)
-                        isClearable
+                        isClearable={!!col.clearable}
                         placeholder="Search or create…"
                         menuPortalTarget={
                           typeof document !== "undefined" ? document.body : null
@@ -491,7 +538,7 @@ function DetailsTab<TData = Record<string, unknown>>({
                       loadOptions={cachedLoadOptions(col.loadOptions!)}
                       defaultOptions
                       cacheOptions
-                      isClearable
+                      isClearable={!!col.clearable}
                       placeholder="Search…"
                       menuPortalTarget={
                         typeof document !== "undefined" ? document.body : null
@@ -532,7 +579,7 @@ function DetailsTab<TData = Record<string, unknown>>({
                     </select>
                     {col.options?.find((o) => o.value === field.value)
                       ?.color && (
-                      <div className="mt-1.5">
+                      <div className="rf-mt-1.5">
                         <OptionBadge
                           option={
                             col.options!.find((o) => o.value === field.value)!
@@ -663,7 +710,7 @@ function DetailsTab<TData = Record<string, unknown>>({
             label={col.label}
             required={col.required}
             error={err}
-            className="col-span-2"
+            className="rf-col-span-2"
           >
             <Controller
               name={k}
@@ -697,7 +744,7 @@ function DetailsTab<TData = Record<string, unknown>>({
                         loadOptions={cachedLoadOptions(col.loadOptions!)}
                         defaultOptions
                         cacheOptions
-                        isClearable
+                        isClearable={!!col.clearable}
                         placeholder="Search or create…"
                         menuPortalTarget={
                           typeof document !== "undefined" ? document.body : null
@@ -726,7 +773,7 @@ function DetailsTab<TData = Record<string, unknown>>({
                       loadOptions={cachedLoadOptions(col.loadOptions!)}
                       defaultOptions
                       cacheOptions
-                      isClearable
+                      isClearable={!!col.clearable}
                       placeholder="Search…"
                       menuPortalTarget={
                         typeof document !== "undefined" ? document.body : null
@@ -743,7 +790,7 @@ function DetailsTab<TData = Record<string, unknown>>({
                   ? (field.value as string[])
                   : [];
                 return (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="rf-flex-wrap rf-gap-1.5">
                     {(col.options ?? []).map((opt) => {
                       const isSel = current.includes(opt.value);
                       return (
@@ -774,7 +821,7 @@ function DetailsTab<TData = Record<string, unknown>>({
                             opacity: opt.disabled ? 0.4 : 1,
                           }}
                         >
-                          {isSel && <Check className="w-3 h-3" />}
+                          {isSel && <Check className="rf-icon-sm" />}
                           {opt.label}
                         </button>
                       );
@@ -794,13 +841,17 @@ function DetailsTab<TData = Record<string, unknown>>({
             label={col.label}
             required={col.required}
             error={err}
-            className="col-span-1"
+            className="rf-col-span-1"
           >
             <input
               {...register(k)}
               type="date"
-              {...(col.minDate !== undefined && { min: col.minDate })}
-              {...(col.maxDate !== undefined && { max: col.maxDate })}
+              {...(col.minDate !== undefined && {
+                min: resolveConstraint(col.minDate, row),
+              })}
+              {...(col.maxDate !== undefined && {
+                max: resolveConstraint(col.maxDate, row),
+              })}
               className={cn(inputBase, "font-mono", err && inputError)}
               onChange={(e) => {
                 onFieldChange(k, e.target.value || null);
@@ -811,7 +862,7 @@ function DetailsTab<TData = Record<string, unknown>>({
 
       case "checkbox":
         return (
-          <FormField key={k} label={col.label} className="col-span-1">
+          <FormField key={k} label={col.label} className="rf-col-span-1">
             <div
               className={cn(
                 inputBase,
@@ -822,14 +873,14 @@ function DetailsTab<TData = Record<string, unknown>>({
                 {...register(k)}
                 type="checkbox"
                 id={`form-${k}`}
-                className="w-[14px] h-[14px] rounded-[3px] accent-[var(--rf-accent)] cursor-pointer"
+                className="w-[14px] h-[14px] rounded-[3px] accent-[var(--rf-accent)] rf-cursor-pointer"
                 onChange={(e) => {
                   onFieldChange(k, e.target.checked);
                 }}
               />
               <label
                 htmlFor={`form-${k}`}
-                className="text-[13px] text-rf-text-1 cursor-pointer font-medium"
+                className="text-[13px] text-rf-text-1 rf-cursor-pointer rf-font-medium"
               >
                 {col.label}
               </label>
@@ -847,32 +898,32 @@ function DetailsTab<TData = Record<string, unknown>>({
       id={`rf-details-form-${rowId}`}
       onSubmit={handleSubmit((data) => onSave(data as Record<string, unknown>))}
     >
-      <div className="grid grid-cols-2 gap-x-3">
+      <div className="rf-grid-cols-2 gap-x-3">
         {nonComputedCols.map(renderField)}
       </div>
 
       {computedCols.length > 0 && (
         <>
-          <div className="text-[11px] font-bold text-rf-text-3 uppercase tracking-[.06em] mt-4 mb-2.5 pb-1.5 border-b border-rf-border">
+          <div className="text-[11px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em] mt-4 mb-2.5 pb-1.5 border-b border-rf-border">
             Computed Values
           </div>
-          <div className="grid grid-cols-2 gap-x-3">
+          <div className="rf-grid-cols-2 gap-x-3">
             {computedCols.map((col) => {
               const k = col.key as string;
               const val = (row as Record<string, unknown>)[k];
               return (
-                <FormField key={k} label={col.label} className="col-span-1">
+                <FormField key={k} label={col.label} className="rf-col-span-1">
                   <div
                     className={cn(
                       inputBase,
                       "bg-rf-header cursor-not-allowed flex items-center gap-1.5 text-rf-text-2",
                     )}
                   >
-                    <Lock className="w-3 h-3 text-rf-text-3 flex-shrink-0" />
-                    <span className="font-mono text-[12.5px]">
+                    <Lock className="rf-icon-sm text-rf-text-3 rf-flex-shrink-0" />
+                    <span className="rf-font-mono text-[12.5px]">
                       {val !== null && val !== undefined ? String(val) : "—"}
                     </span>
-                    <span className="ml-auto text-[9px] font-bold text-rf-text-3 border border-rf-border rounded px-1">
+                    <span className="rf-ml-auto text-[9px] rf-font-bold text-rf-text-3 border border-rf-border rounded px-1">
                       fx
                     </span>
                   </div>
@@ -919,15 +970,15 @@ function ActivityTab({
 
   return (
     <div>
-      <div className="text-[11px] font-bold text-rf-text-3 uppercase tracking-[.06em] mb-3 pb-1.5 border-b border-rf-border">
+      <div className="text-[11px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em] mb-3 pb-1.5 border-b border-rf-border">
         Activity Log
       </div>
       {comments.length === 0 && (
-        <div className="text-center py-8 text-[12.5px] text-rf-text-3 italic">
+        <div className="text-center py-8 text-[12.5px] text-rf-text-3 rf-italic">
           No activity yet
         </div>
       )}
-      <div className="flex flex-col divide-y divide-rf-border">
+      <div className="rf-flex-col divide-y divide-rf-border">
         {comments.map((c, i) => {
           const avClass = AV_COLORS[i % AV_COLORS.length] ?? AV_COLORS[0]!;
           const initials = c.author
@@ -937,7 +988,7 @@ function ActivityTab({
             .slice(0, 2)
             .toUpperCase();
           return (
-            <div key={c.id} className="flex gap-2.5 py-2.5">
+            <div key={c.id} className="rf-flex rf-gap-2.5 py-2.5">
               <div
                 className={cn(
                   "w-7 h-7 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0",
@@ -946,9 +997,9 @@ function ActivityTab({
               >
                 {initials}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[12px] font-semibold text-rf-text-1">
+              <div className="rf-flex-1 rf-min-w-0">
+                <div className="rf-flex rf-items-center rf-gap-2 mb-1">
+                  <span className="text-[12px] rf-font-semibold text-rf-text-1">
                     {c.author}
                   </span>
                   <span className="text-[11px] text-rf-text-3">
@@ -965,7 +1016,7 @@ function ActivityTab({
       </div>
       {onAddComment && canComment && (
         <div className="mt-4 border-t border-rf-border pt-3">
-          <div className="text-[11px] font-bold text-rf-text-3 uppercase tracking-[.06em] mb-2">
+          <div className="text-[11px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em] mb-2">
             Add Comment
           </div>
           <textarea
@@ -982,9 +1033,9 @@ function ActivityTab({
             type="button"
             onClick={post}
             disabled={!text.trim()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-semibold rounded-rf-md bg-rf-accent text-white hover:bg-rf-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="rf-inline-flex rf-items-center rf-gap-1.5 px-3 py-1.5 text-[12.5px] rf-font-semibold rounded-rf-md bg-rf-accent text-white hover:bg-rf-accent-hover disabled:opacity-40 disabled:rf-cursor-not-allowed rf-transition-colors"
           >
-            <Send className="w-3 h-3" /> Post
+            <Send className="rf-icon-sm" /> Post
           </button>
           <span className="ml-2 text-[11px] text-rf-text-3">or Ctrl+Enter</span>
         </div>
@@ -1038,12 +1089,12 @@ function AttachmentsTab({
 
   return (
     <div>
-      <div className="text-[11px] font-bold text-rf-text-3 uppercase tracking-[.06em] mb-3 pb-1.5 border-b border-rf-border">
+      <div className="text-[11px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em] mb-3 pb-1.5 border-b border-rf-border">
         Files ({attachments.length})
       </div>
-      <div className="flex flex-col gap-1.5 mb-4">
+      <div className="rf-flex-col rf-gap-1.5 mb-4">
         {attachments.length === 0 && (
-          <div className="text-center py-6 text-[12.5px] text-rf-text-3 italic">
+          <div className="text-center py-6 text-[12.5px] text-rf-text-3 rf-italic">
             No files attached
           </div>
         )}
@@ -1055,7 +1106,7 @@ function AttachmentsTab({
           return (
             <div
               key={a.id}
-              className="flex items-center gap-2.5 p-2.5 border border-rf-border rounded-rf-md hover:bg-rf-row-hover transition-colors group"
+              className="rf-flex rf-items-center rf-gap-2.5 p-2.5 border border-rf-border rounded-rf-md hover:bg-rf-row-hover rf-transition-colors group"
             >
               <div
                 className={cn(
@@ -1063,10 +1114,10 @@ function AttachmentsTab({
                   colorClass,
                 )}
               >
-                <IconComp className="w-4 h-4" />
+                <IconComp className="rf-icon-lg" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[12.5px] font-medium text-rf-text-1 truncate">
+              <div className="rf-flex-1 rf-min-w-0">
+                <div className="text-[12.5px] rf-font-medium text-rf-text-1 rf-truncate">
                   {a.name}
                 </div>
                 <div className="text-[11px] text-rf-text-3">{a.size}</div>
@@ -1078,7 +1129,7 @@ function AttachmentsTab({
                   className="opacity-0 group-hover:opacity-100 p-1 rounded text-rf-text-3 hover:text-rf-err hover:bg-rf-err-bg transition-all"
                   title="Remove"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="rf-icon-sm.5" />
                 </button>
               )}
             </div>
@@ -1087,21 +1138,21 @@ function AttachmentsTab({
       </div>
       {onUploadFile && canUploadFiles && (
         <label
-          className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-rf-border rounded-rf-lg p-6 cursor-pointer transition-all hover:border-rf-accent hover:bg-rf-accent-bg hover:text-rf-accent text-rf-text-3"
+          className="rf-flex-col rf-items-center rf-justify-center rf-gap-2 border-2 border-dashed border-rf-border rounded-rf-lg p-6 rf-cursor-pointer transition-all hover:border-rf-accent hover:bg-rf-accent-bg hover:text-rf-accent text-rf-text-3"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
         >
           <Upload className="w-5 h-5" />
-          <span className="text-[12.5px] font-medium">
+          <span className="text-[12.5px] rf-font-medium">
             Click to upload or drag & drop
           </span>
           <span className="text-[11px]">PDF, DOCX, XLSX, PNG, JPG</span>
-          <input type="file" className="hidden" onChange={handlePick} />
+          <input type="file" className="rf-hidden" onChange={handlePick} />
         </label>
       )}
       {onUploadFile && !canUploadFiles && (
-        <div className="flex items-center justify-center gap-2 border border-rf-border rounded-rf-lg p-4 text-rf-text-3 text-[12.5px]">
-          <Lock className="w-3.5 h-3.5" /> You do not have permission to upload
+        <div className="rf-flex rf-items-center rf-justify-center rf-gap-2 border border-rf-border rounded-rf-lg p-4 text-rf-text-3 text-[12.5px]">
+          <Lock className="rf-icon-sm.5" /> You do not have permission to upload
           files
         </div>
       )}
@@ -1217,53 +1268,53 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
         }}
       >
         {/* HEADER */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-rf-border bg-rf-header flex-shrink-0">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[10.5px] font-bold text-rf-text-3 uppercase tracking-[.06em]">
+        <div className="rf-flex rf-items-center rf-gap-2 px-4 py-3 border-b border-rf-border bg-rf-header rf-flex-shrink-0">
+          <div className="rf-flex-1 rf-min-w-0">
+            <div className="rf-flex rf-items-center rf-gap-2 mb-0.5">
+              <span className="text-[10.5px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em]">
                 {rowLabel}
               </span>
               {isDirty && !hasErrors && (
-                <span className="text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-1.5 py-0.5">
+                <span className="text-[10px] rf-font-bold bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-1.5 py-0.5">
                   Unsaved
                 </span>
               )}
               {hasErrors && (
-                <span className="text-[10px] font-bold bg-rf-err-bg text-rf-err border border-rf-err-br rounded-full px-1.5 py-0.5">
+                <span className="text-[10px] rf-font-bold bg-rf-err-bg text-rf-err border border-rf-err-br rounded-full px-1.5 py-0.5">
                   Errors
                 </span>
               )}
             </div>
-            <div className="text-[14px] font-semibold text-rf-text-1 truncate">
+            <div className="text-[14px] rf-font-semibold text-rf-text-1 rf-truncate">
               {description || "Record Details"}
             </div>
           </div>
-          <div className="flex gap-1 flex-shrink-0">
+          <div className="rf-flex rf-gap-1 rf-flex-shrink-0">
             <button
               onClick={onPrev}
               disabled={!canGoPrev}
-              className="w-7 h-7 rounded-rf-md border border-rf-border bg-rf-surface flex items-center justify-center text-rf-text-2 hover:bg-rf-accent-bg hover:text-rf-accent hover:border-rf-accent-br disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="w-7 h-7 rounded-rf-md border border-rf-border bg-rf-surface rf-flex rf-items-center rf-justify-center text-rf-text-2 hover:bg-rf-accent-bg hover:text-rf-accent hover:border-rf-accent-br disabled:opacity-30 disabled:rf-cursor-not-allowed rf-transition-colors"
             >
               <ChevronLeft className="w-[13px] h-[13px]" />
             </button>
             <button
               onClick={onNext}
               disabled={!canGoNext}
-              className="w-7 h-7 rounded-rf-md border border-rf-border bg-rf-surface flex items-center justify-center text-rf-text-2 hover:bg-rf-accent-bg hover:text-rf-accent hover:border-rf-accent-br disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="w-7 h-7 rounded-rf-md border border-rf-border bg-rf-surface rf-flex rf-items-center rf-justify-center text-rf-text-2 hover:bg-rf-accent-bg hover:text-rf-accent hover:border-rf-accent-br disabled:opacity-30 disabled:rf-cursor-not-allowed rf-transition-colors"
             >
               <ChevronRight className="w-[13px] h-[13px]" />
             </button>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-rf-md border border-rf-border bg-transparent flex items-center justify-center text-rf-text-3 hover:bg-rf-err-bg hover:text-rf-err hover:border-rf-err-br transition-colors"
+            className="w-7 h-7 rounded-rf-md border border-rf-border bg-transparent rf-flex rf-items-center rf-justify-center text-rf-text-3 hover:bg-rf-err-bg hover:text-rf-err hover:border-rf-err-br rf-transition-colors"
           >
             <X className="w-[13px] h-[13px]" />
           </button>
         </div>
 
         {/* TABS */}
-        <div className="flex border-b border-rf-border bg-rf-surface flex-shrink-0">
+        <div className="rf-flex border-b border-rf-border bg-rf-surface rf-flex-shrink-0">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1276,7 +1327,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                   : "text-rf-text-3 border-transparent hover:text-rf-text-2",
               )}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="rf-icon-sm.5" />
               {label}
             </button>
           ))}
@@ -1284,7 +1335,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
 
         {/* TAB BODY — scrollable */}
         <div
-          className="flex-1 overflow-y-auto px-4 py-4"
+          className="rf-flex-1 overflow-y-auto px-4 py-4"
           style={{ scrollbarWidth: "thin" }}
         >
           {row && activeTab === "details" && (
@@ -1323,7 +1374,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
             />
           )}
           {!row && (
-            <div className="flex flex-col items-center justify-center h-full text-rf-text-3 gap-3">
+            <div className="rf-flex-col rf-items-center rf-justify-center rf-h-full text-rf-text-3 rf-gap-3">
               <FileCheck className="w-10 h-10 opacity-30" />
               <span className="text-[13px]">Select a row to view details</span>
             </div>
@@ -1333,7 +1384,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
         {/* PANEL FOOTER — always visible at bottom, never scrolls away. */}
         {row && activeTab === "details" && (
           <div
-            className="flex-shrink-0 flex gap-2 px-4 py-3 border-t border-rf-border bg-rf-surface"
+            className="rf-flex-shrink-0 rf-flex rf-gap-2 px-4 py-3 border-t border-rf-border bg-rf-surface"
             style={{ boxShadow: "0 -4px 12px rgba(15,23,42,.06)" }}
           >
             {canEdit && canSave ? (
@@ -1345,7 +1396,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                       type="submit"
                       form={`rf-details-form-${rowId}`}
                       disabled={isSavingRow}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold rounded-rf-md bg-rf-accent text-white border border-rf-accent hover:bg-rf-accent-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="rf-flex-1 rf-inline-flex rf-items-center rf-justify-center rf-gap-1.5 py-2.5 text-[13px] rf-font-semibold rounded-rf-md bg-rf-accent text-white border border-rf-accent hover:bg-rf-accent-hover rf-transition-colors disabled:rf-opacity-60 disabled:rf-cursor-not-allowed"
                     >
                       {isSavingRow ? (
                         <>
@@ -1373,7 +1424,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                         </>
                       ) : (
                         <>
-                          <Save className="w-3.5 h-3.5" /> Save Changes
+                          <Save className="rf-icon-sm.5" /> Save Changes
                         </>
                       )}
                     </button>
@@ -1384,16 +1435,16 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                         onDiscard(rowId);
                         setResetKey((k) => k + 1);
                       }}
-                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] font-medium rounded-rf-md bg-rf-surface text-rf-text-2 border border-rf-border hover:bg-rf-header transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="rf-inline-flex rf-items-center rf-justify-center rf-gap-1.5 px-4 py-2.5 text-[13px] rf-font-medium rounded-rf-md bg-rf-surface text-rf-text-2 border border-rf-border hover:bg-rf-header rf-transition-colors disabled:rf-opacity-60 disabled:rf-cursor-not-allowed"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" /> Discard
+                      <RotateCcw className="rf-icon-sm.5" /> Discard
                     </button>
                   </>
                 );
               })()
             ) : (
-              <div className="flex-1 flex items-center justify-center gap-2 py-2 text-[12.5px] text-rf-text-3">
-                <Lock className="w-3.5 h-3.5" />
+              <div className="rf-flex-1 rf-flex rf-items-center rf-justify-center rf-gap-2 py-2 text-[12.5px] text-rf-text-3">
+                <Lock className="rf-icon-sm.5" />
                 {!canEdit
                   ? "Read-only — you do not have edit permission"
                   : "Saving is disabled"}

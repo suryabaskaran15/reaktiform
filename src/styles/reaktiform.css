@@ -3,15 +3,27 @@
  * ─────────────────────────────────────────────────────────────
  * ISOLATION STRATEGY:
  *
- * 1. CSS custom properties (--rf-*) are scoped to [data-reaktiform]
- *    so they never pollute the consumer's :root.
- *    Dark mode: add class="dark" on [data-reaktiform] or any ancestor.
+ * ISOLATION STRATEGY — two-way CSS isolation without @layer:
  *
- * 2. All utility classes (.flex, .hidden etc.) are scoped to
- *    [data-reaktiform] descendants — they cannot affect consumer UI.
+ * 1. [data-reaktiform] attribute selector — ALL our rules use this as
+ *    an ancestor selector. Attribute selectors have higher specificity
+ *    (0,1,0,0) than Tailwind class selectors (0,0,1,0), so our scoped
+ *    styles win over any consumer Tailwind utilities on the same element.
  *
- * 3. Consumer styles cannot reach inside [data-reaktiform] via
- *    generic selectors — full two-way isolation.
+ * 2. CSS custom properties (--rf-*) defined on [data-reaktiform] only
+ *    — zero pollution of consumer :root variables.
+ *
+ * 3. Isolation reset block — re-establishes box-sizing and border
+ *    defaults inside our boundary so Tailwind preflight resets can't
+ *    override our component internals.
+ *
+ * 4. All utility classes are rf-* prefixed and scoped to [data-reaktiform]
+ *    — bare class names like .flex or .grid are never used, so our styles
+ *    never conflict with consumer Tailwind utilities.
+ *
+ * NOTE: We intentionally do NOT use @layer. Putting our styles in a
+ *    named layer would make them LOSE to all unlayered consumer styles,
+ *    breaking our components whenever Tailwind is present.
  *
  * Usage:
  *   import 'reaktiform/styles'
@@ -22,6 +34,24 @@
    DESIGN TOKENS — scoped to [data-reaktiform]
    Does NOT touch :root — zero conflict with consumer variables
    ───────────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   ISOLATION RESET — neutralises Tailwind preflight inside our boundary.
+   Tailwind's preflight removes margins/padding, resets box-sizing, etc.
+   on ALL elements globally. This block re-establishes predictable
+   defaults for every element INSIDE [data-reaktiform].
+   ───────────────────────────────────────────────────────────── */
+[data-reaktiform],
+[data-reaktiform] * {
+  box-sizing: border-box;
+}
+
+[data-reaktiform] *,
+[data-reaktiform] *::before,
+[data-reaktiform] *::after {
+  border-width: 0;
+  border-style: solid;
+}
 [data-reaktiform] {
   /* Backgrounds */
   --rf-bg: #f4f6fa;
@@ -1890,4 +1920,224 @@ Generic names like .flex and .hidden ONLY apply inside
 .dark [data-reaktiform] .rf-cell-rating__star,
 [data-reaktiform].dark .rf-cell-rating__star {
   color: var(--rf-border);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ICON SIZING — Lucide React icons use className="w-N h-N"
+   We define rf-equivalents so icons are sized correctly even
+   when the consumer's Tailwind config has different spacing.
+   ───────────────────────────────────────────────────────────── */
+[data-reaktiform] .rf-icon-xs {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+[data-reaktiform] .rf-icon-sm {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+[data-reaktiform] .rf-icon-md {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+[data-reaktiform] .rf-icon-lg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+[data-reaktiform] .rf-icon-xl {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LAYOUT UTILITIES — rf-prefixed, safe from Tailwind conflicts
+   ───────────────────────────────────────────────────────────── */
+[data-reaktiform] .rf-flex {
+  display: flex;
+}
+[data-reaktiform] .rf-inline-flex {
+  display: inline-flex;
+}
+[data-reaktiform] .rf-grid {
+  display: grid;
+}
+[data-reaktiform] .rf-block {
+  display: block;
+}
+[data-reaktiform] .rf-hidden {
+  display: none;
+}
+[data-reaktiform] .rf-relative {
+  position: relative;
+}
+[data-reaktiform] .rf-absolute {
+  position: absolute;
+}
+[data-reaktiform] .rf-items-center {
+  align-items: center;
+}
+[data-reaktiform] .rf-items-start {
+  align-items: flex-start;
+}
+[data-reaktiform] .rf-items-end {
+  align-items: flex-end;
+}
+[data-reaktiform] .rf-justify-center {
+  justify-content: center;
+}
+[data-reaktiform] .rf-justify-between {
+  justify-content: space-between;
+}
+[data-reaktiform] .rf-justify-end {
+  justify-content: flex-end;
+}
+[data-reaktiform] .rf-flex-1 {
+  flex: 1 1 0%;
+}
+[data-reaktiform] .rf-flex-col {
+  flex-direction: column;
+}
+[data-reaktiform] .rf-flex-wrap {
+  flex-wrap: wrap;
+}
+[data-reaktiform] .rf-flex-shrink-0 {
+  flex-shrink: 0;
+}
+[data-reaktiform] .rf-min-w-0 {
+  min-width: 0;
+}
+[data-reaktiform] .rf-w-full {
+  width: 100%;
+}
+[data-reaktiform] .rf-h-full {
+  height: 100%;
+}
+[data-reaktiform] .rf-overflow-hidden {
+  overflow: hidden;
+}
+[data-reaktiform] .rf-overflow-auto {
+  overflow: auto;
+}
+[data-reaktiform] .rf-overflow-y-auto {
+  overflow-y: auto;
+}
+[data-reaktiform] .rf-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-reaktiform] .rf-gap-1 {
+  gap: 4px;
+}
+[data-reaktiform] .rf-gap-1\.5 {
+  gap: 6px;
+}
+[data-reaktiform] .rf-gap-2 {
+  gap: 8px;
+}
+[data-reaktiform] .rf-gap-2\.5 {
+  gap: 10px;
+}
+[data-reaktiform] .rf-gap-3 {
+  gap: 12px;
+}
+[data-reaktiform] .rf-gap-4 {
+  gap: 16px;
+}
+[data-reaktiform] .rf-gap-x-3 {
+  column-gap: 12px;
+}
+[data-reaktiform] .rf-col-span-1 {
+  grid-column: span 1 / span 1;
+}
+[data-reaktiform] .rf-col-span-2 {
+  grid-column: span 2 / span 2;
+}
+[data-reaktiform] .rf-grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+[data-reaktiform] .rf-font-medium {
+  font-weight: 500;
+}
+[data-reaktiform] .rf-font-semibold {
+  font-weight: 600;
+}
+[data-reaktiform] .rf-font-bold {
+  font-weight: 700;
+}
+[data-reaktiform] .rf-font-mono {
+  font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+}
+[data-reaktiform] .rf-text-xs {
+  font-size: 11px;
+}
+[data-reaktiform] .rf-text-sm {
+  font-size: 12px;
+}
+[data-reaktiform] .rf-text-base {
+  font-size: 13px;
+}
+[data-reaktiform] .rf-uppercase {
+  text-transform: uppercase;
+}
+[data-reaktiform] .rf-tracking-wide {
+  letter-spacing: 0.05em;
+}
+[data-reaktiform] .rf-leading-none {
+  line-height: 1;
+}
+[data-reaktiform] .rf-italic {
+  font-style: italic;
+}
+[data-reaktiform] .rf-select-none {
+  user-select: none;
+}
+[data-reaktiform] .rf-cursor-pointer {
+  cursor: pointer;
+}
+[data-reaktiform] .rf-cursor-default {
+  cursor: default;
+}
+[data-reaktiform] .rf-cursor-not-allowed {
+  cursor: not-allowed;
+}
+[data-reaktiform] .rf-pointer-events-none {
+  pointer-events: none;
+}
+[data-reaktiform] .rf-resize-y {
+  resize: vertical;
+}
+[data-reaktiform] .rf-ml-auto {
+  margin-left: auto;
+}
+[data-reaktiform] .rf-mt-1\.5 {
+  margin-top: 6px;
+}
+[data-reaktiform] .rf-px-10 {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+[data-reaktiform] .rf-py-2\.5 {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+[data-reaktiform] .rf-opacity-60 {
+  opacity: 0.6;
+}
+[data-reaktiform] .rf-opacity-100 {
+  opacity: 1;
+}
+[data-reaktiform] .rf-transition-colors {
+  transition:
+    color 150ms,
+    background-color 150ms,
+    border-color 150ms;
+}
+[data-reaktiform] .rf-appearance-none {
+  -webkit-appearance: none;
+  appearance: none;
 }

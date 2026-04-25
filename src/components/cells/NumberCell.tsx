@@ -62,10 +62,10 @@ type NumberCellEditProps = {
   decimals?: number | undefined;
   suffix?: string | undefined;
   prefix?: string | undefined;
-  autoFocus?: boolean;
+  autoFocus?: boolean | undefined;
   onCommit: (value: number | null) => void;
   onCancel: () => void;
-  className?: string | undefined;
+  className?: string;
 };
 
 export function NumberCellEdit({
@@ -85,6 +85,23 @@ export function NumberCellEdit({
       ref.current.select();
     }
   }, [autoFocus]);
+
+  // Sync min/max attributes when dynamic constraints change (cross-field deps).
+  // e.g. budgetCost changes → poValue's max prop updates → this effect fires
+  // and updates the native input's max attribute without remounting the cell.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (min !== undefined && min !== null) el.min = String(min);
+    else el.removeAttribute("min");
+  }, [min]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (max !== undefined && max !== null) el.max = String(max);
+    else el.removeAttribute("max");
+  }, [max]);
 
   const commit = () => {
     const raw = ref.current?.value;

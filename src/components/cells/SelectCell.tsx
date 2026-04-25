@@ -77,7 +77,7 @@ function makeSelectStyles<IsMulti extends boolean>(
       border: `1.5px solid ${s.isFocused ? T.accent : T.border}`,
       boxShadow: s.isFocused ? `0 0 0 3px rgba(59,91,219,.12)` : "none",
       borderRadius: 6,
-      background: T.bg,
+      backgroundColor: T.bg, // explicit — overrides React Select's base bg
       cursor: "pointer",
       flexWrap: "wrap",
       "&:hover": { borderColor: T.accent },
@@ -99,7 +99,7 @@ function makeSelectStyles<IsMulti extends boolean>(
     singleValue: (b) => ({ ...b, color: T.text1, fontSize: 12.5 }),
     multiValue: (b) => ({
       ...b,
-      background: T.accentBg,
+      backgroundColor: T.accentBg,
       borderRadius: 100,
       border: `1px solid ${T.accentBr}`,
       margin: "1px 2px",
@@ -115,7 +115,7 @@ function makeSelectStyles<IsMulti extends boolean>(
       ...b,
       color: T.accent,
       borderRadius: "0 100px 100px 0",
-      "&:hover": { background: T.errBg, color: T.err },
+      "&:hover": { backgroundColor: T.errBg, color: T.err },
     }),
     placeholder: (b) => ({
       ...b,
@@ -133,15 +133,22 @@ function makeSelectStyles<IsMulti extends boolean>(
     }),
     // menuPortal must be highest z-index to escape table stacking context
     menuPortal: (b) => ({ ...b, zIndex: 9999, pointerEvents: "auto" }),
-    menu: (b) => ({
-      ...b,
+    menu: (_b) => ({
+      // Don't spread _b — React Select's base menu styles interfere in production.
+      // Define all properties we need explicitly.
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
       border: `1px solid ${T.border}`,
       boxShadow: "0 8px 32px rgba(15,23,42,.18)",
       borderRadius: 10,
-      background: T.surface,
+      backgroundColor: T.surface, // explicit white — always wins
       overflow: "hidden",
       marginTop: 4,
       minWidth: 160,
+      zIndex: 1,
+      boxSizing: "border-box",
     }),
     menuList: (b) => ({
       ...b,
@@ -149,15 +156,21 @@ function makeSelectStyles<IsMulti extends boolean>(
       maxHeight: 280,
       overflowY: "auto",
     }),
-    option: (b, s) => ({
-      ...b,
+    option: (_b, s) => ({
+      // Don't spread _b (base) — it contains backgroundColor that conflicts
+      // with ours in production. We define all needed properties explicitly.
       padding: "7px 10px",
       fontSize: 12.5,
       cursor: "pointer",
       minHeight: 34,
       display: "flex",
       alignItems: "center",
-      background: s.isSelected
+      boxSizing: "border-box",
+      width: "100%",
+      userSelect: "none",
+      WebkitUserSelect: "none",
+      // This is the key — explicit backgroundColor always wins over any class
+      backgroundColor: s.isSelected
         ? T.accentBg
         : s.isFocused
           ? T.rowHover

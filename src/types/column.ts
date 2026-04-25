@@ -13,6 +13,26 @@ export type SelectOption = {
    * Built-in semantic: 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'
    * Custom: any CSS color string — '#FF5733', 'rgb(255,87,51)', 'hsl(11,100%,60%)'
    */
+  /**
+   * Controls the badge color in select dropdowns and grid cells.
+   *
+   * Three formats supported:
+   *
+   * 1. Named semantic token (built-in palette):
+   *    'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'
+   *
+   * 2. Any CSS color string — background auto-derived, text auto-contrasted:
+   *    '#E53E3E'  |  'rgb(229,62,62)'  |  'hsl(0,72%,51%)'  |  'tomato'
+   *
+   * 3. Full custom object — total control over every part of the badge:
+   *    { bg: '#FEE2E2', text: '#991B1B', dot: '#DC2626', border: '#FECACA' }
+   *    All fields optional — omitted fields fall back to auto-derived values.
+   *
+   * @example
+   * color: 'success'                           // named token
+   * color: '#E53E3E'                           // auto-derive from hex
+   * color: { bg: '#FEE2E2', text: '#991B1B' }  // full custom
+   */
   color?:
     | "default"
     | "success"
@@ -20,7 +40,8 @@ export type SelectOption = {
     | "error"
     | "info"
     | "purple"
-    | (string & {});
+    | { bg?: string; text?: string; dot?: string; border?: string }
+    | (string & {}); // any CSS color string — auto-derives bg/text/dot/border
   disabled?: boolean;
   /** Optional icon name (lucide-react) shown before label */
   icon?: string;
@@ -33,6 +54,7 @@ export type ColumnType =
   | "select" // single-select dropdown — SelectCellRead / SelectCellEdit
   | "multiselect" // multi-select — MultiSelectCellRead / MultiSelectCellEdit
   | "date" // ISO date — DateCellRead / DateCellEdit (native picker)
+  | "time" // time string "HH:MM" — TimeCellRead / TimeCellEdit (native picker)
   | "checkbox" // boolean — CheckboxCell
   | "email" // text + mailto link in read mode + email validation
   | "url" // text + hyperlink in read mode + URL validation
@@ -108,6 +130,18 @@ export type ColumnDef<TData = Record<string, unknown>> = {
    */
   format?: (value: unknown, row: TData) => string;
 
+  /**
+   * Make this column read-only — cell shows as non-editable even if the row
+   * is otherwise editable. Accepts a boolean or a function for row-based logic.
+   *
+   * @example
+   * readOnly: true                                    // always read-only
+   * readOnly: false                                   // always editable (default)
+   * readOnly: (row) => row.status === 'CLOSED'        // locked once closed
+   * readOnly: (row) => row.lostTimeInjury !== 'YES'   // conditional
+   */
+  readOnly?: boolean | ((row: TData) => boolean);
+
   // ── Validation ──────────────────────────────────────────────
   /** Mark field as required — blocks save if empty. */
   required?: boolean;
@@ -128,10 +162,22 @@ export type ColumnDef<TData = Record<string, unknown>> = {
   ) => string | undefined;
 
   // ── Number specific ──────────────────────────────────────────
-  /** Minimum allowed value (number, currency, percentage, rating). */
-  min?: number;
-  /** Maximum allowed value. */
-  max?: number;
+  /**
+   * Minimum allowed value (number, currency, percentage, rating).
+   * Static number or a function receiving the current row for cross-field constraints.
+   * @example
+   * min: 0                              // static — always >= 0
+   * min: (row) => row.allocatedBudget   // dynamic — depends on another field
+   */
+  min?: number | ((row: TData) => number | undefined);
+  /**
+   * Maximum allowed value.
+   * Static number or a function receiving the current row for cross-field constraints.
+   * @example
+   * max: 100                            // static
+   * max: (row) => row.budgetCeiling     // dynamic — must not exceed ceiling
+   */
+  max?: number | ((row: TData) => number | undefined);
   /** Display prefix — shown before the value. e.g. 'RM', '$', '£' */
   prefix?: string;
   /** Display suffix — shown after the value. e.g. '%', ' days', ' kg' */
@@ -211,10 +257,23 @@ export type ColumnDef<TData = Record<string, unknown>> = {
   showCharCount?: boolean;
 
   // ── Date specific ────────────────────────────────────────────
-  /** Minimum selectable date (ISO string). */
-  minDate?: string;
-  /** Maximum selectable date (ISO string). */
-  maxDate?: string;
+  /**
+   * Minimum selectable date (ISO date string).
+   * Static string or a function receiving the current row for cross-field date constraints.
+   * @example
+   * minDate: '2024-01-01'                  // static floor
+   * minDate: (row) => row.requestDate      // dynamic — approved must be after request
+   * minDate: (row) => row.contractStart ?? '2024-01-01'  // dynamic with fallback
+   */
+  minDate?: string | ((row: TData) => string | undefined);
+  /**
+   * Maximum selectable date (ISO date string).
+   * Static string or a function receiving the current row for cross-field date constraints.
+   * @example
+   * maxDate: '2030-12-31'                  // static ceiling
+   * maxDate: (row) => row.projectEnd       // dynamic — can't exceed project end
+   */
+  maxDate?: string | ((row: TData) => string | undefined);
   /** Display format string. Default: 'DD MMM YYYY' */
   dateFormat?: string;
 

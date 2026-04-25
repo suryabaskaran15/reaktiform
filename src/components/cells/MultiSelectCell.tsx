@@ -1,33 +1,17 @@
 import { useRef } from "react";
 import type { SelectOption } from "../../types";
-import { cn } from "../../utils";
 import { SelectOverlay } from "./SelectCell";
+import { OptionBadge } from "../primitives/Badge";
+import { cn } from "@/utils";
 
 // ─────────────────────────────────────────────────────────────
 //  TAG PILL — read mode display for each selected value
+//  Uses OptionBadge so all 3 color formats work:
+//  named tokens, CSS strings, and custom objects.
+//  Inline styles only — works inside and outside [data-reaktiform].
 // ─────────────────────────────────────────────────────────────
-const TAG_COLORS: Record<string, string> = {
-  default: "bg-rf-header text-rf-text-2 border-rf-border",
-  success: "bg-rf-ok-bg text-green-700 border-rf-ok-br",
-  warning: "bg-rf-warn-bg text-amber-800 border-rf-warn-br",
-  error: "bg-rf-err-bg text-red-800 border-rf-err-br",
-  info: "bg-rf-accent-bg text-blue-900 border-rf-accent-br",
-  purple: "bg-rf-purple-bg text-purple-800 border-rf-purple-br",
-};
-
 function TagPill({ option }: { option: SelectOption }) {
-  const colorClass =
-    TAG_COLORS[option.color ?? "default"] ?? TAG_COLORS["default"]!;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center text-[10.5px] font-medium px-[6px] py-[1px] rounded-full border whitespace-nowrap flex-shrink-0",
-        colorClass,
-      )}
-    >
-      {option.label}
-    </span>
-  );
+  return <OptionBadge option={option} />;
 }
 
 // ─────────────────────────────────────────────────────────────
