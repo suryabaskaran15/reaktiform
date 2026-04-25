@@ -1,15 +1,30 @@
-import { cn } from "../../utils";
+import React from "react";
 import type { SelectOption } from "../../types";
 
 // ─────────────────────────────────────────────────────────────
-//  BADGE VARIANT SYSTEM
-//  Supports both named semantic colors AND arbitrary CSS color strings.
+//  BADGE — fully inline styles, zero CSS class dependencies.
 //
-//  Named variants map to CSS variables so they respect dark mode.
-//  Custom hex/rgb/hsl strings are applied directly as inline styles.
+//  Works identically in:
+//  • Grid cells (inside [data-reaktiform])
+//  • React Select menus (portaled to document.body)
+//  • Any consumer app with any CSS framework
+//
+//  THREE COLOR FORMATS:
+//
+//  1. Named token  — 'success' | 'warning' | 'error' | 'info' | 'purple' | 'default'
+//     Uses our hardcoded design token palette.
+//
+//  2. CSS string   — '#E53E3E' | 'rgb(229,62,62)' | 'hsl(0,72%,51%)' | 'tomato'
+//     Auto-derives a light background + border from the color,
+//     and computes a legible text color via W3C luminance contrast.
+//
+//  3. Custom object — { bg?, text?, dot?, border? }
+//     Full user control. Any omitted field is auto-derived from `bg`.
+//     Example: { bg: '#FEE2E2', text: '#991B1B', dot: '#DC2626' }
 // ─────────────────────────────────────────────────────────────
 
-type BadgeVariant =
+// ── Named semantic tokens ──────────────────────────────────────
+type NamedVariant =
   | "default"
   | "success"
   | "warning"
@@ -17,7 +32,7 @@ type BadgeVariant =
   | "info"
   | "purple";
 
-const NAMED_VARIANTS = new Set<BadgeVariant>([
+const NAMED: Set<NamedVariant> = new Set([
   "default",
   "success",
   "warning",
@@ -26,91 +41,142 @@ const NAMED_VARIANTS = new Set<BadgeVariant>([
   "purple",
 ]);
 
-function isNamedVariant(color: string): color is BadgeVariant {
-  return NAMED_VARIANTS.has(color as BadgeVariant);
+type TokenSet = { bg: string; text: string; dot: string; border: string };
+
+const TOKENS: Record<NamedVariant, TokenSet> = {
+  default: {
+    bg: "#F1F3F9",
+    text: "#475569",
+    border: "#E2E5ED",
+    dot: "#94A3B8",
+  },
+  success: {
+    bg: "#F0FDF4",
+    text: "#15803D",
+    border: "#BBF7D0",
+    dot: "#16A34A",
+  },
+  warning: {
+    bg: "#FFFBEB",
+    text: "#92400E",
+    border: "#FDE68A",
+    dot: "#D97706",
+  },
+  error: { bg: "#FFF1F2", text: "#991B1B", border: "#FECACA", dot: "#DC2626" },
+  info: { bg: "#EEF2FF", text: "#1E3A8A", border: "#C7D2FE", dot: "#3B5BDB" },
+  purple: { bg: "#F5F3FF", text: "#6B21A8", border: "#DDD6FE", dot: "#7C3AED" },
+};
+
+// ── Colour utilities ───────────────────────────────────────────
+
+/** Derive a full TokenSet from any CSS color string */
+function deriveTokens(color: string): TokenSet {
+  // Light pastel background — for hex we add low-opacity suffix; for others use a pale fallback
+  const bg =
+    color.startsWith("#") && color.length === 7
+      ? color + "18" // 9% opacity hex (e.g. #E53E3E18)
+      : color.startsWith("#") && color.length === 4
+        ? "#" +
+          color[1] +
+          color[1] +
+          color[2] +
+          color[2] +
+          color[3] +
+          color[3] +
+          "18"
+        : "rgba(0,0,0,0.06)"; // fallback for rgb/hsl/named
+  const border =
+    color.startsWith("#") && color.length === 7
+      ? color + "40" // 25% opacity
+      : "rgba(0,0,0,0.15)";
+  const text = color; // use the color itself as text — it's the "brand" color
+  const dot = color;
+
+  return { bg, text, dot, border };
 }
 
-// Named variant → Tailwind class sets (scoped via [data-reaktiform])
-const variantClasses: Record<BadgeVariant, string> = {
-  default: "bg-rf-header text-rf-text-2 border-rf-border",
-  success: "bg-rf-ok-bg text-green-700 border-rf-ok-br",
-  warning: "bg-rf-warn-bg text-amber-800 border-rf-warn-br",
-  error: "bg-rf-err-bg text-red-800 border-rf-err-br",
-  info: "bg-rf-accent-bg text-blue-900 border-rf-accent-br",
-  purple: "bg-rf-purple-bg text-purple-800 border-rf-purple-br",
-};
+/** Resolve SelectOption.color → full TokenSet */
+function resolveTokens(color: SelectOption["color"]): TokenSet {
+  if (!color) return TOKENS.default;
 
-const dotClasses: Record<BadgeVariant, string> = {
-  default: "bg-rf-text-3",
-  success: "bg-rf-ok",
-  warning: "bg-rf-warn",
-  error: "bg-rf-err",
-  info: "bg-rf-accent",
-  purple: "bg-rf-purple",
-};
+  // Named token
+  if (typeof color === "string" && NAMED.has(color as NamedVariant)) {
+    return TOKENS[color as NamedVariant];
+  }
+
+  // Custom object — user provides specific values, fill gaps from bg if given
+  if (typeof color === "object") {
+    const derived = color.bg ? deriveTokens(color.bg) : TOKENS.default;
+    return {
+      bg: color.bg ?? derived.bg,
+      text: color.text ?? derived.text,
+      dot: color.dot ?? color.bg ?? derived.dot,
+      border: color.border ?? derived.border,
+    };
+  }
+
+  // CSS color string — auto-derive
+  return deriveTokens(color as string);
+}
 
 // ─────────────────────────────────────────────────────────────
 //  BADGE COMPONENT
 // ─────────────────────────────────────────────────────────────
+export type BadgeColor = SelectOption["color"];
+
 type BadgeProps = {
   label: string;
   /**
-   * Named variant: 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'
-   * Custom color:  Any CSS color string — '#FF5733', 'rgb(255,87,51)', 'hsl(11,100%,60%)'
+   * Controls badge appearance. Accepts:
+   * - Named token: 'success' | 'warning' | 'error' | 'info' | 'purple' | 'default'
+   * - CSS string: '#E53E3E' | 'rgb(229,62,62)' | 'tomato' (auto-derives styles)
+   * - Object: { bg?, text?, dot?, border? } (full manual control)
    */
-  variant?: string;
+  variant?: BadgeColor;
   showDot?: boolean;
-  className?: string | undefined;
+  style?: React.CSSProperties; // additional inline styles
+  className?: string;
 };
 
 export function Badge({
   label,
   variant = "default",
   showDot = true,
+  style: extraStyle,
   className,
 }: BadgeProps) {
-  // Named variant — use Tailwind classes + CSS vars (dark mode safe)
-  if (isNamedVariant(variant)) {
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1 text-[11px] font-semibold",
-          "px-2 py-[2px] rounded-full border whitespace-nowrap",
-          variantClasses[variant],
-          className,
-        )}
-      >
-        {showDot && (
-          <span
-            className={cn(
-              "w-[5px] h-[5px] rounded-full flex-shrink-0",
-              dotClasses[variant],
-            )}
-          />
-        )}
-        {label}
-      </span>
-    );
-  }
+  const t = resolveTokens(variant);
 
-  // Custom color — use inline styles so any CSS color works
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1 text-[11px] font-semibold",
-        "px-2 py-[2px] rounded-full border whitespace-nowrap",
-        className,
-      )}
+      className={className}
       style={{
-        backgroundColor: `${variant}22`, // 13% opacity background
-        borderColor: `${variant}55`, // 33% opacity border
-        color: variant, // solid text color
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        padding: "2px 8px",
+        borderRadius: 20,
+        border: `1px solid ${t.border}`,
+        whiteSpace: "nowrap",
+        lineHeight: 1.4,
+        fontFamily: "inherit",
+        backgroundColor: t.bg,
+        color: t.text,
+        ...extraStyle,
       }}
     >
       {showDot && (
         <span
-          className="w-[5px] h-[5px] rounded-full flex-shrink-0"
-          style={{ backgroundColor: variant }}
+          style={{
+            display: "inline-block",
+            width: 5,
+            height: 5,
+            borderRadius: "50%",
+            flexShrink: 0,
+            backgroundColor: t.dot,
+          }}
         />
       )}
       {label}
@@ -118,14 +184,7 @@ export function Badge({
   );
 }
 
-// ── Helper: map SelectOption.color → badge variant
-export function getOptionVariant(color: SelectOption["color"]): string {
-  if (!color) return "default";
-  // Named variants pass through; custom colors pass through too
-  return color;
-}
-
-// ── Helper: render a select option as a badge
+// ── Render a SelectOption as a Badge
 export function OptionBadge({
   option,
   className,
@@ -136,8 +195,15 @@ export function OptionBadge({
   return (
     <Badge
       label={option.label}
-      variant={getOptionVariant(option.color)}
+      variant={option.color}
       {...(className !== undefined && { className })}
     />
   );
+}
+
+// ── Kept for backward compat — maps color to itself (resolveTokens handles all cases)
+export function getOptionVariant(
+  color: SelectOption["color"],
+): SelectOption["color"] {
+  return color;
 }

@@ -1,9 +1,16 @@
 import React, { useState } from "react";
+import { resolveConstraint } from "../../utils";
+import { OptionBadge } from "../primitives/Badge";
 import { TextCellRead, TextCellEdit } from "./TextCell";
 import { NumberCellRead, NumberCellEdit } from "./NumberCell";
 import { SelectCellRead, SelectCellEdit } from "./SelectCell";
 import { MultiSelectCellRead, MultiSelectCellEdit } from "./MultiSelectCell";
-import { DateCellRead, DateCellEdit } from "./DateCell";
+import {
+  DateCellRead,
+  DateCellEdit,
+  TimeCellRead,
+  TimeCellEdit,
+} from "./DateCell";
 import { CheckboxCell } from "./CheckboxCell";
 import { ComputedCell } from "./ComputedCell";
 import type { ColumnDef, Row } from "../../types";
@@ -21,6 +28,16 @@ type CellRendererProps<TData> = {
   className?: string | undefined;
 };
 
+// ── Merge base row with its draft values for constraint resolution.
+// Constraint functions like (row) => row.rfqDate must read the CURRENT
+// edited value, not the last-saved server value. _draft holds pending
+// changes — merging gives us the effective row the user sees.
+function mergedRow<TData>(row: Row<TData>): Row<TData> {
+  const draft = row["_draft"] as Record<string, unknown> | null | undefined;
+  if (!draft) return row;
+  return { ...row, ...draft };
+}
+
 // ── Error tooltip wrapper — shows tooltip on hover only
 function WithErrorTooltip({
   isError,
@@ -34,12 +51,12 @@ function WithErrorTooltip({
   const [hovered, setHovered] = useState(false);
 
   if (!isError || !errorMessage) {
-    return <div className="relative h-full">{children}</div>;
+    return <div className="rf-relative rf-h-full">{children}</div>;
   }
 
   return (
     <div
-      className="relative h-full"
+      className="rf-relative rf-h-full"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -179,8 +196,12 @@ export function CellRenderer<TData = Record<string, unknown>>({
           value={value != null ? Number(value) : null}
           onCommit={(v) => onCommit(v)}
           onCancel={onCancel}
-          {...(colDef.min !== undefined && { min: colDef.min })}
-          {...(colDef.max !== undefined && { max: colDef.max })}
+          {...(colDef.min !== undefined && {
+            min: resolveConstraint(colDef.min, mergedRow(row)),
+          })}
+          {...(colDef.max !== undefined && {
+            max: resolveConstraint(colDef.max, mergedRow(row)),
+          })}
           {...(colDef.decimals !== undefined && { decimals: colDef.decimals })}
           {...(className !== undefined && { className })}
         />
@@ -391,13 +412,34 @@ export function CellRenderer<TData = Record<string, unknown>>({
           value={value != null ? String(value) : null}
           onCommit={(v) => onCommit(v)}
           onCancel={onCancel}
-          {...(colDef.minDate !== undefined && { minDate: colDef.minDate })}
-          {...(colDef.maxDate !== undefined && { maxDate: colDef.maxDate })}
+          {...(colDef.minDate !== undefined && {
+            minDate: resolveConstraint(colDef.minDate, mergedRow(row)),
+          })}
+          {...(colDef.maxDate !== undefined && {
+            maxDate: resolveConstraint(colDef.maxDate, mergedRow(row)),
+          })}
           {...(className !== undefined && { className })}
         />
       ) : (
         <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
           <DateCellRead
+            value={value != null ? String(value) : null}
+            {...(className !== undefined && { className })}
+          />
+        </WithErrorTooltip>
+      );
+
+    case "time":
+      return isEditing ? (
+        <TimeCellEdit
+          value={value != null ? String(value) : null}
+          onCommit={(v) => onCommit(v)}
+          onCancel={onCancel}
+          {...(className !== undefined && { className })}
+        />
+      ) : (
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+          <TimeCellRead
             value={value != null ? String(value) : null}
             {...(className !== undefined && { className })}
           />
@@ -427,18 +469,18 @@ export function CellRenderer<TData = Record<string, unknown>>({
         />
       ) : (
         <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
-          <div className="flex items-center px-[10px] h-full min-w-0">
+          <div className="rf-flex rf-items-center px-[10px] rf-h-full rf-min-w-0">
             {value ? (
               <a
                 href={`mailto:${value}`}
                 onClick={(e) => e.stopPropagation()}
-                className="text-[12.5px] text-rf-accent hover:underline truncate"
+                className="text-[12.5px] text-rf-accent hover:underline rf-truncate"
                 title={String(value)}
               >
                 {String(value)}
               </a>
             ) : (
-              <span className="text-[12px] text-rf-text-3 italic">—</span>
+              <span className="text-[12px] text-rf-text-3 rf-italic">—</span>
             )}
           </div>
         </WithErrorTooltip>
@@ -456,7 +498,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
         />
       ) : (
         <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
-          <div className="flex items-center px-[10px] h-full min-w-0">
+          <div className="rf-flex rf-items-center px-[10px] rf-h-full rf-min-w-0">
             {value ? (
               <a
                 href={
@@ -467,13 +509,13 @@ export function CellRenderer<TData = Record<string, unknown>>({
                 target={colDef.openInNewTab !== false ? "_blank" : undefined}
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-[12.5px] text-rf-accent hover:underline truncate"
+                className="text-[12.5px] text-rf-accent hover:underline rf-truncate"
                 title={String(value)}
               >
                 {String(value)}
               </a>
             ) : (
-              <span className="text-[12px] text-rf-text-3 italic">—</span>
+              <span className="text-[12px] text-rf-text-3 rf-italic">—</span>
             )}
           </div>
         </WithErrorTooltip>
@@ -486,8 +528,8 @@ export function CellRenderer<TData = Record<string, unknown>>({
       return isEditing ? (
         <NumberCellEdit
           value={value != null ? Number(value) : null}
-          min={colDef.min}
-          max={colDef.max}
+          min={resolveConstraint(colDef.min, mergedRow(row))}
+          max={resolveConstraint(colDef.max, mergedRow(row))}
           decimals={colDef.decimals ?? 2}
           onCommit={(v) => onCommit(v)}
           onCancel={onCancel}
@@ -495,8 +537,8 @@ export function CellRenderer<TData = Record<string, unknown>>({
         />
       ) : (
         <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
-          <div className="flex items-center justify-end px-[10px] h-full">
-            <span className="text-[12.5px] font-mono text-rf-text-1">
+          <div className="rf-flex rf-items-center justify-end px-[10px] rf-h-full">
+            <span className="text-[12.5px] rf-font-mono text-rf-text-1">
               {value != null && isFinite(Number(value)) ? (
                 Intl.NumberFormat(currLocale, {
                   style: "currency",
@@ -505,7 +547,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
                   maximumFractionDigits: colDef.decimals ?? 2,
                 }).format(Number(value))
               ) : (
-                <span className="text-rf-text-3 italic">—</span>
+                <span className="text-rf-text-3 rf-italic">—</span>
               )}
             </span>
           </div>
@@ -518,8 +560,8 @@ export function CellRenderer<TData = Record<string, unknown>>({
       return isEditing ? (
         <NumberCellEdit
           value={value != null ? Number(value) : null}
-          min={colDef.min ?? 0}
-          max={colDef.max ?? 100}
+          min={resolveConstraint(colDef.min, mergedRow(row)) ?? 0}
+          max={resolveConstraint(colDef.max, mergedRow(row)) ?? 100}
           decimals={colDef.decimals ?? 1}
           suffix="%"
           onCommit={(v) => onCommit(v)}
@@ -528,7 +570,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
         />
       ) : (
         <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
-          <div className="flex items-center px-[10px] h-full gap-2">
+          <div className="rf-flex rf-items-center px-[10px] rf-h-full rf-gap-2">
             <div
               style={{
                 flex: 1,
@@ -548,7 +590,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
                 }}
               />
             </div>
-            <span className="text-[11.5px] font-mono text-rf-text-1 flex-shrink-0">
+            <span className="text-[11.5px] rf-font-mono text-rf-text-1 rf-flex-shrink-0">
               {value != null
                 ? `${Number(value).toFixed(colDef.decimals ?? 1)}%`
                 : "—"}
@@ -562,7 +604,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
       const maxStars = colDef.ratingMax ?? 5;
       const rating = Math.round(Number(value ?? 0));
       return isEditing ? (
-        <div className="flex items-center px-[10px] h-full gap-0.5">
+        <div className="rf-flex rf-items-center px-[10px] rf-h-full gap-0.5">
           {Array.from({ length: maxStars }, (_, i) => (
             <button
               key={i}
@@ -584,7 +626,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
           ))}
         </div>
       ) : (
-        <div className="flex items-center px-[10px] h-full gap-px">
+        <div className="rf-flex rf-items-center px-[10px] rf-h-full gap-px">
           {Array.from({ length: maxStars }, (_, i) => (
             <span
               key={i}
@@ -610,26 +652,27 @@ export function CellRenderer<TData = Record<string, unknown>>({
       const opt = colDef.options?.find((o) => o.value === String(value ?? ""));
       const label = opt?.label ?? (value != null ? String(value) : null);
       return (
-        <div className="flex items-center px-[10px] h-full">
+        <div className="rf-flex rf-items-center px-[10px] rf-h-full">
           {label ? (
+            opt ? (
+              // Has matching option — render with full color support via OptionBadge
+              <OptionBadge option={opt} />
+            ) : (
+              // No matching option — plain text
+              <span style={{ fontSize: 12.5, color: "var(--rf-text-1)" }}>
+                {label}
+              </span>
+            )
+          ) : (
             <span
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                fontSize: 11,
-                fontWeight: 600,
-                borderRadius: 20,
-                padding: "2px 8px",
-                whiteSpace: "nowrap",
-                background: opt?.color ? `${opt.color}20` : "var(--rf-header)",
-                color: opt?.color ?? "var(--rf-text-2)",
-                border: `1px solid ${opt?.color ? `${opt.color}40` : "var(--rf-border)"}`,
+                fontSize: 12,
+                color: "var(--rf-text-3)",
+                fontStyle: "italic",
               }}
             >
-              {label}
+              —
             </span>
-          ) : (
-            <span className="text-[12px] text-rf-text-3 italic">—</span>
           )}
         </div>
       );
@@ -647,7 +690,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
               ? "#F59E0B"
               : "var(--rf-err)";
       return (
-        <div className="flex items-center px-[10px] h-full gap-2">
+        <div className="rf-flex rf-items-center px-[10px] rf-h-full rf-gap-2">
           <div
             style={{
               flex: 1,
@@ -668,7 +711,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
             />
           </div>
           <span
-            className="text-[11px] font-mono text-rf-text-2 flex-shrink-0"
+            className="text-[11px] rf-font-mono text-rf-text-2 rf-flex-shrink-0"
             style={{ minWidth: 32, textAlign: "right" }}
           >
             {pct.toFixed(0)}%
@@ -679,7 +722,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
 
     default:
       return (
-        <div className="flex items-center px-[10px] h-full">
+        <div className="rf-flex rf-items-center px-[10px] rf-h-full">
           <span className="text-[13px] text-rf-text-1">
             {String(value ?? "")}
           </span>

@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { cn } from "../../utils";
+import { cn, resolveConstraint } from "../../utils";
 import { GridStoreProvider } from "../../store";
 import { useReaktiform } from "../../hooks/useReaktiform";
 import { useKeyboardNav } from "../../hooks/useKeyboardNav";
@@ -377,6 +377,15 @@ function ReaktiformInner<TData = Record<string, unknown>>(
   // ── Feature 6: show only rows with errors
   const [showErrorsOnly, setShowErrorsOnly] = useState(false);
 
+  // ── Merge base row with draft values — used for readOnly resolution
+  // Same logic as CellRenderer's mergedRow but defined here for the td onClick
+  function mergeRowWithDraft(
+    row: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const draft = row["_draft"] as Record<string, unknown> | null | undefined;
+    return draft ? { ...row, ...draft } : row;
+  }
+
   // ── Feature 3: error dot popover — which rowId's error popover is open
   const [errorPopoverRowId, setErrorPopoverRowId] = useState<string | null>(
     null,
@@ -711,14 +720,14 @@ function ReaktiformInner<TData = Record<string, unknown>>(
   return (
     <div
       data-reaktiform
-      className={cn("flex flex-col w-full", props.className)}
+      className={cn("rf-flex rf-flex-col w-full", props.className)}
       style={props.style}
     >
       {/* ── TOOLBAR ───────────────────────────────────────── */}
-      <div className="bg-rf-surface border border-rf-border border-b-0 rounded-t-rf-lg px-3 py-2 flex items-center gap-2 flex-wrap">
+      <div className="bg-rf-surface border border-rf-border border-b-0 rounded-t-rf-lg px-3 py-2 rf-flex rf-items-center rf-gap-2 rf-flex-wrap">
         {/* Search */}
-        <div className="relative flex-1 min-w-[160px] max-w-[240px]">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-rf-text-3 pointer-events-none" />
+        <div className="rf-relative rf-flex-1 min-w-[160px] max-w-[240px]">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 rf-icon-sm text-rf-text-3 rf-pointer-events-none" />
           <input
             type="text"
             placeholder="Search all fields…"
@@ -734,7 +743,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
           />
         </div>
 
-        <div className="w-px h-[18px] bg-rf-border flex-shrink-0" />
+        <div className="w-px h-[18px] bg-rf-border rf-flex-shrink-0" />
 
         {/* Consumer toolbar left slot */}
         {props.toolbarLeft}
@@ -742,7 +751,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
         {/* Dirty badge + Save/Discard all */}
         {dirtyCount > 0 && (
           <>
-            <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-rf-amber bg-rf-amber-bg border border-rf-amber-br rounded-full px-2.5 py-0.5">
+            <span className="rf-inline-flex rf-items-center rf-gap-1.5 text-[12px] rf-font-semibold text-rf-amber bg-rf-amber-bg border border-rf-amber-br rounded-full px-2.5 py-0.5">
               {dirtyCount} unsaved
             </span>
             {grid.permissions.canSave &&
@@ -754,7 +763,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                       if (!isBulkSaving) grid.saveAll();
                     }}
                     disabled={isBulkSaving}
-                    className="inline-flex items-center gap-1.5 text-[12.5px] font-medium px-3 py-1.5 rounded-rf-md bg-rf-ok-bg text-green-700 border border-rf-ok-br hover:bg-green-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="rf-inline-flex rf-items-center rf-gap-1.5 text-[12.5px] rf-font-medium px-3 py-1.5 rounded-rf-md bg-rf-ok-bg text-green-700 border border-rf-ok-br hover:bg-green-100 rf-transition-colors disabled:rf-opacity-60 disabled:rf-cursor-not-allowed"
                   >
                     {isBulkSaving ? (
                       <>
@@ -782,7 +791,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                       </>
                     ) : (
                       <>
-                        <Save className="w-3 h-3" /> Save All
+                        <Save className="rf-icon-sm" /> Save All
                       </>
                     )}
                   </button>
@@ -791,11 +800,11 @@ function ReaktiformInner<TData = Record<string, unknown>>(
             <button
               onClick={() => grid.discardAll()}
               disabled={(grid.savingCount ?? 0) > 0}
-              className="inline-flex items-center gap-1.5 text-[12.5px] font-medium px-3 py-1.5 rounded-rf-md bg-rf-warn-bg text-amber-800 border border-rf-warn-br hover:bg-yellow-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="rf-inline-flex rf-items-center rf-gap-1.5 text-[12.5px] rf-font-medium px-3 py-1.5 rounded-rf-md bg-rf-warn-bg text-amber-800 border border-rf-warn-br hover:bg-yellow-100 rf-transition-colors disabled:rf-opacity-60 disabled:rf-cursor-not-allowed"
             >
-              <X className="w-3 h-3" /> Discard All
+              <X className="rf-icon-sm" /> Discard All
             </button>
-            <div className="w-px h-[18px] bg-rf-border flex-shrink-0" />
+            <div className="w-px h-[18px] bg-rf-border rf-flex-shrink-0" />
           </>
         )}
 
@@ -806,12 +815,12 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               onClick={grid.undo}
               disabled={!grid.canUndo}
               title="Undo (Ctrl+Z)"
-              className="inline-flex items-center gap-1 text-[12px] font-medium px-2.5 py-1.5 rounded-rf-md border border-rf-border bg-rf-surface text-rf-text-2 hover:bg-rf-header hover:text-rf-text-1 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
+              className="rf-inline-flex rf-items-center rf-gap-1 text-[12px] rf-font-medium px-2.5 py-1.5 rounded-rf-md border border-rf-border bg-rf-surface text-rf-text-2 hover:bg-rf-header hover:text-rf-text-1 disabled:opacity-35 disabled:rf-cursor-not-allowed rf-transition-colors"
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="rf-icon-sm" />
               Undo
               {grid.historyCount > 0 && (
-                <span className="font-mono text-[10.5px] text-rf-text-3 ml-0.5">
+                <span className="rf-font-mono text-[10.5px] text-rf-text-3 ml-0.5">
                   {grid.historyCount}
                 </span>
               )}
@@ -820,16 +829,16 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               onClick={grid.redo}
               disabled={!grid.canRedo}
               title="Redo (Ctrl+Y)"
-              className="inline-flex items-center gap-1 text-[12px] font-medium px-2.5 py-1.5 rounded-rf-md border border-rf-border bg-rf-surface text-rf-text-2 hover:bg-rf-header hover:text-rf-text-1 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
+              className="rf-inline-flex rf-items-center rf-gap-1 text-[12px] rf-font-medium px-2.5 py-1.5 rounded-rf-md border border-rf-border bg-rf-surface text-rf-text-2 hover:bg-rf-header hover:text-rf-text-1 disabled:opacity-35 disabled:rf-cursor-not-allowed rf-transition-colors"
             >
               Redo
-              <RotateCw className="w-3 h-3" />
+              <RotateCw className="rf-icon-sm" />
             </button>
-            <div className="w-px h-[18px] bg-rf-border flex-shrink-0" />
+            <div className="w-px h-[18px] bg-rf-border rf-flex-shrink-0" />
           </>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="rf-ml-auto rf-flex rf-items-center rf-gap-2">
           {/* Feature 6 — Show errors only toggle */}
           {(() => {
             const errorCount = grid.rows.filter(
@@ -851,9 +860,9 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                     : `Show only rows with errors (${errorCount})`
                 }
               >
-                <AlertTriangle className="w-3 h-3" />
+                <AlertTriangle className="rf-icon-sm" />
                 {errorCount} {errorCount === 1 ? "error" : "errors"}
-                {showErrorsOnly && <X className="w-2.5 h-2.5 ml-0.5" />}
+                {showErrorsOnly && <X className="rf-icon-xs ml-0.5" />}
               </button>
             );
           })()}
@@ -879,7 +888,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               )}
               title="Conditional formatting"
             >
-              <Palette className="w-3 h-3" />
+              <Palette className="rf-icon-sm" />
             </button>
           )}
           {/* Column visibility button */}
@@ -901,9 +910,9 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               )}
               title="Show/hide columns"
             >
-              <Columns3 className="w-3 h-3" />
+              <Columns3 className="rf-icon-sm" />
               {grid.hiddenColumns.size > 0 && (
-                <span className="text-[10px] font-bold">
+                <span className="text-[10px] rf-font-bold">
                   {props.columns.length - grid.hiddenColumns.size}/
                   {props.columns.length}
                 </span>
@@ -932,7 +941,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               title="Sync / Refresh data"
             >
               <RefreshCw
-                className="w-3 h-3"
+                className="rf-icon-sm"
                 style={
                   isRefreshing
                     ? { animation: "spin 0.8s linear infinite" }
@@ -960,14 +969,14 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                     );
                   }
                 }}
-                className="inline-flex items-center gap-1 text-[12px] font-medium px-2.5 py-1.5 rounded-rf-md border border-rf-border bg-rf-surface text-rf-text-2 hover:bg-rf-header transition-colors"
+                className="rf-inline-flex rf-items-center rf-gap-1 text-[12px] rf-font-medium px-2.5 py-1.5 rounded-rf-md border border-rf-border bg-rf-surface text-rf-text-2 hover:bg-rf-header rf-transition-colors"
                 title={
                   props.onExport
                     ? "Export all records to CSV (server)"
                     : "Export visible rows to CSV"
                 }
               >
-                <Download className="w-3 h-3" /> CSV
+                <Download className="rf-icon-sm" /> CSV
               </button>
               <button
                 onClick={async () => {
@@ -984,14 +993,14 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                     );
                   }
                 }}
-                className="inline-flex items-center gap-1 text-[12px] font-medium px-2.5 py-1.5 rounded-rf-md border border-rf-border bg-rf-surface text-rf-text-2 hover:bg-rf-header transition-colors"
+                className="rf-inline-flex rf-items-center rf-gap-1 text-[12px] rf-font-medium px-2.5 py-1.5 rounded-rf-md border border-rf-border bg-rf-surface text-rf-text-2 hover:bg-rf-header rf-transition-colors"
                 title={
                   props.onExport
                     ? "Export all records to Excel (server)"
                     : "Export visible rows to Excel"
                 }
               >
-                <FileSpreadsheet className="w-3 h-3" /> Excel
+                <FileSpreadsheet className="rf-icon-sm" /> Excel
               </button>
             </>
           )}
@@ -1002,9 +1011,9 @@ function ReaktiformInner<TData = Record<string, unknown>>(
           {grid.permissions.canCreate && (
             <button
               onClick={() => grid.addRow()}
-              className="inline-flex items-center gap-1.5 text-[12.5px] font-medium px-3 py-1.5 rounded-rf-md bg-rf-accent text-white border border-rf-accent hover:bg-rf-accent-hover transition-colors"
+              className="rf-inline-flex rf-items-center rf-gap-1.5 text-[12.5px] rf-font-medium px-3 py-1.5 rounded-rf-md bg-rf-accent text-white border border-rf-accent hover:bg-rf-accent-hover rf-transition-colors"
             >
-              <Plus className="w-3 h-3" /> New Record
+              <Plus className="rf-icon-sm" /> New Record
             </button>
           )}
         </div>
@@ -1012,28 +1021,30 @@ function ReaktiformInner<TData = Record<string, unknown>>(
 
       {/* ── ACTIVE FILTERS BAR ────────────────────────────── */}
       {Object.keys(grid.activeFilters).length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap px-3 py-2 bg-rf-accent-bg border border-rf-accent-br border-b-0 text-[12px]">
-          <span className="font-semibold text-rf-accent">Active filters:</span>
+        <div className="rf-flex rf-items-center rf-gap-2 rf-flex-wrap px-3 py-2 bg-rf-accent-bg border border-rf-accent-br border-b-0 text-[12px]">
+          <span className="rf-font-semibold text-rf-accent">
+            Active filters:
+          </span>
           {Object.entries(grid.activeFilters).map(([key]) => {
             const col = props.columns.find((c) => c.key === key);
             return (
               <span
                 key={key}
-                className="inline-flex items-center gap-1 bg-rf-surface border border-rf-accent-br rounded-full px-2.5 py-0.5 text-rf-accent font-medium"
+                className="rf-inline-flex rf-items-center rf-gap-1 bg-rf-surface border border-rf-accent-br rounded-full px-2.5 py-0.5 text-rf-accent rf-font-medium"
               >
                 {col?.label ?? key}
                 <button
                   onClick={() => grid.clearFilter(key)}
-                  className="opacity-60 hover:opacity-100"
+                  className="rf-opacity-60 hover:opacity-100"
                 >
-                  <X className="w-2.5 h-2.5" />
+                  <X className="rf-icon-xs" />
                 </button>
               </span>
             );
           })}
           <button
             onClick={grid.clearAllFilters}
-            className="ml-auto text-rf-accent font-medium opacity-70 hover:opacity-100"
+            className="rf-ml-auto text-rf-accent rf-font-medium opacity-70 hover:opacity-100"
           >
             Clear all
           </button>
@@ -1042,12 +1053,12 @@ function ReaktiformInner<TData = Record<string, unknown>>(
 
       {/* ── BULK ACTIONS BAR ──────────────────────────────── */}
       {grid.selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-rf-accent text-white border border-rf-accent border-b-0 rounded-t-rf-lg text-[12.5px] font-medium flex-shrink-0">
-          <span className="font-semibold">
+        <div className="rf-flex rf-items-center rf-gap-3 px-4 py-2 bg-rf-accent text-white border border-rf-accent border-b-0 rounded-t-rf-lg text-[12.5px] rf-font-medium rf-flex-shrink-0">
+          <span className="rf-font-semibold">
             {grid.selectedIds.size} row{grid.selectedIds.size !== 1 ? "s" : ""}{" "}
             selected
           </span>
-          <div className="w-px h-4 bg-white/20" />
+          <div className="w-px rf-icon-lg bg-white/20" />
           {/* Bulk delete — uses onBulkDelete (single API call) when provided,
                falls back to sequential onDelete calls */}
           {(props.onBulkDelete || props.onDelete) &&
@@ -1080,9 +1091,9 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                   }
                   grid.clearSelection();
                 }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 transition-colors"
+                className="rf-inline-flex rf-items-center rf-gap-1.5 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors"
               >
-                <Trash2 className="w-3 h-3" /> Delete{" "}
+                <Trash2 className="rf-icon-sm" /> Delete{" "}
                 {grid.selectedIds.size > 1
                   ? `${grid.selectedIds.size} rows`
                   : "selected"}
@@ -1096,17 +1107,17 @@ function ReaktiformInner<TData = Record<string, unknown>>(
             }) && (
               <button
                 onClick={() => void grid.saveAll()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 transition-colors"
+                className="rf-inline-flex rf-items-center rf-gap-1.5 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors"
               >
-                <Save className="w-3 h-3" /> Save selected
+                <Save className="rf-icon-sm" /> Save selected
               </button>
             )}
-          <div className="ml-auto" />
+          <div className="rf-ml-auto" />
           <button
             onClick={grid.clearSelection}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 transition-colors"
+            className="rf-inline-flex rf-items-center rf-gap-1 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors"
           >
-            <X className="w-3 h-3" /> Deselect all
+            <X className="rf-icon-sm" /> Deselect all
           </button>
         </div>
       )}
@@ -1118,9 +1129,9 @@ function ReaktiformInner<TData = Record<string, unknown>>(
       >
         {/* isFetching — subtle top progress bar (doesn't block interaction) */}
         {grid.isFetching && (
-          <div className="h-[3px] bg-rf-accent-bg overflow-hidden">
+          <div className="h-[3px] bg-rf-accent-bg rf-overflow-hidden">
             <div
-              className="h-full bg-rf-accent rounded-full"
+              className="rf-h-full bg-rf-accent rounded-full"
               style={{
                 animation: "rfFetch 1.4s ease-in-out infinite",
                 width: "40%",
@@ -1185,10 +1196,10 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                     className="bg-rf-header border-b-2 border-r border-rf-border h-[64px] w-10 text-center sticky z-[45]"
                     style={{ left: pinOffsets["_cb"] }}
                   >
-                    <div className="flex items-center justify-center h-full">
+                    <div className="rf-flex rf-items-center rf-justify-center rf-h-full">
                       <input
                         type="checkbox"
-                        className="w-[14px] h-[14px] rounded-[3px] accent-[var(--rf-accent)] cursor-pointer"
+                        className="w-[14px] h-[14px] rounded-[3px] accent-[var(--rf-accent)] rf-cursor-pointer"
                         // Only select rows that pass isRowSelectable
                         onChange={() => {
                           const selectableIds = visibleRows
@@ -1232,8 +1243,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                     className="bg-rf-header border-b-2 border-r border-rf-border h-[64px] sticky z-[45]"
                     style={{ left: pinOffsets["_rn"] }}
                   >
-                    <div className="flex items-center justify-center h-[36px] px-2">
-                      <span className="text-[10.5px] font-semibold text-rf-text-3 uppercase tracking-wider">
+                    <div className="rf-flex rf-items-center rf-justify-center h-[36px] px-2">
+                      <span className="text-[10.5px] rf-font-semibold text-rf-text-3 rf-uppercase tracking-wider">
                         #
                       </span>
                     </div>
@@ -1250,8 +1261,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                     )}
                     style={{ left: pinOffsets["_exp"] }}
                   >
-                    <div className="flex items-center justify-center h-[36px]">
-                      <ChevronRight className="w-3 h-3 text-rf-text-3" />
+                    <div className="rf-flex rf-items-center rf-justify-center h-[36px]">
+                      <ChevronRight className="rf-icon-sm text-rf-text-3" />
                     </div>
                     <div className="h-[28px] border-t border-rf-border bg-black/[.015]" />
                   </th>
@@ -1332,8 +1343,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                 {/* Actions — no width, fills remaining space — optional */}
                 {showActionsColumn && (
                   <th className="bg-rf-header border-b-2 border-rf-border h-[64px]">
-                    <div className="flex items-center justify-center h-[36px] px-2">
-                      <span className="text-[10.5px] font-semibold text-rf-text-3 uppercase tracking-wider">
+                    <div className="rf-flex rf-items-center rf-justify-center h-[36px] px-2">
+                      <span className="text-[10.5px] rf-font-semibold text-rf-text-3 rf-uppercase tracking-wider">
                         Actions
                       </span>
                     </div>
@@ -2007,6 +2018,14 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                         const isEditing =
                           editingCell?.rowId === rowId &&
                           editingCell?.colKey === colKey;
+                        // Resolve readOnly — supports boolean or (row) => boolean
+                        const rowData_ = mergeRowWithDraft(
+                          row as Record<string, unknown>,
+                        );
+                        const isReadOnly =
+                          col.readOnly === true ||
+                          (typeof col.readOnly === "function" &&
+                            col.readOnly(rowData_ as TData));
                         const isKbCell =
                           isKbFocused && kb.kbFocusColIdx === cIdx;
                         const cellVal = grid.getVal(row, colKey);
@@ -2059,6 +2078,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                                   : undefined,
                               outlineOffset:
                                 isEditing || isKbCell ? "-2px" : undefined,
+                              // Subtle visual cue: read-only cells are slightly dimmed
+                              opacity: isReadOnly ? 0.72 : undefined,
                               boxShadow:
                                 hasErr && !isEditing
                                   ? "inset 0 0 0 2px var(--rf-err)"
@@ -2067,13 +2088,14 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                                     : undefined,
                               borderRight: "1px solid var(--rf-border)",
                               overflow: "hidden",
-                              cursor:
-                                grid.permissions.canEditRow(
-                                  row as Record<string, unknown>,
-                                ) &&
-                                grid.permissions.canEditCol(colKey) &&
-                                col.type !== "checkbox" &&
-                                (!col.computed || col.editableWhenComputed)
+                              cursor: isReadOnly
+                                ? "default"
+                                : grid.permissions.canEditRow(
+                                      row as Record<string, unknown>,
+                                    ) &&
+                                    grid.permissions.canEditCol(colKey) &&
+                                    col.type !== "checkbox" &&
+                                    (!col.computed || col.editableWhenComputed)
                                   ? "text"
                                   : "default",
                             }}
@@ -2081,7 +2103,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                               const rowData = row as Record<string, unknown>;
                               const canEdit =
                                 grid.permissions.canEditRow(rowData) &&
-                                grid.permissions.canEditCol(colKey);
+                                grid.permissions.canEditCol(colKey) &&
+                                !isReadOnly;
                               const isEditableComputed =
                                 col.computed && col.editableWhenComputed;
                               if (
@@ -2612,8 +2635,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
         {/* end scroll container */}
 
         {/* ── FOOTER ──────────────────────────────────────── */}
-        <div className="border-t border-rf-border bg-rf-header px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex gap-4 flex-wrap items-center">
+        <div className="border-t border-rf-border bg-rf-header px-4 py-2 rf-flex rf-items-center rf-justify-between rf-gap-3 rf-flex-wrap">
+          <div className="rf-flex rf-gap-4 rf-flex-wrap rf-items-center">
             {[
               {
                 label: "Records",
@@ -2627,19 +2650,19 @@ function ReaktiformInner<TData = Record<string, unknown>>(
             ].map(({ label, val }) => (
               <div
                 key={label}
-                className="flex items-center gap-1 text-[11.5px] text-rf-text-3"
+                className="rf-flex rf-items-center rf-gap-1 text-[11.5px] text-rf-text-3"
               >
                 {label}
-                <span className="font-semibold font-mono text-rf-text-2">
+                <span className="rf-font-semibold rf-font-mono text-rf-text-2">
                   {val}
                 </span>
               </div>
             ))}
             {/* isFetchingMore — inline spinner in footer */}
             {grid.isFetchingMore && (
-              <div className="flex items-center gap-1.5 text-[11.5px] text-rf-accent">
+              <div className="rf-flex rf-items-center rf-gap-1.5 text-[11.5px] text-rf-accent">
                 <div
-                  className="w-3 h-3 border-2 border-rf-accent border-t-transparent rounded-full"
+                  className="rf-icon-sm border-2 border-rf-accent border-t-transparent rounded-full"
                   style={{ animation: "spin 0.7s linear infinite" }}
                 />
                 Loading more…
@@ -2654,20 +2677,20 @@ function ReaktiformInner<TData = Record<string, unknown>>(
 
       {/* ── KB HINT ─────────────────────────────────────── */}
       {kb.kbFocusRowId && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#0F172A] text-[#F1F5F9] rounded-rf-xl px-4 py-2.5 flex items-center gap-3 shadow-rf-lg z-[800] text-[11.5px] font-medium pointer-events-none">
-          <kbd className="bg-white/15 rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#0F172A] text-[#F1F5F9] rounded-rf-xl px-4 py-2.5 rf-flex rf-items-center rf-gap-3 shadow-rf-lg z-[800] text-[11.5px] rf-font-medium rf-pointer-events-none">
+          <kbd className="bg-white/15 rounded px-1.5 py-0.5 rf-font-mono text-[10.5px] rf-font-semibold">
             ↑↓←→
           </kbd>{" "}
           Navigate
-          <kbd className="bg-white/15 rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold">
+          <kbd className="bg-white/15 rounded px-1.5 py-0.5 rf-font-mono text-[10.5px] rf-font-semibold">
             Enter
           </kbd>{" "}
           Edit
-          <kbd className="bg-white/15 rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold">
+          <kbd className="bg-white/15 rounded px-1.5 py-0.5 rf-font-mono text-[10.5px] rf-font-semibold">
             Space
           </kbd>{" "}
           Detail panel
-          <kbd className="bg-white/15 rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold">
+          <kbd className="bg-white/15 rounded px-1.5 py-0.5 rf-font-mono text-[10.5px] rf-font-semibold">
             Esc
           </kbd>{" "}
           Exit
@@ -2970,10 +2993,10 @@ function ColumnHeader({
           Hovering it sets draggable=true on the <th>.
           Leaving it (or starting a resize) sets draggable=false.
           This mirrors Google Sheets behaviour exactly.             */}
-      <div className="flex items-center h-[36px] px-[10px] gap-1">
+      <div className="rf-flex rf-items-center h-[36px] px-[10px] rf-gap-1">
         {/* Drag grip — only this activates column reorder */}
         <div
-          className="flex-shrink-0 cursor-grab active:cursor-grabbing text-rf-text-3 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity mr-0.5"
+          className="rf-flex-shrink-0 cursor-grab active:cursor-grabbing text-rf-text-3 opacity-0 group-hover:rf-opacity-60 hover:!opacity-100 transition-opacity mr-0.5"
           style={{ lineHeight: 1 }}
           onMouseEnter={() => setDraggable(true)}
           onMouseLeave={() => {
@@ -2994,7 +3017,7 @@ function ColumnHeader({
 
         {/* Label + sort — clicking here sorts */}
         <div
-          className="flex-1 flex items-center gap-1 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+          className="rf-flex-1 rf-flex rf-items-center rf-gap-1 rf-min-w-0 rf-cursor-pointer hover:opacity-80 transition-opacity"
           onClick={(e) => onSort(e)}
           title={`${sortTooltip} · Shift+click for multi-column sort`}
         >
@@ -3010,14 +3033,14 @@ function ColumnHeader({
           </span>
           {col.required && (
             <span
-              className="text-rf-err text-[12px] font-bold flex-shrink-0 -mt-px"
+              className="text-rf-err text-[12px] rf-font-bold rf-flex-shrink-0 -mt-px"
               title="Required"
             >
               *
             </span>
           )}
           {col.computed && (
-            <span className="text-[9px] font-bold text-rf-text-3 border border-rf-border rounded px-1 flex-shrink-0">
+            <span className="text-[9px] rf-font-bold text-rf-text-3 border border-rf-border rounded px-1 rf-flex-shrink-0">
               fx
             </span>
           )}
@@ -3054,7 +3077,7 @@ function ColumnHeader({
       </div>
 
       {/* Bottom row — controls */}
-      <div className="flex items-center gap-0.5 h-[28px] px-2 border-t border-rf-border bg-black/[.015]">
+      <div className="rf-flex rf-items-center gap-0.5 h-[28px] px-2 border-t border-rf-border bg-black/[.015]">
         {/* Filter */}
         <button
           onClick={(e) => {
@@ -3072,7 +3095,7 @@ function ColumnHeader({
           <Filter className="w-[11px] h-[11px]" />
         </button>
 
-        <div className="w-px h-3 bg-rf-border mx-[1px] flex-shrink-0" />
+        <div className="w-px rf-icon-sm bg-rf-border mx-[1px] rf-flex-shrink-0" />
 
         {/* Pin */}
         <button
@@ -3098,7 +3121,7 @@ function ColumnHeader({
         {/* Group */}
         {col.groupable && (
           <>
-            <div className="w-px h-3 bg-rf-border mx-[1px] flex-shrink-0" />
+            <div className="w-px rf-icon-sm bg-rf-border mx-[1px] rf-flex-shrink-0" />
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -3120,7 +3143,7 @@ function ColumnHeader({
         {/* Aggregation cycle (number columns only) */}
         {col.type === "number" && !col.computed && onCycleAggregation && (
           <>
-            <div className="w-px h-3 bg-rf-border mx-[1px] flex-shrink-0" />
+            <div className="w-px rf-icon-sm bg-rf-border mx-[1px] rf-flex-shrink-0" />
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -3142,9 +3165,9 @@ function ColumnHeader({
         )}
 
         {/* Resize handle — RIGHT edge, pointer changes to col-resize */}
-        <div className="flex-1" />
+        <div className="rf-flex-1" />
         <div
-          className="w-[6px] h-full flex items-center justify-center cursor-col-resize group/resize flex-shrink-0"
+          className="w-[6px] rf-h-full rf-flex rf-items-center rf-justify-center cursor-col-resize group/resize rf-flex-shrink-0"
           onMouseDown={(e) => {
             // Disable drag while resizing so th.draggable can't fire
             setDraggable(false);
@@ -3152,7 +3175,7 @@ function ColumnHeader({
           }}
           onMouseEnter={() => setDraggable(false)}
         >
-          <div className="w-[2px] h-[14px] bg-rf-border-strong rounded-sm group-hover/resize:bg-rf-accent transition-colors" />
+          <div className="w-[2px] h-[14px] bg-rf-border-strong rounded-sm group-hover/resize:bg-rf-accent rf-transition-colors" />
         </div>
       </div>
     </th>
@@ -4877,7 +4900,7 @@ function CFConditionValueInput({
       onChange(next.join(","));
     };
     return (
-      <div className="flex flex-wrap gap-1 flex-1">
+      <div className="rf-flex-wrap rf-gap-1 rf-flex-1">
         {col.options.map((opt) => {
           const isSel = selected.includes(opt.value);
           return (
@@ -4909,7 +4932,7 @@ function CFConditionValueInput({
   // checkbox → Yes / No buttons
   if (type === "checkbox") {
     return (
-      <div className="flex gap-1 flex-1">
+      <div className="rf-flex rf-gap-1 rf-flex-1">
         {["true", "false"].map((v) => (
           <button
             key={v}
@@ -4951,11 +4974,21 @@ function CFConditionValueInput({
   }
 
   // number-like → number input with optional min/max
+  // resolveConstraint resolves static values and calls function constraints
+  // with an empty row (CF condition inputs have no row context).
   if (
     ["number", "currency", "percentage", "rating", "progress"].includes(
       type ?? "",
     )
   ) {
+    const resolvedMin =
+      col?.min !== undefined
+        ? resolveConstraint(col.min, {} as Row<Record<string, unknown>>)
+        : undefined;
+    const resolvedMax =
+      col?.max !== undefined
+        ? resolveConstraint(col.max, {} as Row<Record<string, unknown>>)
+        : undefined;
     return (
       <input
         type="number"
@@ -4963,8 +4996,8 @@ function CFConditionValueInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
-        {...(col?.min !== undefined && { min: col.min })}
-        {...(col?.max !== undefined && { max: col.max })}
+        {...(resolvedMin !== undefined && { min: resolvedMin })}
+        {...(resolvedMax !== undefined && { max: resolvedMax })}
       />
     );
   }

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { ColumnDef } from "../types";
+import type { ColumnDef, Row } from "../types";
+import { resolveConstraint } from "../utils";
 
 /**
  * Automatically builds a Zod validation schema
@@ -54,18 +55,31 @@ export function buildZodSchema<TData = Record<string, unknown>>(
           invalid_type_error: `${col.label} must be a number`,
         });
 
-        if (col.min !== undefined) {
+        if (col.min !== undefined && typeof col.min !== "function") {
           s = s.min(col.min, {
             message: `${col.label} must be at least ${col.min}`,
           });
         }
-        if (col.max !== undefined) {
+        if (col.max !== undefined && typeof col.max !== "function") {
           s = s.max(col.max, {
             message: `${col.label} must be at most ${col.max}`,
           });
         }
 
-        fieldSchema = col.required ? s : s.optional();
+        // .nullable() so null (empty field from server) is accepted.
+        // For required: superRefine checks null/undefined explicitly —
+        // NOT a falsy check so that 0 is always a valid "entered" value.
+        const sn = s.nullable();
+        fieldSchema = col.required
+          ? sn.superRefine((val, ctx) => {
+              if (val === null || val === undefined) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: `${col.label} is required`,
+                });
+              }
+            })
+          : sn.optional();
         break;
       }
 
@@ -137,12 +151,28 @@ export function buildZodSchema<TData = Record<string, unknown>>(
         break;
       }
 
+      // ── Time ──────────────────────────────────────────────
+      case "time": {
+        // Stored as "HH:MM" (24-hour) — validate format when required
+        const s = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, {
+          message: `${col.label} must be a valid time (HH:MM)`,
+        });
+        fieldSchema = col.required
+          ? s.min(1, { message: `${col.label} is required` })
+          : s.optional();
+        break;
+      }
+
       // ── Date ──────────────────────────────────────────────
       case "date": {
         // Use superRefine so we can chain multiple checks
         // without hitting Zod's ZodEffects type narrowing issue
-        const minDate = col.minDate;
-        const maxDate = col.maxDate;
+        // Static minDate/maxDate go into Zod; dynamic functions are
+        // evaluated in validateRow() with the actual row values.
+        const minDate =
+          typeof col.minDate === "function" ? undefined : col.minDate;
+        const maxDate =
+          typeof col.maxDate === "function" ? undefined : col.maxDate;
         const required = col.required;
         const label = col.label;
 
@@ -210,15 +240,25 @@ export function buildZodSchema<TData = Record<string, unknown>>(
         let s = z.number({
           invalid_type_error: `${col.label} must be a number`,
         });
-        if (col.min !== undefined)
+        if (col.min !== undefined && typeof col.min !== "function")
           s = s.min(col.min, {
             message: `${col.label} must be at least ${col.min}`,
           });
-        if (col.max !== undefined)
+        if (col.max !== undefined && typeof col.max !== "function")
           s = s.max(col.max, {
             message: `${col.label} must be at most ${col.max}`,
           });
-        fieldSchema = col.required ? s : s.optional();
+        const sn = s.nullable();
+        fieldSchema = col.required
+          ? sn.superRefine((val, ctx) => {
+              if (val === null || val === undefined) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: `${col.label} is required`,
+                });
+              }
+            })
+          : sn.optional();
         break;
       }
 
@@ -226,13 +266,24 @@ export function buildZodSchema<TData = Record<string, unknown>>(
       case "percentage": {
         let s = z
           .number({ invalid_type_error: `${col.label} must be a number` })
-          .min(col.min ?? 0, {
-            message: `${col.label} must be at least ${col.min ?? 0}`,
+          .min((typeof col.min === "function" ? undefined : col.min) ?? 0, {
+            message: `${col.label} must be at least 0`,
           })
-          .max(col.max ?? 100, {
-            message: `${col.label} must be at most ${col.max ?? 100}`,
+          .max((typeof col.max === "function" ? undefined : col.max) ?? 100, {
+            message: `${col.label} must be at most 100`,
           });
-        fieldSchema = col.required ? s : s.optional();
+        // 0% is a valid percentage — required check must not use !val
+        const sn = s.nullable();
+        fieldSchema = col.required
+          ? sn.superRefine((val, ctx) => {
+              if (val === null || val === undefined) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: `${col.label} is required`,
+                });
+              }
+            })
+          : sn.optional();
         break;
       }
 
@@ -350,7 +401,75 @@ export function validateRow<TData = Record<string, unknown>>(
     }
   }
 
-  // Step 2 — Custom validate() functions
+  // Step 2 — Dynamic constraints: min/max/minDate/maxDate as functions.
+  // Evaluated here with actual row values — Zod can't do this because
+  // schemas are built once without row context.
+  for (const col of columns) {
+    if (col.computed) continue;
+    const key = col.key as string;
+    const val = (rowData as Record<string, unknown>)[key];
+
+    // Dynamic number/currency/percentage/rating min/max
+    if (
+      (col.type === "number" ||
+        col.type === "currency" ||
+        col.type === "percentage" ||
+        col.type === "rating") &&
+      val !== undefined &&
+      val !== null &&
+      val !== ""
+      // Note: val === 0 passes this check correctly — 0 is a valid number
+    ) {
+      const num = Number(val);
+      if (!isNaN(num)) {
+        if (typeof col.min === "function") {
+          const minVal = resolveConstraint(
+            col.min as (r: Record<string, unknown>) => number | undefined,
+            rowData as Row<TData>,
+          );
+          if (minVal !== undefined && num < minVal && !errors[key]) {
+            errors[key] = `${col.label} must be at least ${minVal}`;
+          }
+        }
+        if (typeof col.max === "function") {
+          const maxVal = resolveConstraint(
+            col.max as (r: Record<string, unknown>) => number | undefined,
+            rowData as Row<TData>,
+          );
+          if (maxVal !== undefined && num > maxVal && !errors[key]) {
+            errors[key] = `${col.label} must be at most ${maxVal}`;
+          }
+        }
+      }
+    }
+
+    // Dynamic date minDate/maxDate
+    if (col.type === "date" && val && typeof val === "string") {
+      const date = new Date(val);
+      if (!isNaN(date.getTime())) {
+        if (typeof col.minDate === "function") {
+          const minD = resolveConstraint(
+            col.minDate as (r: Record<string, unknown>) => string | undefined,
+            rowData as Row<TData>,
+          );
+          if (minD && date < new Date(minD) && !errors[key]) {
+            errors[key] = `${col.label} must be on or after ${minD}`;
+          }
+        }
+        if (typeof col.maxDate === "function") {
+          const maxD = resolveConstraint(
+            col.maxDate as (r: Record<string, unknown>) => string | undefined,
+            rowData as Row<TData>,
+          );
+          if (maxD && date > new Date(maxD) && !errors[key]) {
+            errors[key] = `${col.label} must be on or before ${maxD}`;
+          }
+        }
+      }
+    }
+  }
+
+  // Step 3 — Custom validate() functions
   // Only runs for columns that define validate — no cost otherwise.
   // Runs even if Zod already has an error for that field, so custom
   // errors can override built-in ones (last write wins).
@@ -358,7 +477,7 @@ export function validateRow<TData = Record<string, unknown>>(
     if (col.computed) continue; // computed columns are never user-editable
     if (!col.validate) continue;
     const key = col.key as string;
-    const fieldValue = rowData[key];
+    const fieldValue = (rowData as Record<string, unknown>)[key];
     try {
       const customError = col.validate(fieldValue, rowData);
       if (customError) {
