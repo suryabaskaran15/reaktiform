@@ -1,7 +1,6 @@
 # reaktiform
 
-**High-performance inline-editable data grid + form panel for React.**  
-Table and detail panel unified — server-side or client-side, full UI or headless.
+**High-performance inline-editable data grid + side panel form for React.**
 
 [![npm](https://img.shields.io/npm/v/reaktiform)](https://www.npmjs.com/package/reaktiform)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/reaktiform)](https://bundlephobia.com/package/reaktiform)
@@ -12,32 +11,35 @@ Table and detail panel unified — server-side or client-side, full UI or headle
 
 ## What is reaktiform?
 
-reaktiform is a React component that combines a **data grid** and a **detail panel form** into one. Click any cell to edit inline. Press Space to open the side panel with a full form. All edits are tracked with undo/redo, validated before saving, and committed to your API.
+reaktiform combines a **data grid** and a **detail panel form** into one component. Click any cell to edit inline. Press Space to open the side panel with a full form view. All edits are tracked with undo/redo, validated before saving, and committed to your API.
 
-**Key design principle:** The grid store is the source of truth. Your API callback fires, the grid keeps the edited values without waiting for a refetch. No optimistic update race conditions.
+**Core design principle:** The grid store is the source of truth. Your API callback fires and the grid keeps the edited values — no refetch, no race conditions.
 
 ---
 
 ## Features
 
-| Category                   | What you get                                                              |
-| -------------------------- | ------------------------------------------------------------------------- |
-| **Editing**                | Click-to-edit cells, Tab/Enter confirm, Esc cancel, keyboard navigation   |
-| **Select fields**          | Static options, async search, creatable, async+creatable, multi-select    |
-| **Data loading**           | Client-side or server-side — infinite scroll, sort, filter, global search |
-| **Performance**            | TanStack Virtual — 100k+ rows with zero lag                               |
-| **Validation**             | Zod-powered, per-field rules, cross-field rules, inline error display     |
-| **Undo / Redo**            | Full history stack, Ctrl+Z / Ctrl+Y                                       |
-| **Side panel**             | Detail form panel with all fields, auto-generated from column definitions |
-| **Computed columns**       | Formula engine with dependency tracking and auto-recalculation            |
-| **Conditional formatting** | Rule-based row highlighting with color picker                             |
-| **Column management**      | Resize, reorder, pin left, show/hide                                      |
-| **Grouping**               | Collapse/expand row groups by any column                                  |
-| **Export**                 | CSV and Excel (.xlsx) — async select labels correctly resolved            |
-| **Persistence**            | Column widths, filters, pinned columns saved to localStorage              |
-| **Save state**             | Spinner + disabled buttons while API call is in-flight                    |
-| **Dark mode**              | Automatic via `.dark` class                                               |
-| **TypeScript**             | Full generics — `ColumnDef<MyRow>`, `Reaktiform<MyRow>`                   |
+| Category                   | What you get                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| **Editing**                | Click-to-edit, Tab/Enter confirm, Esc cancel, full keyboard navigation        |
+| **Select fields**          | Static, async search, creatable, async+creatable, multi-select                |
+| **Badge colors**           | 3-format option colors — named tokens, CSS strings, custom objects            |
+| **Data loading**           | Client-side or server-side — infinite scroll, sort, filter, global search     |
+| **Performance**            | TanStack Virtual — 100k+ rows with zero lag                                   |
+| **Validation**             | Zod-powered per-field and cross-field rules, inline error display             |
+| **Dynamic constraints**    | `min`/`max`/`minDate`/`maxDate` accept `(row) => value` for cross-field rules |
+| **readOnly prop**          | `boolean` or `(row) => boolean` — lock cells conditionally per row            |
+| **Undo / Redo**            | Full history stack — Ctrl+Z / Ctrl+Y                                          |
+| **Side panel**             | Detail form auto-generated from your column definitions                       |
+| **Computed columns**       | Formula engine with dependency tracking                                       |
+| **Conditional formatting** | Rule-based row highlighting                                                   |
+| **Column management**      | Resize, reorder, pin, show/hide                                               |
+| **Export**                 | CSV and Excel — async select labels correctly resolved                        |
+| **Save state**             | Per-row `_saving` flag, spinner + disabled buttons in-flight                  |
+| **Persistence**            | Column widths, filters, pins saved to localStorage                            |
+| **CSS isolation**          | Works alongside Tailwind, Bootstrap, MUI — zero conflict                      |
+| **Dark mode**              | Automatic via `.dark` class                                                   |
+| **TypeScript**             | Full generics — `ColumnDef<MyRow>`, `Reaktiform<MyRow>`                       |
 
 ---
 
@@ -49,13 +51,13 @@ npm install reaktiform
 pnpm add reaktiform
 ```
 
-**Peer dependencies:**
+**Peer dependencies:** React 18+
 
 ```bash
 npm install react react-dom
 ```
 
-No Tailwind required. No global CSS conflicts. Styles are fully scoped to `[data-reaktiform]`.
+No Tailwind required. No global CSS conflicts. All styles are scoped inside `[data-reaktiform]`.
 
 ---
 
@@ -64,9 +66,8 @@ No Tailwind required. No global CSS conflicts. Styles are fully scoped to `[data
 ```tsx
 import { Reaktiform } from "reaktiform";
 import type { ColumnDef } from "reaktiform";
-import "reaktiform/styles";
+import "reaktiform/styles"; // ← import once in your app root
 
-// 1. Define your row type
 type Project = {
   id: string;
   name: string;
@@ -75,7 +76,6 @@ type Project = {
   dueDate: string;
 };
 
-// 2. Define your columns
 const columns: ColumnDef<Project>[] = [
   {
     key: "name",
@@ -101,6 +101,7 @@ const columns: ColumnDef<Project>[] = [
     type: "currency",
     currency: "USD",
     decimals: 2,
+    min: 0,
   },
   {
     key: "dueDate",
@@ -109,7 +110,6 @@ const columns: ColumnDef<Project>[] = [
   },
 ];
 
-// 3. Render
 export function ProjectGrid() {
   const [data, setData] = useState<Project[]>([]);
 
@@ -120,11 +120,10 @@ export function ProjectGrid() {
       rowIdKey="id"
       onCreate={async (row) => {
         const saved = await api.post("/projects", row);
-        return saved; // merged back so store gets server-generated id
+        return saved; // returned value merges back — captures server-generated id
       }}
       onUpdate={async (row) => {
         await api.patch(`/projects/${row.id}`, row);
-        // No refetch needed — store already has correct values
       }}
       onDelete={async (id) => {
         await api.delete(`/projects/${id}`);
@@ -142,50 +141,56 @@ export function ProjectGrid() {
 
 ---
 
-## Server-Side Mode (Infinite Scroll + TanStack Query)
+## CSS Import
 
-For large datasets, enable server-side sorting, filtering, and infinite pagination.
+Import the stylesheet **once** in your app root:
+
+```tsx
+// main.tsx / _app.tsx / root.tsx
+import "reaktiform/styles";
+```
+
+**Why manual import?** Component libraries must not inject CSS automatically — different frameworks (Next.js, Remix, Vite) load styles at different lifecycle points. One import gives you full control over load order. This is the same pattern used by Ant Design, Radix UI, and React Toastify.
+
+**TypeScript error?** If you see `Cannot find module 'reaktiform/styles'`, make sure you are on v1.2.0+ which includes the `dist-types/reaktiform.css.d.ts` declaration file.
+
+---
+
+## Server-Side Mode
+
+For large datasets — server-side sort, filter, search, and infinite scroll.
 
 ```tsx
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
-import { Reaktiform } from "reaktiform";
-import type { SortChangeParams, ActiveFilters } from "reaktiform";
 
 const PAGE_SIZE = 30;
 
 function ServerGrid() {
-  const [queryParams, setQueryParams] = useState<{
-    sortBy?: string;
-    sortDir?: "asc" | "desc";
-    search?: string;
-    filters?: ActiveFilters;
-  }>({});
+  const [params, setParams] = useState({});
 
   const {
     data,
     isLoading,
     isFetching,
     isFetchingNextPage,
-    refetch,
     fetchNextPage,
+    refetch,
   } = useInfiniteQuery({
-    queryKey: ["projects", queryParams],
-    queryFn: ({ pageParam = 0 }) =>
-      fetchPage(pageParam, PAGE_SIZE, queryParams),
+    queryKey: ["projects", params],
+    queryFn: ({ pageParam = 0 }) => fetchPage(pageParam, PAGE_SIZE, params),
     initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.hasMore
-        ? allPages.reduce((sum, p) => sum + p.rows.length, 0)
-        : undefined,
+    getNextPageParam: (last, all) =>
+      last.hasMore ? all.reduce((n, p) => n + p.rows.length, 0) : undefined,
   });
 
-  // ⚠️  Always memoize — prevents data-sync effect from overwriting edits
+  // ⚠️ Always memoize — prevents data-sync effect from overwriting in-progress edits
   const rows = useMemo(() => data?.pages.flatMap((p) => p.rows) ?? [], [data]);
   const total = data?.pages[0]?.total ?? rows.length;
 
-  const updateMutation = useMutation({
-    mutationFn: (row: Project) => api.put(`/projects/${row.id}`, row),
-    // No onSuccess refetch — store is source of truth
+  const update = useMutation({
+    mutationFn: (row: Project) =>
+      api.put(`/projects/${row.id}`, toPayload(row)),
+    // ✅ No onSuccess invalidation — store already has the correct values
   });
 
   return (
@@ -193,33 +198,25 @@ function ServerGrid() {
       columns={columns}
       data={rows}
       rowIdKey="id"
-      // Server-side mode
       sortingMode="server"
       totalRows={total}
       pageSize={PAGE_SIZE}
-      fetchThreshold={8} // pre-fetch when 8 rows from the end
-      // Loading states
+      fetchThreshold={8}
       isLoading={isLoading}
       isFetching={isFetching && !isFetchingNextPage}
       isFetchingMore={isFetchingNextPage}
-      // Server callbacks
       onSortChange={({ sortBy, sortDir }) =>
-        setQueryParams((prev) => ({ ...prev, sortBy, sortDir }))
+        setParams((p) => ({ ...p, sortBy, sortDir }))
       }
-      onFilterChange={(filters) =>
-        setQueryParams((prev) => ({ ...prev, filters }))
-      }
-      onSearchChange={(search) =>
-        setQueryParams((prev) => ({ ...prev, search }))
-      }
+      onFilterChange={(filters) => setParams((p) => ({ ...p, filters }))}
+      onSearchChange={(search) => setParams((p) => ({ ...p, search }))}
       onFetchMore={async () => {
         await fetchNextPage();
       }}
       onRefresh={async () => {
         await refetch();
       }}
-      // CRUD
-      onUpdate={async (row) => updateMutation.mutateAsync(row)}
+      onUpdate={async (row) => update.mutateAsync(row)}
     />
   );
 }
@@ -227,13 +224,32 @@ function ServerGrid() {
 
 ---
 
-## Select Fields — Complete Guide
+## Column Types
 
-reaktiform supports four select variants. Each is specified by setting `loadOptions` and/or `onCreateOption` on the column definition.
+| Type          | Description                              | Stored as                                       | Edit widget          |
+| ------------- | ---------------------------------------- | ----------------------------------------------- | -------------------- |
+| `text`        | Plain string                             | `string`                                        | Text input           |
+| `number`      | Numeric — prefix/suffix/decimals         | `number \| null`                                | Number input         |
+| `currency`    | Formatted currency                       | `number \| null`                                | Number input         |
+| `percentage`  | Number with % bar                        | `number \| null`                                | Number input         |
+| `select`      | Single dropdown                          | `string` (static) or `{value,label}` (async)    | React Select         |
+| `multiselect` | Multi-select                             | `string[]` (static) or `SelectOption[]` (async) | React Select isMulti |
+| `date`        | ISO date — picker auto-closes after pick | `"YYYY-MM-DD"`                                  | Native date picker   |
+| `time`        | 24-hour time — displays as AM/PM         | `"HH:MM"`                                       | Native time picker   |
+| `checkbox`    | Boolean toggle                           | `boolean`                                       | Checkbox             |
+| `email`       | Email + mailto link                      | `string`                                        | Text input           |
+| `url`         | URL + hyperlink                          | `string`                                        | Text input           |
+| `rating`      | Star rating                              | `number \| null`                                | Click stars          |
+| `badge`       | Read-only colored label                  | `string`                                        | —                    |
+| `progress`    | 0–100 progress bar                       | `number`                                        | —                    |
+
+---
+
+## Select Fields — Complete Guide
 
 ### 1. Static Select
 
-Options are defined upfront. No API calls. Fast.
+Options defined upfront. No API calls.
 
 ```tsx
 {
@@ -243,7 +259,7 @@ Options are defined upfront. No API calls. Fast.
   options: [
     { value: 'PENDING',   label: 'Pending',   color: 'warning' },
     { value: 'APPROVED',  label: 'Approved',  color: 'success' },
-    { value: 'REJECTED',  label: 'Rejected',  color: 'danger'  },
+    { value: 'REJECTED',  label: 'Rejected',  color: 'error'   },
   ],
   required: true,
 }
@@ -251,180 +267,321 @@ Options are defined upfront. No API calls. Fast.
 
 Stored value: plain string — `"PENDING"`.
 
----
-
 ### 2. Async Select (Server Search)
 
-Options are loaded from an API. Ideal for large reference lists (categories, users, suppliers). Results are **cached at the module level** — the first open fetches, every re-open after that is instant with zero API calls.
+Options loaded from an API. Results are cached at module level — first open fetches, every re-open after that is instant.
 
 ```tsx
 {
-  key:   'category',
-  label: 'Category',
-  type:  'select',
-  required: true,
-  loadOptions: async (inputValue) => {
-    const res = await fetch(`/api/categories?q=${inputValue}`)
-    const data = await res.json()
-    // Must return SelectOption[]
-    return data.map(c => ({ value: c.id, label: c.name }))
+  key:         'category',
+  label:       'Category',
+  type:        'select',
+  required:    true,
+  clearable:   true,
+  loadOptions: async (input) => {
+    const res = await fetch(`/api/categories?q=${input}`)
+    return (await res.json()).map(c => ({ value: c.id, label: c.name }))
   },
 }
 ```
 
-**Stored value:** `{ value: string, label: string }` — a `SelectOption` object. The label is stored alongside the id so the grid can display the name immediately without a separate fetch.
+Stored value: `{ value: string, label: string }` — label stored alongside id for immediate display without a re-fetch.
 
-**In your `toPayload` / save function**, extract what your API needs:
+In your `toPayload` / save function:
 
 ```ts
-// Your API expects { id } reference — extract from stored object
-category: row.category?.value
-  ? { id: row.category.value }
-  : null,
+category: row.category?.value ? { id: row.category.value } : null;
 ```
-
----
 
 ### 3. Creatable Select
 
-Users can create new options directly in the dropdown by typing a new value and pressing Enter.
+Users can create new options by typing and pressing Enter.
 
 ```tsx
 {
   key:   'tag',
   label: 'Tag',
   type:  'select',
-  onCreateOption: async (inputLabel) => {
-    const created = await api.post('/tags', { name: inputLabel })
-    return { value: created.id, label: created.name }  // ← must return SelectOption
+  onCreateOption: async (name) => {
+    const created = await api.post('/tags', { name })
+    return { value: created.id, label: created.name }
   },
-  options: existingTags,  // optionally seed with known options
+  options: existingTags,
 }
 ```
-
----
 
 ### 4. Async + Creatable Select
 
-Combines server search with the ability to create new options on the fly. The most flexible variant.
-
 ```tsx
 {
-  key:   'supplier',
-  label: 'Supplier',
-  type:  'select',
-  required: true,
-  clearable: true,          // ← optional: show ✕ to remove selection
+  key:         'supplier',
+  label:       'Supplier',
+  type:        'select',
+  clearable:   true,
   loadOptions: async (input) => {
-    const res = await fetch(`/api/suppliers?q=${input}`)
-    return (await res.json()).map(s => ({ value: s.id, label: s.name }))
+    return (await api.get(`/suppliers?q=${input}`)).map(s => ({
+      value: s.id, label: s.name,
+    }))
   },
   onCreateOption: async (name) => {
-    const created = await api.post('/suppliers', { name })
-    return { value: created.id, label: name }
+    const s = await api.post('/suppliers', { name })
+    return { value: s.id, label: s.name }
   },
 }
 ```
-
----
 
 ### 5. Static Multi-Select
 
 ```tsx
 {
-  key:   'tags',
-  label: 'Tags',
-  type:  'multiselect',
+  key:     'tags',
+  label:   'Tags',
+  type:    'multiselect',
   options: [
     { value: 'frontend', label: 'Frontend' },
     { value: 'backend',  label: 'Backend'  },
-    { value: 'devops',   label: 'DevOps'   },
   ],
   clearable: true,
 }
 ```
 
-Stored value: `string[]` — array of selected values.
-
----
+Stored value: `string[]`
 
 ### 6. Async Multi-Select
 
 ```tsx
 {
-  key:   'assignees',
-  label: 'Assignees',
-  type:  'multiselect',
-  clearable: true,
+  key:         'assignees',
+  label:       'Assignees',
+  type:        'multiselect',
+  clearable:   true,
   loadOptions: async (input) => {
-    const users = await api.get(`/users?q=${input}`)
-    return users.map(u => ({ value: u.id, label: u.name }))
-  },
-  onCreateOption: async (name) => {
-    const user = await api.post('/users/invite', { name })
-    return { value: user.id, label: user.name }
+    return (await api.get(`/users?q=${input}`)).map(u => ({
+      value: u.id, label: u.name,
+    }))
   },
 }
 ```
 
-**Stored value:** `SelectOption[]` — array of `{ value, label }` objects. Extract in `toPayload`:
+Stored value: `SelectOption[]` — array of `{ value, label }` objects.
+
+In your `toPayload`:
 
 ```ts
-// Extract ids for the API
-assignees: Array.isArray(row.assignees)
-  ? row.assignees.map(a => ({ id: a.value }))
-  : [],
+assignees: row.assignees?.map((a) => ({ id: a.value })) ?? [];
 ```
-
----
 
 ### `clearable` — Allow Removing a Selection
 
-By default, once a value is selected it cannot be cleared. Set `clearable: true` on any select column to show an ✕ button:
+Set `clearable: true` on any select column to show an ✕ button. Works on all 4 variants.
 
 ```tsx
-{
-  key:      'category',
-  type:     'select',
-  clearable: true,    // ← user can click ✕ to remove selection
-  loadOptions: searchCategories,
-}
+{ key: 'category', type: 'select', clearable: true, loadOptions: searchCategories }
 ```
-
-Works on all four variants: static, async, creatable, async+creatable, and their multi-select equivalents.
-
----
 
 ### Select — Data Flow Summary
 
+| `loadOptions` | `onCreateOption` | Variant            | Stored value                   |
+| ------------- | ---------------- | ------------------ | ------------------------------ |
+| ✗             | ✗                | Static select      | `"PENDING"`                    |
+| ✓             | ✗                | Async select       | `{value:"uuid", label:"Name"}` |
+| ✗             | ✓                | Creatable select   | `"new-tag"`                    |
+| ✓             | ✓                | Async+creatable    | `{value:"uuid", label:"Name"}` |
+| ✗             | ✗                | Static multiselect | `["a","b"]`                    |
+| ✓             | ✓                | Async multiselect  | `[{value,label}, ...]`         |
+
+---
+
+## Time Fields
+
+Store and display time values as `"HH:MM"` (24-hour ISO format).
+
+```tsx
+{
+  key:      'meetingTime',
+  label:    'Meeting Time',
+  type:     'time',
+  width:    130,
+  required: true,
+}
 ```
-loadOptions  onCreateOption  | Variant               | Stored value
-─────────────────────────────┼───────────────────────┼──────────────────────────
-   ✗              ✗          | Static select         | "PENDING"
-   ✓              ✗          | Async select          | { value: "uuid", label: "BULK" }
-   ✗              ✓          | Creatable select      | "my-new-tag"
-   ✓              ✓          | Async+creatable       | { value: "uuid", label: "Supplier X" }
-   ✗              ✗          | Static multiselect    | ["frontend", "backend"]
-   ✓              ✓          | Async multiselect     | [{ value, label }, { value, label }]
+
+- **Stored as:** `"HH:MM"` — e.g. `"09:00"`, `"14:30"`, `"23:45"`
+- **Displayed as:** `"09:00 AM"`, `"02:30 PM"` in read mode
+- **Picker:** Native browser time input — opens on click, auto-closes after selection
+- **Keyboard:** Tab/Enter confirm, Esc cancel
+
+---
+
+## Dynamic Constraints — Cross-Field Rules
+
+`min`, `max`, `minDate`, and `maxDate` accept either a **static value** or a **function** receiving the current row. This enables cross-field validation — for example, ensuring an approval date always comes after the request date.
+
+```tsx
+const columns: ColumnDef<ProcurementRow>[] = [
+  {
+    key: "requestDate",
+    label: "Request Date",
+    type: "date",
+  },
+  {
+    key: "approvedDate",
+    label: "Approved Date",
+    type: "date",
+    // ✅ Must be on or after requestDate
+    minDate: (row) => row.requestDate as string | undefined,
+    // ✅ Cannot exceed project end
+    maxDate: (row) => row.projectEnd as string | undefined,
+  },
+  {
+    key: "poValue",
+    label: "PO Value",
+    type: "currency",
+    min: 0,
+    // ✅ Cannot exceed approved budget
+    max: (row) => row.budgetCost as number | undefined,
+  },
+  {
+    key: "leadTime",
+    label: "Lead Time (days)",
+    type: "number",
+    min: 0,
+    // ✅ Cannot exceed contract duration
+    max: (row) => row.contractDays as number | undefined,
+  },
+];
 ```
+
+**How it works:**
+
+The function receives the **merged row** — base server values overlaid with any unsaved draft edits. When a user changes `requestDate` to April 24, the `approvedDate` picker immediately updates its minimum to April 24 — no save required.
+
+Static constraints go into the Zod schema as usual. Dynamic constraints are evaluated at validation time with the actual current row values, so error messages include the resolved value (e.g. `"Approved Date must be on or after 2026-04-24"`).
+
+---
+
+## readOnly — Conditional Cell Locking
+
+Lock individual columns from editing, statically or based on row data.
+
+```tsx
+// Always locked — useful for computed or server-managed fields
+{ key: 'id',           type: 'text', readOnly: true }
+{ key: 'createdAt',    type: 'date', readOnly: true }
+
+// Locked when the row is in a terminal state
+{
+  key:      'contractValue',
+  type:     'currency',
+  readOnly: (row) => row.status === 'CLOSED',
+}
+
+// Only editable when a condition in another field is met
+{
+  key:      'injuryDetails',
+  type:     'text',
+  readOnly: (row) => row.lostTimeInjury !== 'YES',
+}
+
+// Locked after an approval action
+{
+  key:      'approvedDate',
+  type:     'date',
+  readOnly: (row) => !!(row as MyRow).approvedBy,
+}
+```
+
+**Grid behaviour:**
+
+- Cell click does nothing — edit mode never activates
+- Cursor stays `default` (no text cursor hint)
+- Cell is dimmed to 72% opacity as a clear visual cue
+
+**Side panel behaviour:**
+
+- The field renders as a static display box — grey background, not interactive
+- Applies to all field types: text, number, date, time, select, checkbox, etc.
+
+**Important — in-session reactivity:** The function receives the **merged row** (base + unsaved draft). If a user changes `lostTimeInjury` to `"YES"` in the same editing session, `injuryDetails` unlocks immediately without requiring a save first.
+
+---
+
+## Option Badge Colors — Three Formats
+
+`SelectOption.color` controls the badge appearance everywhere — in dropdown options, grid cell read mode, multiselect pills, and badge columns.
+
+### 1. Named semantic tokens (built-in palette)
+
+```ts
+options: [
+  { value: "PENDING", label: "Pending", color: "warning" },
+  { value: "APPROVED", label: "Approved", color: "success" },
+  { value: "REJECTED", label: "Rejected", color: "error" },
+  { value: "REVIEW", label: "In Review", color: "info" },
+  { value: "ARCHIVED", label: "Archived", color: "default" },
+  { value: "PRIORITY", label: "Priority", color: "purple" },
+];
+```
+
+Available tokens: `'default'` | `'success'` | `'warning'` | `'error'` | `'info'` | `'purple'`
+
+### 2. Any CSS color string (auto-derived styling)
+
+```ts
+options: [
+  { value: "CRITICAL", label: "Critical", color: "#E53E3E" },
+  { value: "ACTIVE", label: "Active", color: "rgb(22,163,74)" },
+  { value: "DRAFT", label: "Draft", color: "hsl(217,91%,60%)" },
+  { value: "SPECIAL", label: "Special", color: "tomato" },
+];
+```
+
+Background, border, and text colors are automatically derived from the color value. Hex colors (`#RRGGBB`) produce the most accurate results.
+
+### 3. Full custom object — complete control
+
+```ts
+options: [
+  {
+    value: "BLOCKED",
+    label: "Blocked",
+    color: {
+      bg: "#FEE2E2", // badge background
+      text: "#991B1B", // text color
+      dot: "#DC2626", // indicator dot
+      border: "#FECACA", // border
+    },
+  },
+  // Partial — omit any field to auto-derive from bg
+  {
+    value: "GOLD",
+    label: "Gold Member",
+    color: { bg: "#FEF3C7", text: "#92400E" },
+  },
+];
+```
+
+All four fields are optional. Missing fields are auto-derived from `bg`.
+
+**Note:** Badge colors use inline styles only — they work identically inside the grid, inside React Select's portal (`document.body`), and in any consumer app.
 
 ---
 
 ## All Column Definition Props
 
 ```ts
-type ColumnDef<TData> = {
+type ColumnDef<TData = Record<string, unknown>> = {
   // ── Required ──────────────────────────────────────────────
   key: keyof TData & string; // maps to your data field
-  label: string; // shown in column header
-  type: ColumnType; // see table below
+  label: string; // column header text
+  type: ColumnType; // see Column Types table above
 
   // ── Layout ────────────────────────────────────────────────
-  width?: number; // initial column width (px)
-  minWidth?: number; // minimum resize width
-  maxWidth?: number; // maximum resize width
-  hidden?: boolean; // hide from view initially
-  pinned?: boolean; // pin to left side (sticky)
+  width?: number; // initial column width (px). Default: 150
+  minWidth?: number; // minimum resize width. Default: 60
+  maxWidth?: number; // maximum resize width. Default: 600
+  hidden?: boolean; // start hidden (user can show via column panel)
+  pinned?: boolean; // pin to left — stays visible when scrolling
   align?: "left" | "center" | "right";
 
   // ── Behaviour ─────────────────────────────────────────────
@@ -432,98 +589,119 @@ type ColumnDef<TData> = {
   filterable?: boolean; // default: true
   groupable?: boolean; // default: false
   resizable?: boolean; // default: true
-  copyable?: boolean; // click cell to copy value
-  editable?: boolean; // default: true
+  copyable?: boolean; // click cell to copy value to clipboard
+
+  /**
+   * Lock column from editing. Boolean or per-row function.
+   * Function receives merged row (base + draft) for in-session reactivity.
+   * @example
+   * readOnly: true
+   * readOnly: (row) => row.status === 'CLOSED'
+   * readOnly: (row) => row.lostTimeInjury !== 'YES'
+   */
+  readOnly?: boolean | ((row: TData) => boolean);
 
   // ── Validation ────────────────────────────────────────────
   required?: boolean;
-  min?: number; // number/date min value
-  max?: number; // number/date max value
-  minLength?: number; // text min characters
-  maxLength?: number; // text max characters
-  pattern?: RegExp; // regex validation
-  patternMessage?: string; // custom error for pattern
+
+  /**
+   * Minimum value for number/currency/percentage/rating columns.
+   * Static number or a function receiving the merged row.
+   * @example
+   * min: 0
+   * min: (row) => row.allocatedBudget
+   */
+  min?: number | ((row: TData) => number | undefined);
+
+  /**
+   * Maximum value for number/currency/percentage/rating columns.
+   * @example
+   * max: 1_000_000
+   * max: (row) => row.budgetCeiling
+   */
+  max?: number | ((row: TData) => number | undefined);
+
+  minLength?: number; // text: minimum character count
+  maxLength?: number; // text: maximum character count
+  pattern?: RegExp; // text: regex validation
+  patternMessage?: string; // custom error message for pattern
   validate?: (value: unknown, row: TData) => string | undefined;
 
   // ── Display ───────────────────────────────────────────────
   format?: (value: unknown, row: TData) => string;
   cellClassName?: (value: unknown, row: TData) => string | undefined;
-  cellStyle?: (value: unknown, row: TData) => CSSProperties | undefined;
+  cellStyle?: (value: unknown, row: TData) => React.CSSProperties | undefined;
   headerTooltip?: string;
-  renderCell?: (value: unknown, row: TData) => ReactNode;
+  renderCell?: (value: unknown, row: TData) => React.ReactNode;
   renderEditCell?: (
     value: unknown,
     row: TData,
     onChange: (v: unknown) => void,
     onCancel: () => void,
-  ) => ReactNode;
+  ) => React.ReactNode;
 
   // ── Select / Multiselect ──────────────────────────────────
   options?: SelectOption[];
-  searchable?: boolean; // show search in dropdown
-  clearable?: boolean; // show ✕ to remove selection (default: false)
+  searchable?: boolean; // show search box in dropdown
+  clearable?: boolean; // show ✕ to clear selection (default: false)
   loadOptions?: (input: string) => Promise<SelectOption[]>;
   onCreateOption?: (input: string) => Promise<SelectOption> | SelectOption;
 
   // ── Number / Currency / Percentage ────────────────────────
   decimals?: number;
-  prefix?: string; // shown before value: 'RM', '$'
-  suffix?: string; // shown after value: ' days', '%'
+  prefix?: string; // shown before value: 'RM ', '$ '
+  suffix?: string; // shown after value:  ' days', ' kg'
   currency?: string; // ISO 4217: 'USD', 'MYR', 'EUR'
   locale?: string; // BCP 47: 'en-US', 'ms-MY'
   step?: number; // input step size
   aggregation?: "sum" | "avg" | "min" | "max" | "count";
 
   // ── Rating ────────────────────────────────────────────────
-  ratingMax?: number; // default: 5
+  ratingMax?: number; // max stars. Default: 5
 
   // ── Email / URL ───────────────────────────────────────────
-  openInNewTab?: boolean; // default: true
+  openInNewTab?: boolean; // open link in new tab. Default: true
 
   // ── Date ──────────────────────────────────────────────────
-  minDate?: string; // ISO date: '2024-01-01'
-  maxDate?: string; // ISO date: '2030-12-31'
+  /**
+   * Minimum selectable date. Static ISO string or a function for
+   * cross-field constraints. Function receives merged row (base + draft).
+   * @example
+   * minDate: '2024-01-01'
+   * minDate: (row) => row.requestDate
+   */
+  minDate?: string | ((row: TData) => string | undefined);
+
+  /**
+   * Maximum selectable date. Static ISO string or a function.
+   * @example
+   * maxDate: '2030-12-31'
+   * maxDate: (row) => row.projectEndDate
+   */
+  maxDate?: string | ((row: TData) => string | undefined);
+
   dateFormat?: string; // display format
 
   // ── Text ──────────────────────────────────────────────────
-  multiline?: boolean; // textarea instead of input
+  multiline?: boolean; // use textarea instead of input
   rows?: number; // textarea row count
+  showCharCount?: boolean; // show character count indicator
 
   // ── Computed / Formula ────────────────────────────────────
   computed?: boolean;
   formula?: (row: TData) => unknown;
   dependsOn?: (keyof TData)[];
   editableWhenComputed?: boolean;
-  saveComputed?: boolean; // include in API payload
+  saveComputed?: boolean;
   aggregateComputed?: boolean;
 
   // ── Value Transform (advanced) ────────────────────────────
   valueTransform?: {
-    read?: (raw: unknown) => unknown; // before display
-    write?: (val: unknown) => unknown; // before API call
+    read?: (raw: unknown) => unknown; // transform before display
+    write?: (val: unknown) => unknown; // transform before API call
   };
 };
 ```
-
----
-
-## Column Types
-
-| Type          | Description                               | Edit Widget            |
-| ------------- | ----------------------------------------- | ---------------------- |
-| `text`        | Plain string                              | Text input             |
-| `number`      | Numeric — supports prefix/suffix/decimals | Number input           |
-| `select`      | Single dropdown                           | React Select           |
-| `multiselect` | Multi-select dropdown                     | React Select (isMulti) |
-| `date`        | ISO date string                           | Native date picker     |
-| `checkbox`    | Boolean toggle                            | Checkbox               |
-| `email`       | Email with mailto link                    | Text input             |
-| `url`         | URL with hyperlink                        | Text input             |
-| `currency`    | `Intl.NumberFormat` currency display      | Number input           |
-| `percentage`  | Number with % and progress bar            | Number input           |
-| `rating`      | 1–N star picker                           | Click stars            |
-| `badge`       | Read-only colored enum label              | —                      |
-| `progress`    | 0–100 progress bar (read-only)            | —                      |
 
 ---
 
@@ -531,23 +709,23 @@ type ColumnDef<TData> = {
 
 ### Required
 
-| Prop      | Type                 | Description              |
-| --------- | -------------------- | ------------------------ |
-| `columns` | `ColumnDef<TData>[]` | Column definitions array |
-| `data`    | `TData[]`            | Row data array           |
+| Prop      | Type                 | Description        |
+| --------- | -------------------- | ------------------ |
+| `columns` | `ColumnDef<TData>[]` | Column definitions |
+| `data`    | `TData[]`            | Row data array     |
 
 ### CRUD Callbacks
 
-| Prop            | Type                                                     | Description                                          |
-| --------------- | -------------------------------------------------------- | ---------------------------------------------------- |
-| `onCreate`      | `(row: TData) => Promise<TData \| void>`                 | New row save — return saved row to capture server id |
-| `onUpdate`      | `(row: TData) => Promise<TData \| void>`                 | Existing row save                                    |
-| `onSave`        | `(row: TData, isNew: boolean) => Promise<TData \| void>` | Alternative: single callback for both                |
-| `onDelete`      | `(id: string) => Promise<void>`                          | Single row delete                                    |
-| `onBulkDelete`  | `(ids: string[]) => Promise<void>`                       | Multiple rows in one API call                        |
-| `onBulkSave`    | `(rows: TData[]) => Promise<TData[] \| void>`            | Save All in one API call                             |
-| `onSaveSuccess` | `(row: TData, isNew: boolean) => void`                   | Use for toast notifications                          |
-| `onSaveError`   | `(err: Error, row: TData, isNew: boolean) => void`       | Use for error toasts                                 |
+| Prop            | Type                                                     | Description                                     |
+| --------------- | -------------------------------------------------------- | ----------------------------------------------- |
+| `onCreate`      | `(row: TData) => Promise<TData \| void>`                 | New row — return saved row to capture server id |
+| `onUpdate`      | `(row: TData) => Promise<TData \| void>`                 | Existing row update                             |
+| `onSave`        | `(row: TData, isNew: boolean) => Promise<TData \| void>` | Single callback for both                        |
+| `onDelete`      | `(id: string) => Promise<void>`                          | Single row delete                               |
+| `onBulkDelete`  | `(ids: string[]) => Promise<void>`                       | Multiple rows in one call                       |
+| `onBulkSave`    | `(rows: TData[]) => Promise<TData[] \| void>`            | Save All in one call                            |
+| `onSaveSuccess` | `(row: TData, isNew: boolean) => void`                   | For toast notifications                         |
+| `onSaveError`   | `(err: Error, row: TData, isNew: boolean) => void`       | For error toasts                                |
 
 ### Server-Side Mode
 
@@ -556,12 +734,12 @@ type ColumnDef<TData> = {
 | `sortingMode`    | `'client' \| 'server'`          | `'client'` | Server mode disables built-in sort   |
 | `totalRows`      | `number`                        | —          | Total record count for scroll sizing |
 | `pageSize`       | `number`                        | `50`       | Records per page                     |
-| `fetchThreshold` | `number`                        | `10`       | Rows from end before pre-fetching    |
-| `onSortChange`   | `(p: SortChangeParams) => void` | —          | Fires when user clicks a header      |
-| `onFilterChange` | `(f: ActiveFilters) => void`    | —          | Fires when column filter changes     |
-| `onSearchChange` | `(q: string) => void`           | —          | Fires on global search input         |
-| `onFetchMore`    | `() => Promise<void>`           | —          | Called when user nears end of list   |
-| `onRefresh`      | `() => Promise<void>`           | —          | Powers the Sync button               |
+| `fetchThreshold` | `number`                        | `10`       | Rows from end before pre-fetch       |
+| `onSortChange`   | `(p: SortChangeParams) => void` | —          | User clicked a column header         |
+| `onFilterChange` | `(f: ActiveFilters) => void`    | —          | Column filter changed                |
+| `onSearchChange` | `(q: string) => void`           | —          | Global search input                  |
+| `onFetchMore`    | `() => Promise<void>`           | —          | User nearing end of list             |
+| `onRefresh`      | `() => Promise<void>`           | —          | Sync button pressed                  |
 
 ### Loading States
 
@@ -569,7 +747,7 @@ type ColumnDef<TData> = {
 | ---------------- | --------- | ------------------------------------------ |
 | `isLoading`      | `boolean` | Show full skeleton loader                  |
 | `isFetching`     | `boolean` | Show top progress bar (background refresh) |
-| `isFetchingMore` | `boolean` | Show "Loading more…" indicator             |
+| `isFetchingMore` | `boolean` | Show "Loading more…" at bottom             |
 
 ### Row Behaviour
 
@@ -580,23 +758,19 @@ type ColumnDef<TData> = {
 | `rowClassName`      | `(row: TData) => string \| undefined`        | —         | Dynamic CSS class per row    |
 | `rowStyle`          | `(row: TData) => CSSProperties \| undefined` | —         | Dynamic inline style per row |
 | `isRowDisabled`     | `(row: TData) => boolean`                    | —         | Grey out + prevent editing   |
-| `isRowSelectable`   | `(row: TData) => boolean`                    | —         | Guard for checkbox selection |
-| `selectionMode`     | `'multi' \| 'single' \| 'none'`              | `'multi'` | —                            |
+| `selectionMode`     | `'multi' \| 'single' \| 'none'`              | `'multi'` | Checkbox behaviour           |
 | `onRowClick`        | `(row: TData) => void`                       | —         | Row click handler            |
-| `onRowDoubleClick`  | `(row: TData) => void`                       | —         | Row double-click handler     |
-| `onSelectionChange` | `(ids: string[], rows: TData[]) => void`     | —         | Fires on selection change    |
+| `onSelectionChange` | `(ids: string[], rows: TData[]) => void`     | —         | Selection changed            |
 
 ### Layout
 
-| Prop                | Type                        | Default                 | Description                |
-| ------------------- | --------------------------- | ----------------------- | -------------------------- |
-| `maxHeight`         | `string \| number`          | `'calc(100vh - 300px)'` | Scroll area max height     |
-| `minHeight`         | `string \| number`          | `380`                   | Scroll area min height     |
-| `emptyState`        | `ReactNode`                 | built-in                | Custom empty state         |
-| `toolbarLeft`       | `ReactNode`                 | —                       | Slot after search box      |
-| `toolbarRight`      | `ReactNode`                 | —                       | Slot before "+ New Record" |
-| `renderExpandedRow` | `(row: TData) => ReactNode` | —                       | Content below expanded row |
-| `expandedRowHeight` | `number`                    | `240`                   | Height of expanded area    |
+| Prop           | Type               | Default                 | Description                       |
+| -------------- | ------------------ | ----------------------- | --------------------------------- |
+| `maxHeight`    | `string \| number` | `'calc(100vh - 300px)'` | Scroll area max height            |
+| `minHeight`    | `string \| number` | `380`                   | Scroll area min height            |
+| `emptyState`   | `ReactNode`        | built-in                | Custom empty state component      |
+| `toolbarLeft`  | `ReactNode`        | —                       | Slot after search box             |
+| `toolbarRight` | `ReactNode`        | —                       | Slot before "+ New Record" button |
 
 ### Feature Flags
 
@@ -605,21 +779,20 @@ All features are enabled by default. Disable selectively:
 ```tsx
 <Reaktiform
   features={{
-    undoRedo: true, // Ctrl+Z / Ctrl+Y
-    sidePanel: true, // Space to open detail panel
-    export: true, // CSV + Excel buttons
-    columnHide: true, // Show/hide columns
-    columnPin: true, // Pin columns left
-    columnResize: true, // Drag to resize
-    columnReorder: true, // Drag to reorder
-    conditionalFormat: true, // Rule-based highlighting
-    groupBy: true, // Row grouping
-    showRowNumbers: true, // # column
-    showSelectColumn: true, // Checkbox column
-    showExpanderColumn: true, // > expand button
-    showActionsColumn: true, // Save / Discard / Delete per row
-    newRecord: true, // "+ New Record" button
-    search: true, // Global search box
+    undoRedo: true,
+    sidePanel: true,
+    export: true,
+    columnHide: true,
+    columnPin: true,
+    columnResize: true,
+    columnReorder: true,
+    conditionalFormat: true,
+    groupBy: true,
+    showRowNumbers: true,
+    showSelectColumn: true,
+    showActionsColumn: true,
+    newRecord: true,
+    search: true,
   }}
 />
 ```
@@ -632,31 +805,10 @@ All features are enabled by default. Disable selectively:
     canCreate: true,
     canSave: true,
     canExport: true,
-    canEditRow: (row) => row.status !== "LOCKED", // per-row
-    canDeleteRow: (row) => row.createdBy === userId, // per-row
+    canEditRow: (row) => row.status !== "LOCKED",
+    canDeleteRow: (row) => row.createdBy === userId,
     canDuplicateRow: true,
-    canEditCol: (colKey) => colKey !== "id", // per-column
-    canComment: true,
-    canUploadFiles: true,
-  }}
-/>
-```
-
-### Side Panel
-
-```tsx
-<Reaktiform
-  panelTabs={["details", "activity", "attachments"]}
-  onAddComment={async (rowId, text) => {
-    await api.post(`/rows/${rowId}/comments`, { text });
-  }}
-  onUploadFile={async (rowId, file) => {
-    const form = new FormData();
-    form.append("file", file);
-    return api.post(`/rows/${rowId}/attachments`, form);
-  }}
-  onDeleteAttachment={async (rowId, attachmentId) => {
-    await api.delete(`/rows/${rowId}/attachments/${attachmentId}`);
+    canEditCol: (colKey) => colKey !== "id",
   }}
 />
 ```
@@ -664,29 +816,9 @@ All features are enabled by default. Disable selectively:
 ### Persistence
 
 ```tsx
-<Reaktiform
-  storageKey="my-app-grid-v1" // localStorage key — change when schema changes
-/>
+<Reaktiform storageKey="my-grid-v1" />
+// Change the key when your column schema changes to reset saved state
 ```
-
-Reset saved state:
-
-```tsx
-import { clearPersistedState } from "reaktiform";
-clearPersistedState("my-app-grid-v1");
-```
-
----
-
-## Save Button State
-
-While an API call is in-flight, reaktiform automatically:
-
-- Disables the **Save** / **Save All** / **Discard** buttons
-- Shows a spinner on the active Save button
-- Prevents duplicate submissions
-
-This is built-in — no extra props needed.
 
 ---
 
@@ -698,10 +830,13 @@ Validation runs automatically from `ColumnDef`. For custom rules, use `validate`
 // Built-in
 { key: 'email', type: 'email', required: true, maxLength: 200 }
 
-// Custom per-field
+// Number zero is always valid — required only rejects null/undefined/empty
+{ key: 'quantity', type: 'number', required: true, min: 0 }
+
+// Cross-field custom rule
 {
-  key: 'endDate',
-  type: 'date',
+  key:      'endDate',
+  type:     'date',
   validate: (value, row) => {
     if (value && row.startDate && value < row.startDate) {
       return 'End date must be after start date'
@@ -710,13 +845,24 @@ Validation runs automatically from `ColumnDef`. For custom rules, use `validate`
 }
 ```
 
-Errors appear inline under the cell and in the side panel. Save is blocked until all errors are resolved.
+**Note on zero:** Number fields with `required: true` correctly accept `0` as a valid value. The required check tests `null | undefined | ''`, not falsy values.
+
+---
+
+## Save Button State
+
+While an API call is in-flight, reaktiform automatically:
+
+- Disables **Save / Save All / Discard** buttons and shows a spinner
+- Sets `row._saving = true` on the saving row — useful in headless mode
+- Prevents duplicate submissions on double-click
+- Auto-opens the error popover on the failed row when an API call fails
+
+No extra props needed — this is built in.
 
 ---
 
 ## Computed Columns
-
-Formula columns are calculated from other fields and update automatically when dependencies change.
 
 ```tsx
 {
@@ -725,9 +871,8 @@ Formula columns are calculated from other fields and update automatically when d
   type:      'percentage',
   computed:  true,
   dependsOn: ['revenue', 'cost'],
-  formula:   (row) => row.revenue > 0
-    ? ((row.revenue - row.cost) / row.revenue) * 100
-    : 0,
+  formula:   (row) =>
+    row.revenue > 0 ? ((row.revenue - row.cost) / row.revenue) * 100 : 0,
 }
 ```
 
@@ -735,16 +880,14 @@ Formula columns are calculated from other fields and update automatically when d
 
 ## Custom Cell Renderers
 
-For full control over display or editing:
-
 ```tsx
 // Custom read display
 {
   key:  'assignee',
   type: 'text',
   renderCell: (value, row) => (
-    <div className="flex items-center gap-2">
-      <img src={row.avatarUrl} className="w-5 h-5 rounded-full" />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <img src={row.avatarUrl} style={{ width: 20, borderRadius: '50%' }} />
       <span>{String(value)}</span>
     </div>
   ),
@@ -752,7 +895,7 @@ For full control over display or editing:
 
 // Custom edit widget
 {
-  key: 'color',
+  key:  'color',
   type: 'text',
   renderEditCell: (value, row, onChange, onCancel) => (
     <input
@@ -770,7 +913,7 @@ For full control over display or editing:
 
 ## Headless Mode
 
-Use only the state management with your own UI:
+Use the state management with your own UI:
 
 ```tsx
 import { useReaktiform } from "reaktiform/headless";
@@ -787,7 +930,7 @@ function MyCustomGrid() {
   return (
     <div>
       {grid.rows.map((row) => (
-        <div key={row._id} style={{ opacity: row._saving ? 0.6 : 1 }}>
+        <div key={row._id}>
           <span>{row.name as string}</span>
           {grid.isDirty(row) && (
             <button
@@ -797,6 +940,7 @@ function MyCustomGrid() {
               {row._saving ? "Saving…" : "Save"}
             </button>
           )}
+          {row._saveError && <span className="error">{row._saveError}</span>}
         </div>
       ))}
     </div>
@@ -806,28 +950,28 @@ function MyCustomGrid() {
 
 **Available from `useReaktiform`:**
 
-| Property                              | Description                     |
-| ------------------------------------- | ------------------------------- |
-| `grid.rows`                           | All rows including unsaved      |
-| `grid.isDirty(row)`                   | Has unsaved changes             |
-| `grid.getErrors(row)`                 | `{ fieldKey: errorMessage }`    |
-| `grid.markDirty(rowId, field, value)` | Update a field                  |
-| `grid.saveRow(rowId)`                 | Save one row                    |
-| `grid.discardRow(rowId)`              | Discard one row's changes       |
-| `grid.saveAll()`                      | Save all dirty rows             |
-| `grid.discardAll()`                   | Discard all changes             |
-| `grid.addRow(defaults?)`              | Add a new row                   |
-| `grid.deleteRow(rowId)`               | Delete a row                    |
-| `grid.dirtyCount`                     | Number of unsaved rows          |
-| `grid.savingCount`                    | Number of rows currently saving |
-| `row._saving`                         | `true` while API call in-flight |
-| `row._saveError`                      | Last save error message         |
+| Property                              | Description                         |
+| ------------------------------------- | ----------------------------------- |
+| `grid.rows`                           | All rows including unsaved          |
+| `grid.isDirty(row)`                   | Has unsaved changes                 |
+| `grid.getErrors(row)`                 | `Record<fieldKey, errorMessage>`    |
+| `grid.markDirty(rowId, field, value)` | Update a field                      |
+| `grid.saveRow(rowId)`                 | Save one row                        |
+| `grid.discardRow(rowId)`              | Discard changes                     |
+| `grid.saveAll()`                      | Save all dirty rows                 |
+| `grid.discardAll()`                   | Discard all changes                 |
+| `grid.addRow(defaults?)`              | Add a new row                       |
+| `grid.deleteRow(rowId)`               | Delete a row                        |
+| `grid.dirtyCount`                     | Number of rows with unsaved changes |
+| `grid.savingCount`                    | Number of rows currently in-flight  |
+| `row._saving`                         | `true` while API call is in-flight  |
+| `row._saveError`                      | Last save error message             |
 
 ---
 
 ## Standalone Cell Components
 
-Use cells inside your own forms or custom UIs:
+Use individual cells inside your own forms:
 
 ```tsx
 import { SelectCellEdit, DateCellEdit } from "reaktiform/cells";
@@ -840,8 +984,8 @@ function MyForm() {
     <SelectCellEdit
       value={status}
       options={[
-        { value: "open", label: "Open" },
-        { value: "closed", label: "Closed" },
+        { value: "open", label: "Open", color: "success" },
+        { value: "closed", label: "Closed", color: "default" },
       ]}
       isClearable
       onCommit={(value) => setStatus(value)}
@@ -853,69 +997,70 @@ function MyForm() {
 
 ---
 
-## Utility Functions
+## Export
+
+Built-in CSV and Excel export. Async select values export as labels (not raw UUIDs).
 
 ```tsx
-import {
-  formatDate,
-  formatCurrency,
-  formatNumber,
-  truncate,
-} from "reaktiform/utils";
+// Built-in buttons in toolbar
+<Reaktiform features={{ export: true }} />
 
-formatDate("2025-01-15"); // '15 Jan 2025'
-formatCurrency(1234.56, "MYR"); // 'RM1,234.56'
-formatNumber(1_500_000, { compact: true }); // '1.5M'
-truncate("Long text here", 8); // 'Long tex…'
+// Custom server-side export
+<Reaktiform
+  onExport={async (format) => {
+    const url = await api.post('/reports/export', { format })
+    window.open(url)
+  }}
+/>
 ```
 
 ---
 
 ## Theming
 
-All colors are CSS custom properties scoped to `[data-reaktiform]`. Override on your container:
+All colors are CSS custom properties scoped to `[data-reaktiform]`:
 
 ```css
-/* Custom brand color */
 .my-app [data-reaktiform] {
-  --rf-accent: #7c3aed; /* purple */
-  --rf-accent-hover: #6d28d9;
-  --rf-accent-bg: #f5f3ff;
-  --rf-accent-br: #ddd6fe;
-}
-
-/* Custom surface */
-.my-app [data-reaktiform] {
-  --rf-surface: #fafafa;
-  --rf-bg: #f5f5f5;
-  --rf-border: #e5e7eb;
+  --rf-accent: #7c3aed; /* brand color — buttons, focus rings */
+  --rf-surface: #fafafa; /* card / panel background */
+  --rf-bg: #f5f5f5; /* cell background */
+  --rf-border: #e5e7eb; /* all borders */
+  --rf-text-1: #111827; /* primary text */
+  --rf-text-2: #6b7280; /* secondary text */
+  --rf-text-3: #9ca3af; /* placeholder / muted */
+  --rf-ok: #16a34a; /* success */
+  --rf-warn: #d97706; /* warning */
+  --rf-err: #dc2626; /* error */
+  --rf-radius-md: 8px;
+  --rf-radius-lg: 12px;
 }
 ```
 
-**Available CSS variables:**
-
-| Variable         | Default   | Description                                |
-| ---------------- | --------- | ------------------------------------------ |
-| `--rf-accent`    | `#3B5BDB` | Primary brand color (buttons, focus rings) |
-| `--rf-surface`   | `#FFFFFF` | Card / panel background                    |
-| `--rf-bg`        | `#F4F6FA` | Page / cell background                     |
-| `--rf-border`    | `#E2E5ED` | All borders                                |
-| `--rf-text-1`    | `#0F172A` | Primary text                               |
-| `--rf-text-2`    | `#475569` | Secondary text                             |
-| `--rf-text-3`    | `#94A3B8` | Placeholder / muted text                   |
-| `--rf-ok`        | `#16A34A` | Success color                              |
-| `--rf-warn`      | `#D97706` | Warning color                              |
-| `--rf-err`       | `#DC2626` | Error color                                |
-| `--rf-radius-md` | `8px`     | Border radius for inputs                   |
-| `--rf-radius-lg` | `12px`    | Border radius for panels                   |
-
-**Dark mode** is applied automatically when the `dark` class is on `<html>`:
+**Dark mode** — add `dark` class to `<html>` or any ancestor:
 
 ```html
 <html class="dark">
-  <!-- reaktiform detects .dark and uses the dark palette -->
+  <!-- reaktiform detects .dark automatically -->
 </html>
 ```
+
+---
+
+## CSS Isolation
+
+reaktiform uses `rf-*` prefixed utility classes and scopes all CSS under `[data-reaktiform]`. It is fully isolated from — and compatible with — any consumer CSS framework:
+
+| Consumer framework                | Status              |
+| --------------------------------- | ------------------- |
+| Tailwind CSS (any version/config) | ✅ No conflict      |
+| Bootstrap                         | ✅ No conflict      |
+| MUI / Emotion                     | ✅ No conflict      |
+| Ant Design                        | ✅ No conflict      |
+| Vanilla CSS                       | ✅ No conflict      |
+| No framework                      | ✅ Works standalone |
+
+React Select dropdown menus portal to `document.body`. Badge colors inside dropdowns use inline styles to ensure they work correctly outside the `[data-reaktiform]` scope.
 
 ---
 
@@ -931,66 +1076,14 @@ All colors are CSS custom properties scoped to `[data-reaktiform]`. Override on 
 | `Space`                   | Open detail side panel               |
 | `Ctrl+Z`                  | Undo                                 |
 | `Ctrl+Y` / `Ctrl+Shift+Z` | Redo                                 |
-| `Shift+Click header`      | Add column to multi-sort             |
-
----
-
-## Export
-
-Built-in CSV and Excel export. Works correctly with all value types including async select fields — labels are exported, not raw UUIDs.
-
-```tsx
-// Basic — built-in buttons in toolbar
-<Reaktiform features={{ export: true }} />
-
-// Custom server-side export
-<Reaktiform
-  onExport={async (format) => {
-    if (format === 'xlsx') {
-      const url = await api.post('/reports/export', { format: 'xlsx' })
-      window.open(url)
-    }
-  }}
-/>
-```
-
----
-
-## TypeScript Reference
-
-```ts
-import type {
-  ColumnDef, // column definition
-  SelectOption, // { value: string, label: string, color?, disabled?, icon? }
-  ColumnType, // 'text' | 'number' | 'select' | 'multiselect' | 'date' | ...
-  ActiveFilters, // Record<string, FilterValue>
-  FilterValue, // { type: 'text', text: string } | { type: 'select', values: string[] } | ...
-  SortChangeParams, // { sortBy: string, sortDir: 'asc'|'desc', sortModel: SortEntry[] }
-  GridFeatures, // all feature flags
-  GridPermissions, // all permission flags
-  Row, // TData & RowMeta (internal meta fields prefixed with _)
-} from "reaktiform";
-```
 
 ---
 
 ## Common Patterns
 
-### Integrating with React Query
+### toPayload — Strip Internal Fields
 
-```tsx
-const updateMutation = useMutation({
-  mutationFn: (row: MyRow) => api.put(`/items/${row.id}`, toPayload(row)),
-  // ✅ No onSuccess refetch — store already has correct values
-  // ❌ Don't do: onSuccess: () => queryClient.invalidateQueries(...)
-  //    This causes a data-sync race where server data overwrites
-  //    the store's committed values mid-render.
-});
-```
-
-### toPayload — Stripping Internal Fields
-
-reaktiform adds internal fields (prefixed `_`) to every row. Strip them before sending to your API:
+reaktiform adds `_*` internal fields to every row. Strip them before your API:
 
 ```ts
 function toPayload(row: MyRow): ApiPayload {
@@ -998,18 +1091,16 @@ function toPayload(row: MyRow): ApiPayload {
     id: row.id,
     name: row.name,
     status: row.status,
-    // Async select — send id only
+    // Async select — send id reference only
     category: row.category?.value ? { id: row.category.value } : null,
-    // Async multiselect — send array of ids
+    // Async multiselect — send array of id references
     assignees: row.assignees?.map((a) => ({ id: a.value })) ?? [],
-    // All _* fields are automatically excluded since we list fields explicitly
+    // _id, _draft, _saving, _errors etc. are excluded by listing fields explicitly
   };
 }
 ```
 
 ### mapRow — Server Data to Grid Format
-
-When server returns reference objects, map them to the format reaktiform expects:
 
 ```ts
 function mapRow(raw: ApiRow): MyRow {
@@ -1017,7 +1108,7 @@ function mapRow(raw: ApiRow): MyRow {
     id: raw.id,
     name: raw.name,
     status: raw.status,
-    // Async select — store { value, label } so grid can display label
+    // Async select — store { value, label } so label shows without a re-fetch
     category: raw.category?.id
       ? { value: raw.category.id, label: raw.category.name }
       : undefined,
@@ -1028,28 +1119,92 @@ function mapRow(raw: ApiRow): MyRow {
 }
 ```
 
+### React Query — No Refetch After Mutation
+
+```tsx
+const updateMutation = useMutation({
+  mutationFn: (row: MyRow) => api.put(`/items/${row.id}`, toPayload(row)),
+  // ✅ Correct — store already has the right values
+  // ❌ Don't do: onSuccess: () => queryClient.invalidateQueries(...)
+  //    Refetching overwrites the store's committed values mid-render
+});
+```
+
+### Invalidating the Async Select Cache
+
+When you create a new option outside the grid (e.g. a separate form), call `invalidateLoadOptionsCache` to ensure the new item appears in the dropdown next time it opens:
+
+```ts
+import { invalidateLoadOptionsCache } from "reaktiform";
+
+// After creating a category externally:
+const created = await api.post("/categories", { name });
+invalidateLoadOptionsCache(searchCategories); // pass the same function reference
+```
+
+---
+
+## TypeScript Reference
+
+```ts
+import type {
+  ColumnDef, // column definition — generic over your row type
+  SelectOption, // { value, label, color?, disabled? }
+  ColumnType, // 'text'|'number'|'select'|'date'|'time'|...
+  ActiveFilters, // Record<string, FilterValue>
+  FilterValue, // per-column filter value shape
+  SortChangeParams, // { sortBy: string, sortDir: 'asc'|'desc' }
+  GridFeatures, // all feature flag keys
+  GridPermissions, // all permission keys
+  Row, // TData & RowMeta (_id, _draft, _saving, _errors, _saveError)
+  BadgeColor, // named | CSS string | { bg?, text?, dot?, border? }
+  AggregationMode, // 'sum'|'avg'|'min'|'max'|'count'|'none'
+} from "reaktiform";
+
+// Utility functions
+import {
+  cachedLoadOptions, // wrap loadOptions fn for instant re-opens
+  invalidateLoadOptionsCache, // call after external create to refresh options
+} from "reaktiform";
+```
+
 ---
 
 ## Changelog
 
+### v1.2.1
+
+**New Features**
+
+- **`type: 'time'`** — stores `"HH:MM"`, displays as `"hh:MM AM/PM"`. Native time picker auto-closes after selection.
+- **`readOnly` column prop** — `boolean | ((row) => boolean)`. Locks cells from editing, statically or per-row. Function receives merged row (base + draft) for in-session reactivity.
+- **Dynamic `min` / `max` / `minDate` / `maxDate`** — all four constraint props now accept `(row) => value` functions for cross-field validation (e.g. approved date must be after request date). `resolveConstraint()` utility exported from `reaktiform/utils`.
+- **Option badge colors — 3 formats** — `SelectOption.color` now accepts named tokens (`'success'`), any CSS color string (`'#E53E3E'`), or a full custom object (`{ bg, text, dot, border }`).
+
+**Bug Fixes**
+
+- **Date picker auto-closes** — native calendar popup now closes immediately after date selection. Previously required a manual click outside.
+- **Select dropdown colors in production** — option badges were unstyled in production builds. Root cause: `Badge` used scoped CSS classes that don't apply inside React Select's `document.body` portal. Rewritten with 100% inline styles.
+- **Cross-field constraint stale values** — `minDate: (row) => row.rfqDate` previously read the server value, ignoring unsaved edits in the same session. Now reads the merged row.
+- **Zero validation error** — number fields with `required: true` incorrectly rejected `0` as empty. Fixed with explicit `null` check instead of falsy check in Zod schema.
+- **CSS isolation** — all component class names now use `rf-*` prefix. Isolation reset block prevents Tailwind preflight from affecting component internals.
+
 ### v1.2.0
 
-- **`clearable` column prop** — add ✕ clear button to any select variant
-- **Async select display** — labels shown in read mode without extra API calls
+- **`clearable` column prop** — ✕ clear button on any select variant
+- **Async select display** — stored `{value,label}` — labels show without extra API calls
 - **Module-level option cache** — re-opening async selects is instant after first load
-- **Save state** — spinner + disabled buttons while API call in-flight (`_saving` flag)
-- **Export fix** — CSV/Excel correctly exports labels for async select values (not raw UUIDs)
+- **Save state** — `_saving` flag, spinner + disabled buttons while API call in-flight
+- **API error in popover** — save errors shown in the row error popover, auto-opens on failure
+- **Export fix** — CSV/Excel exports labels for async select values (not raw UUIDs)
 - **Validation fix** — Zod no longer throws "Expected string, received object" for async selects
-- **Panel multiselect** — async multiselect now works in side panel form
-- **Dropdown z-index** — dropdowns correctly render above all table rows
-- **SelectCell cleanup** — eliminated duplicate code, unified single implementation
+- **CSS type declarations** — `import 'reaktiform/styles'` no longer causes TS2307 error
 
 ### v1.1.0
 
 - Server-side sort, filter, search, infinite scroll
 - Conditional formatting rule builder
 - Column visibility panel with drag-to-reorder
-- Filter panel per column
 - `onBulkDelete`, `onBulkSave` callbacks
 - RBAC permissions — per-row and per-column
 
