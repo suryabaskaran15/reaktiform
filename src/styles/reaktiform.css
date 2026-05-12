@@ -127,9 +127,25 @@
   line-height: 1.5;
 }
 
-/* Dark mode — add .dark class on [data-reaktiform] or any ancestor */
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — supported conventions:
+   1. class="dark"  on <html>, <body>, or any ancestor  (Tailwind, shadcn, Next.js)
+   2. data-theme="dark"      (shadcn with data attr, Radix, many UI libs)
+   3. data-color-mode="dark" (GitHub Primer, some custom setups)
+   4. data-bs-theme="dark"   (Bootstrap 5.3+)
+   5. [data-reaktiform].dark or [data-reaktiform][data-theme="dark"]
+      (manually set on the component itself)
+
+   Recommendation: add class="dark" to <html> — works with all of the above.
+   ───────────────────────────────────────────────────────────── */
 .dark [data-reaktiform],
-[data-reaktiform].dark {
+[data-reaktiform].dark,
+[data-theme="dark"] [data-reaktiform],
+[data-reaktiform][data-theme="dark"],
+[data-color-mode="dark"] [data-reaktiform],
+[data-reaktiform][data-color-mode="dark"],
+[data-bs-theme="dark"] [data-reaktiform],
+[data-reaktiform][data-bs-theme="dark"] {
   --rf-bg: #0f172a;
   --rf-surface: #1e293b;
   --rf-header: #1a2744;
@@ -1687,7 +1703,10 @@ Generic names like .flex and .hidden ONLY apply inside
   box-sizing: border-box;
 }
 .dark [data-rf-portal],
-[data-rf-portal].dark {
+[data-rf-portal].dark,
+[data-theme="dark"] [data-rf-portal],
+[data-color-mode="dark"] [data-rf-portal],
+[data-bs-theme="dark"] [data-rf-portal] {
   --rf-surface: #1e293b;
   --rf-header: #1a2744;
   --rf-border: #334155;
@@ -1918,7 +1937,10 @@ Generic names like .flex and .hidden ONLY apply inside
 
 /* Dark mode adjustments for new cell types */
 .dark [data-reaktiform] .rf-cell-rating__star,
-[data-reaktiform].dark .rf-cell-rating__star {
+[data-reaktiform].dark .rf-cell-rating__star,
+[data-theme="dark"] [data-reaktiform] .rf-cell-rating__star,
+[data-color-mode="dark"] [data-reaktiform] .rf-cell-rating__star,
+[data-bs-theme="dark"] [data-reaktiform] .rf-cell-rating__star {
   color: var(--rf-border);
 }
 

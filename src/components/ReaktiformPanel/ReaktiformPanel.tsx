@@ -27,8 +27,8 @@ import AsyncCreatableSelect from "react-select/async-creatable";
 import {
   cachedLoadOptions,
   invalidateLoadOptionsCache,
+  makeSelectStyles,
 } from "../cells/SelectCell";
-import type { StylesConfig } from "react-select";
 import { buildZodSchema } from "../../validation/buildZodSchema";
 import { OptionBadge } from "../primitives/Badge";
 import type { ColumnDef, Row, RowComment, RowAttachment } from "../../types";
@@ -376,98 +376,7 @@ function DetailsTab<TData = Record<string, unknown>>({
       case "select": {
         // Shared hardcoded styles — must be hardcoded because the menu renders
         // in document.body via portal where CSS vars are not available.
-        const panelRsStyles: StylesConfig = {
-          container: (b: Record<string, unknown>) => ({ ...b, width: "100%" }),
-          control: (b: Record<string, unknown>, s: { isFocused: boolean }) => ({
-            ...b,
-            minHeight: 34,
-            fontSize: 12.5,
-            border: `1.5px solid ${err ? "#DC2626" : s.isFocused ? "#3B5BDB" : "#E2E5ED"}`,
-            borderRadius: 7,
-            background: "#F4F6FA",
-            boxShadow: s.isFocused ? "0 0 0 3px rgba(59,91,219,.12)" : "none",
-            "&:hover": { borderColor: "#3B5BDB" },
-            cursor: "pointer",
-          }),
-          valueContainer: (b: Record<string, unknown>) => ({
-            ...b,
-            padding: "2px 8px",
-          }),
-          input: (b: Record<string, unknown>) => ({
-            ...b,
-            color: "#0F172A",
-            fontSize: 12.5,
-          }),
-          singleValue: (b: Record<string, unknown>) => ({
-            ...b,
-            color: "#0F172A",
-            fontSize: 12.5,
-          }),
-          placeholder: (b: Record<string, unknown>) => ({
-            ...b,
-            color: "#94A3B8",
-            fontSize: 12,
-            fontStyle: "italic",
-          }),
-          indicatorSeparator: () => ({ display: "none" }),
-          dropdownIndicator: (b: Record<string, unknown>) => ({
-            ...b,
-            padding: "0 6px",
-            color: "#94A3B8",
-          }),
-          clearIndicator: (b: Record<string, unknown>) => ({
-            ...b,
-            padding: "0 4px",
-            color: "#94A3B8",
-          }),
-          menuPortal: (b: Record<string, unknown>) => ({
-            ...b,
-            zIndex: 9999,
-            pointerEvents: "auto",
-          }),
-          menu: (b: Record<string, unknown>) => ({
-            ...b,
-            border: "1px solid #E2E5ED",
-            boxShadow: "0 8px 32px rgba(15,23,42,.18)",
-            borderRadius: 10,
-            background: "#FFFFFF",
-            overflow: "hidden",
-            marginTop: 4,
-          }),
-          menuList: (b: Record<string, unknown>) => ({
-            ...b,
-            padding: "4px 0",
-            maxHeight: 260,
-            overflowY: "auto",
-          }),
-          option: (
-            b: Record<string, unknown>,
-            s: { isSelected: boolean; isFocused: boolean },
-          ) => ({
-            ...b,
-            padding: "8px 12px",
-            fontSize: 12.5,
-            cursor: "pointer",
-            background: s.isSelected
-              ? "#EEF2FF"
-              : s.isFocused
-                ? "#F8FAFF"
-                : "transparent",
-            color: s.isSelected ? "#3B5BDB" : "#0F172A",
-          }),
-          noOptionsMessage: (b: Record<string, unknown>) => ({
-            ...b,
-            fontSize: 12.5,
-            color: "#94A3B8",
-            padding: "8px 12px",
-          }),
-          loadingMessage: (b: Record<string, unknown>) => ({
-            ...b,
-            fontSize: 12.5,
-            color: "#94A3B8",
-            padding: "8px 12px",
-          }),
-        };
+        const panelRsStyles = makeSelectStyles(true);
 
         return (
           <FormField
@@ -597,112 +506,6 @@ function DetailsTab<TData = Record<string, unknown>>({
 
       case "multiselect": {
         // Multi-select styles — same token object as single select
-        const panelMultiStyles: StylesConfig = {
-          container: (b: Record<string, unknown>) => ({ ...b, width: "100%" }),
-          control: (b: Record<string, unknown>, s: { isFocused: boolean }) => ({
-            ...b,
-            minHeight: 34,
-            fontSize: 12.5,
-            border: `1.5px solid ${err ? "#DC2626" : s.isFocused ? "#3B5BDB" : "#E2E5ED"}`,
-            borderRadius: 7,
-            background: "#F4F6FA",
-            boxShadow: s.isFocused ? "0 0 0 3px rgba(59,91,219,.12)" : "none",
-            "&:hover": { borderColor: "#3B5BDB" },
-            cursor: "pointer",
-            flexWrap: "wrap",
-          }),
-          valueContainer: (b: Record<string, unknown>) => ({
-            ...b,
-            padding: "2px 8px",
-            gap: 2,
-            flexWrap: "wrap",
-            overflow: "visible",
-          }),
-          input: (b: Record<string, unknown>) => ({
-            ...b,
-            color: "#0F172A",
-            fontSize: 12.5,
-          }),
-          placeholder: (b: Record<string, unknown>) => ({
-            ...b,
-            color: "#94A3B8",
-            fontSize: 12,
-            fontStyle: "italic",
-          }),
-          multiValue: (b: Record<string, unknown>) => ({
-            ...b,
-            background: "#EEF2FF",
-            borderRadius: 100,
-            border: "1px solid #C7D2FE",
-            margin: "1px 2px",
-          }),
-          multiValueLabel: (b: Record<string, unknown>) => ({
-            ...b,
-            color: "#3B5BDB",
-            fontSize: 11,
-            fontWeight: 600,
-            padding: "1px 6px",
-          }),
-          multiValueRemove: (b: Record<string, unknown>) => ({
-            ...b,
-            color: "#3B5BDB",
-            borderRadius: "0 100px 100px 0",
-            "&:hover": { background: "#FFF1F2", color: "#DC2626" },
-          }),
-          indicatorSeparator: () => ({ display: "none" }),
-          dropdownIndicator: (b: Record<string, unknown>) => ({
-            ...b,
-            padding: "0 6px",
-            color: "#94A3B8",
-          }),
-          menuPortal: (b: Record<string, unknown>) => ({
-            ...b,
-            zIndex: 9999,
-            pointerEvents: "auto",
-          }),
-          menu: (b: Record<string, unknown>) => ({
-            ...b,
-            border: "1px solid #E2E5ED",
-            boxShadow: "0 8px 32px rgba(15,23,42,.18)",
-            borderRadius: 10,
-            background: "#FFFFFF",
-            overflow: "hidden",
-            marginTop: 4,
-          }),
-          menuList: (b: Record<string, unknown>) => ({
-            ...b,
-            padding: "4px 0",
-            maxHeight: 260,
-            overflowY: "auto",
-          }),
-          option: (
-            b: Record<string, unknown>,
-            s: { isSelected: boolean; isFocused: boolean },
-          ) => ({
-            ...b,
-            padding: "8px 12px",
-            fontSize: 12.5,
-            cursor: "pointer",
-            background: s.isSelected
-              ? "#EEF2FF"
-              : s.isFocused
-                ? "#F8FAFF"
-                : "transparent",
-            color: s.isSelected ? "#3B5BDB" : "#0F172A",
-          }),
-          noOptionsMessage: (b: Record<string, unknown>) => ({
-            ...b,
-            fontSize: 12.5,
-            color: "#94A3B8",
-            padding: "8px 12px",
-          }),
-          loadingMessage: (b: Record<string, unknown>) => ({
-            ...b,
-            fontSize: 12.5,
-            color: "#94A3B8",
-            padding: "8px 12px",
-          }),
-        };
 
         return (
           <FormField
@@ -718,6 +521,8 @@ function DetailsTab<TData = Record<string, unknown>>({
               render={({ field }) => {
                 if (col.loadOptions) {
                   // Async multiselect — value is SelectOption[] ({ value, label }[])
+                  // panelMultiStyles uses makeSelectStyles(true) for dark mode support
+                  const panelMultiStyles = makeSelectStyles<true>(true);
                   const currentOpts: { value: string; label: string }[] =
                     Array.isArray(field.value)
                       ? (field.value as unknown[]).filter(
@@ -815,9 +620,11 @@ function DetailsTab<TData = Record<string, unknown>>({
                             borderRadius: 20,
                             cursor: "pointer",
                             transition: "all 120ms",
-                            border: `1px solid ${isSel ? "#3B5BDB" : "#E2E5ED"}`,
-                            background: isSel ? "#3B5BDB" : "#F1F3F9",
-                            color: isSel ? "#fff" : "#475569",
+                            border: `1px solid ${isSel ? "var(--rf-accent)" : "var(--rf-border)"}`,
+                            background: isSel
+                              ? "var(--rf-accent)"
+                              : "var(--rf-header)",
+                            color: isSel ? "#fff" : "var(--rf-text-2)",
                             opacity: opt.disabled ? 0.4 : 1,
                           }}
                         >

@@ -44,10 +44,30 @@ export function invalidateLoadOptionsCache(fn: LoadOptionsFn): void {
 
 // ─────────────────────────────────────────────────────────────
 //  DESIGN TOKENS
-//  Hardcoded — menus render in document.body where [data-reaktiform]
-//  CSS variables are not inherited.
+//  Two palettes — light and dark. makeSelectStyles() reads the
+//  current dark mode state at call time so React Select menus
+//  (which portal to document.body) always match the active theme.
+//
+//  Dark mode is detected by checking for the .dark class on
+//  <html> or <body> — the same convention used by Tailwind,
+//  shadcn/ui, and our own [data-reaktiform] CSS.
 // ─────────────────────────────────────────────────────────────
-const T = {
+type TokenSet = {
+  surface: string;
+  bg: string;
+  border: string;
+  text1: string;
+  text2: string;
+  text3: string;
+  accent: string;
+  accentBg: string;
+  accentBr: string;
+  rowHover: string;
+  err: string;
+  errBg: string;
+};
+
+const LIGHT: TokenSet = {
   surface: "#FFFFFF",
   bg: "#F4F6FA",
   border: "#E2E5ED",
@@ -60,14 +80,97 @@ const T = {
   rowHover: "#F8FAFF",
   err: "#DC2626",
   errBg: "#FFF1F2",
-} as const;
+};
+
+const DARK: TokenSet = {
+  surface: "#1E293B",
+  bg: "#0F172A",
+  border: "#334155",
+  text1: "#F1F5F9",
+  text2: "#94A3B8",
+  text3: "#64748B",
+  accent: "#6B8EF0",
+  accentBg: "#1E2A4A",
+  accentBr: "#2D3F6E",
+  rowHover: "#1A2744",
+  err: "#F87171",
+  errBg: "#2D0B0B",
+};
+
+/**
+ * Returns true when dark mode is active.
+ *
+ * Walks up the DOM tree from the [data-reaktiform] element to find
+ * any ancestor with a dark mode indicator. Supports all common conventions:
+ *   • class="dark"                — Tailwind, shadcn, Next.js themes
+ *   • data-theme="dark"           — Radix UI, shadcn (data attr mode), many libs
+ *   • data-color-mode="dark"      — GitHub Primer, custom setups
+ *   • data-bs-theme="dark"        — Bootstrap 5.3+
+ *   • color-scheme: dark on :root — CSS-only dark mode
+ *   • OS preference (fallback)    — when no explicit class is set
+ *
+ * Called fresh on every dropdown open so it always reflects the CURRENT theme.
+ */
+function isDarkMode(): boolean {
+  if (typeof document === "undefined") return false;
+
+  // ── 1. Walk up DOM from [data-reaktiform] — catches dark mode on any ancestor
+  const reactiformEl = document.querySelector("[data-reaktiform]");
+  if (reactiformEl) {
+    let el: Element | null = reactiformEl;
+    while (el) {
+      if (
+        el.classList.contains("dark") || // Tailwind / class-based
+        el.getAttribute("data-theme") === "dark" || // Radix, shadcn, etc.
+        el.getAttribute("data-color-mode") === "dark" || // GitHub Primer
+        el.getAttribute("data-bs-theme") === "dark" // Bootstrap 5.3+
+      )
+        return true;
+      el = el.parentElement;
+    }
+  }
+
+  // ── 2. Check document root elements directly (fastest path for Tailwind)
+  const html = document.documentElement;
+  const body = document.body;
+  if (
+    html.classList.contains("dark") ||
+    html.getAttribute("data-theme") === "dark" ||
+    html.getAttribute("data-color-mode") === "dark" ||
+    html.getAttribute("data-bs-theme") === "dark" ||
+    body?.classList.contains("dark")
+  )
+    return true;
+
+  // ── 3. CSS color-scheme property on :root (CSS-only dark mode)
+  if (typeof getComputedStyle !== "undefined") {
+    const scheme = getComputedStyle(html).colorScheme;
+    if (scheme && scheme.includes("dark") && !scheme.includes("light"))
+      return true;
+  }
+
+  // ── 4. OS-level preference — only use when no explicit class is set
+  //    (prevents OS dark + app light from incorrectly triggering dark mode)
+  if (
+    !html.classList.contains("light") &&
+    html.getAttribute("data-theme") !== "light" &&
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches
+  )
+    return true;
+
+  return false;
+}
 
 // ─────────────────────────────────────────────────────────────
 //  SHARED STYLES — single source of truth for all select variants
+//  Reads dark mode at call time — each time a dropdown opens,
+//  it gets the correct colors for the current theme.
 // ─────────────────────────────────────────────────────────────
-function makeSelectStyles<IsMulti extends boolean>(
+export function makeSelectStyles<IsMulti extends boolean>(
   compact = false,
 ): StylesConfig<SelectOption, IsMulti, GroupBase<SelectOption>> {
+  // Read theme at render time — not at module load time
+  const T: TokenSet = isDarkMode() ? DARK : LIGHT;
   return {
     container: (b) => ({ ...b, width: "100%" }),
     control: (b, s) => ({
@@ -193,10 +296,15 @@ function makeSelectStyles<IsMulti extends boolean>(
 }
 
 // ─────────────────────────────────────────────────────────────
-//  CUSTOM OPTION — renders color badge if option.color is set
+//  CUSTOM OPTION — renders color badge if option.color is set.
+//  Reads tokens at render time via isDarkMode() so it correctly
+//  reflects dark mode for ALL select variants including async,
+//  creatable, and async+creatable.
 // ─────────────────────────────────────────────────────────────
 function CustomOption(props: React.ComponentProps<typeof components.Option>) {
   const opt = props.data as SelectOption;
+  // Resolve tokens fresh at each render — catches dark mode changes
+  const T: TokenSet = isDarkMode() ? DARK : LIGHT;
   return (
     <components.Option {...props}>
       <div
@@ -321,6 +429,8 @@ export function SelectCellEdit({
   onCancel,
 }: SelectCellEditProps) {
   const selected = options.find((o) => o.value === value) ?? null;
+  // Resolve COMMON fresh each render — makeSelectStyles() reads isDarkMode()
+  // at call time, so async/creatable variants always get the correct theme.
   const COMMON = getCommonProps();
 
   // For async: build the value prop from stored id + currentLabel

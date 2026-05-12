@@ -730,6 +730,30 @@ export type GridConfig<TData = Record<string, unknown>> = {
    */
   storageKey?: string;
 
+  /**
+   * Force dark mode on or off — overrides auto-detection.
+   *
+   * reaktiform auto-detects dark mode from common class/attribute conventions:
+   *   • `class="dark"` on any ancestor  (Tailwind, shadcn, Next.js)
+   *   • `data-theme="dark"` on any ancestor  (Radix, shadcn data-attr mode)
+   *   • `data-color-mode="dark"`  (GitHub Primer, custom setups)
+   *   • `data-bs-theme="dark"`  (Bootstrap 5.3+)
+   *   • OS preference via `prefers-color-scheme` (fallback only)
+   *
+   * Use this prop when auto-detection doesn't pick up your app's dark mode:
+   *
+   * @example
+   * // From a theme context
+   * darkMode={theme === 'dark'}
+   *
+   * // From a custom hook
+   * darkMode={useIsDarkMode()}
+   *
+   * // Always dark
+   * darkMode={true}
+   */
+  darkMode?: boolean;
+
   // ── i18n ────────────────────────────────────────────────────
 
   /**
