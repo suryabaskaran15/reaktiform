@@ -717,10 +717,43 @@ function ReaktiformInner<TData = Record<string, unknown>>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [virtualItems]);
 
+  // ── Dark mode: resolve from prop → CSS class walk → OS preference
+  const isDark =
+    props.darkMode !== undefined
+      ? props.darkMode // explicit prop — highest priority
+      : typeof document !== "undefined" &&
+        (() => {
+          let el: Element | null = document.querySelector("[data-reaktiform]");
+          while (el) {
+            if (
+              el.classList.contains("dark") ||
+              el.getAttribute("data-theme") === "dark" ||
+              el.getAttribute("data-color-mode") === "dark" ||
+              el.getAttribute("data-bs-theme") === "dark"
+            )
+              return true;
+            el = el.parentElement;
+          }
+          const html = document.documentElement;
+          return (
+            html.classList.contains("dark") ||
+            html.getAttribute("data-theme") === "dark" ||
+            document.body?.classList.contains("dark") ||
+            (!html.classList.contains("light") &&
+              window.matchMedia?.("(prefers-color-scheme: dark)").matches)
+          );
+        })();
+
   return (
     <div
       data-reaktiform
-      className={cn("rf-flex rf-flex-col w-full", props.className)}
+      // When darkMode prop or auto-detection says dark, add the .dark class
+      // so all [data-reaktiform] CSS var overrides take effect automatically.
+      className={cn(
+        "rf-flex rf-flex-col w-full",
+        isDark && "dark",
+        props.className,
+      )}
       style={props.style}
     >
       {/* ── TOOLBAR ───────────────────────────────────────── */}

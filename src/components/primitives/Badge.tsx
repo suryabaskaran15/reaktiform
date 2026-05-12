@@ -43,7 +43,8 @@ const NAMED: Set<NamedVariant> = new Set([
 
 type TokenSet = { bg: string; text: string; dot: string; border: string };
 
-const TOKENS: Record<NamedVariant, TokenSet> = {
+// Light palette
+const TOKENS_LIGHT: Record<NamedVariant, TokenSet> = {
   default: {
     bg: "#F1F3F9",
     text: "#475569",
@@ -66,6 +67,78 @@ const TOKENS: Record<NamedVariant, TokenSet> = {
   info: { bg: "#EEF2FF", text: "#1E3A8A", border: "#C7D2FE", dot: "#3B5BDB" },
   purple: { bg: "#F5F3FF", text: "#6B21A8", border: "#DDD6FE", dot: "#7C3AED" },
 };
+
+// Dark palette — same semantic meaning, tuned for dark backgrounds
+const TOKENS_DARK: Record<NamedVariant, TokenSet> = {
+  default: {
+    bg: "#1E293B",
+    text: "#94A3B8",
+    border: "#334155",
+    dot: "#64748B",
+  },
+  success: {
+    bg: "#052E16",
+    text: "#4ADE80",
+    border: "#166534",
+    dot: "#4ADE80",
+  },
+  warning: {
+    bg: "#1C1400",
+    text: "#FCD34D",
+    border: "#713F12",
+    dot: "#FCD34D",
+  },
+  error: { bg: "#2D0B0B", text: "#F87171", border: "#7F1D1D", dot: "#F87171" },
+  info: { bg: "#1E2A4A", text: "#93C5FD", border: "#2D3F6E", dot: "#6B8EF0" },
+  purple: { bg: "#1A0E2E", text: "#C084FC", border: "#4C1D95", dot: "#A855F7" },
+};
+
+/**
+ * Detect dark mode — same multi-convention logic as SelectCell.
+ * Walks DOM tree + checks all common dark mode attributes.
+ */
+function isDark(): boolean {
+  if (typeof document === "undefined") return false;
+
+  // Walk up from [data-reaktiform] to catch dark on any ancestor
+  const el = document.querySelector("[data-reaktiform]");
+  if (el) {
+    let node: Element | null = el;
+    while (node) {
+      if (
+        node.classList.contains("dark") ||
+        node.getAttribute("data-theme") === "dark" ||
+        node.getAttribute("data-color-mode") === "dark" ||
+        node.getAttribute("data-bs-theme") === "dark"
+      )
+        return true;
+      node = node.parentElement;
+    }
+  }
+
+  // Fallback: check html/body directly
+  const html = document.documentElement;
+  if (
+    html.classList.contains("dark") ||
+    html.getAttribute("data-theme") === "dark" ||
+    html.getAttribute("data-color-mode") === "dark" ||
+    html.getAttribute("data-bs-theme") === "dark" ||
+    document.body?.classList.contains("dark")
+  )
+    return true;
+
+  // OS preference — only when no explicit light class is set
+  if (
+    !html.classList.contains("light") &&
+    html.getAttribute("data-theme") !== "light" &&
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches
+  )
+    return true;
+
+  return false;
+}
+
+const TOKENS: Record<NamedVariant, TokenSet> = TOKENS_LIGHT; // kept for TS reference
 
 // ── Colour utilities ───────────────────────────────────────────
 
@@ -99,9 +172,9 @@ function deriveTokens(color: string): TokenSet {
 function resolveTokens(color: SelectOption["color"]): TokenSet {
   if (!color) return TOKENS.default;
 
-  // Named token
+  // Named token — pick light or dark palette at call time
   if (typeof color === "string" && NAMED.has(color as NamedVariant)) {
-    return TOKENS[color as NamedVariant];
+    return (isDark() ? TOKENS_DARK : TOKENS_LIGHT)[color as NamedVariant];
   }
 
   // Custom object — user provides specific values, fill gaps from bg if given
