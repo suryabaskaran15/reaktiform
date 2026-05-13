@@ -1221,7 +1221,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
             </colgroup>
 
             {/* ── THEAD ─────────────────────────────────── */}
-            <thead className="sticky top-0 z-50">
+            <thead className="sticky top-0">
               <tr>
                 {/* Checkbox — optional */}
                 {showSelectColumn && (
