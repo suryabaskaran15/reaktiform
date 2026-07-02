@@ -1105,17 +1105,10 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                 onClick={async () => {
                   const ids = [...grid.selectedIds];
                   if (props.onBulkDelete) {
-                    // Preferred: single API call for all selected rows
-                    try {
-                      await props.onBulkDelete(ids);
-                      // Remove all deleted rows from store at once
-                      ids.forEach((id) => {
-                        const row = grid.rows.find((r) => r._id === id);
-                        if (row) grid.deleteRow(row._id);
-                      });
-                    } catch (err) {
-                      console.error("[reaktiform] bulk delete failed:", err);
-                    }
+                    // Preferred: single API call for all selected rows.
+                    // bulkDeleteRows calls onBulkDelete exactly once and
+                    // never onDelete — see useDraft.ts.
+                    await grid.bulkDeleteRows(ids);
                   } else {
                     // Fallback: sequential — each fires onDelete separately
                     for (const id of ids) {
@@ -1221,7 +1214,12 @@ function ReaktiformInner<TData = Record<string, unknown>>(
             </colgroup>
 
             {/* ── THEAD ─────────────────────────────────── */}
-            <thead className="sticky top-0">
+            {/* z-[45] on the row-group itself (mirrors <tfoot>'s z-40) is
+                required: a <tr> with opacity/transform (isRowDisabled, or
+                the public rowStyle prop) creates its own stacking context
+                and, without this, ties with <thead> at the z-index:auto
+                tier — DOM order then puts tbody above thead. */}
+            <thead className="sticky top-0 z-[45]">
               <tr>
                 {/* Checkbox — optional */}
                 {showSelectColumn && (

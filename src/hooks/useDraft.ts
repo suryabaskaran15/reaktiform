@@ -18,6 +18,9 @@ type UseDraftOptions<TData> = {
   onBulkSave?: (rows: TData[]) => Promise<TData[] | void> | void;
   // Delete / add
   onDelete?: (id: string) => Promise<void> | void;
+  // Bulk delete callback — called once for a whole selection, instead of
+  // looping onDelete per row.
+  onBulkDelete?: (ids: string[]) => Promise<void> | void;
   onAdd?: (row: TData) => void;
   // Save result hooks — for toasts, logging, etc.
   onSaveSuccess?: (row: TData, isNew: boolean) => void;
@@ -40,6 +43,7 @@ export function useDraft<TData = Record<string, unknown>>({
   onSave,
   onBulkSave,
   onDelete,
+  onBulkDelete,
   onAdd,
   onSaveSuccess,
   onSaveError,
@@ -519,14 +523,17 @@ export function useDraft<TData = Record<string, unknown>>({
     [columns, actions, onAdd],
   );
 
-  // ── Delete a row
-  const deleteRow = useCallback(
-    async (rowId: string) => {
+  // ── Remove a row from local store + undo history, without touching any
+  // API callback. Shared by deleteRow (single) and bulkDeleteRows (bulk) so
+  // the store/history logic isn't duplicated between them.
+  // Returns false if the row wasn't found (caller should skip its callback).
+  const removeRowLocal = useCallback(
+    (rowId: string): boolean => {
       const row = rows.find(
         (r) =>
           (r as Record<string, unknown>)[rowIdKey] === rowId || r._id === rowId,
       );
-      if (!row) return;
+      if (!row) return false;
 
       const idx = rows.indexOf(row);
       actions.pushHistory({
@@ -538,14 +545,37 @@ export function useDraft<TData = Record<string, unknown>>({
       });
       actions.clearFuture();
       actions.removeRowFromStore(row._id);
+      return true;
+    },
+    [rows, rowIdKey, actions],
+  );
+
+  // ── Delete a row
+  const deleteRow = useCallback(
+    async (rowId: string) => {
+      if (!removeRowLocal(rowId)) return;
 
       try {
-        await onDelete?.(row._id);
+        await onDelete?.(rowId);
       } catch (err) {
         console.error("[reaktiform] onDelete error:", err);
       }
     },
-    [rows, rowIdKey, actions, onDelete],
+    [removeRowLocal, onDelete],
+  );
+
+  // ── Delete multiple rows at once — calls onBulkDelete exactly once
+  // (never onDelete), then syncs local store/history for each row.
+  const bulkDeleteRows = useCallback(
+    async (rowIds: string[]) => {
+      try {
+        await onBulkDelete?.(rowIds);
+        rowIds.forEach((rowId) => removeRowLocal(rowId));
+      } catch (err) {
+        console.error("[reaktiform] onBulkDelete error:", err);
+      }
+    },
+    [removeRowLocal, onBulkDelete],
   );
 
   // ── Duplicate a row
@@ -609,6 +639,7 @@ export function useDraft<TData = Record<string, unknown>>({
     discardAll,
     addRow,
     deleteRow,
+    bulkDeleteRows,
     duplicateRow,
     dirtyCount,
     savingCount,
