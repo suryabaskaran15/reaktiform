@@ -186,6 +186,8 @@ export type ColumnDef<TData = Record<string, unknown>> = {
   decimals?: number;
   /** Aggregation function shown in the footer/toolbar. */
   aggregation?: AggregationMode;
+  /** Show the aggregation control for this column. Default: true */
+  aggregatable?: boolean;
 
   // ── Currency specific ────────────────────────────────────────
   /**

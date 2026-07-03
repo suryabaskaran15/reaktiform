@@ -2,7 +2,7 @@
 
 export type TextFilterValue = {
   type: 'text'
-  text: string
+  value: string
 }
 
 export type NumberFilterValue = {

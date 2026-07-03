@@ -117,6 +117,7 @@ export type GridActions = {
   setFilter: (colKey: string, value: FilterValue) => void;
   clearFilter: (colKey: string) => void;
   clearAllFilters: () => void;
+  setFilters: (filters: ActiveFilters) => void;
   setSearchQuery: (query: string) => void;
 
   // Group
@@ -388,6 +389,11 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
           clearAllFilters: () =>
             set((state) => {
               state.activeFilters = {};
+            }),
+
+          setFilters: (filters) =>
+            set((state) => {
+              state.activeFilters = filters;
             }),
 
           setSearchQuery: (query) =>

@@ -1062,7 +1062,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
       <div
         data-reaktiform
         className={cn(
-          "fixed right-0 top-14 bottom-0 bg-rf-surface",
+          "fixed inset-y-0 right-0 bg-rf-surface",
           "border-l border-rf-border shadow-rf-lg z-[150]",
           "flex flex-col overflow-hidden",
           className,

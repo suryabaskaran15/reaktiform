@@ -180,6 +180,12 @@ export type GridFeatures = {
    * @example showActionsColumn={false}
    */
   showActionsColumn?: boolean;
+  /**
+   * Show the "Active filters: ..." chip bar above the toolbar when one or
+   * more column filters are active. Default: `true`
+   * @example features={{ showActiveFilterChips: false }}
+   */
+  showActiveFilterChips?: boolean;
   /** Row drag-to-reorder. Coming in v2. */
   rowDrag?: boolean;
   /** Import from CSV/XLSX. Coming in v2. */
@@ -401,6 +407,19 @@ export type GridConfig<TData = Record<string, unknown>> = {
    * }, [])}
    */
   onFilterChange?: (filters: ActiveFilters) => void;
+
+  /**
+   * Controlled column filters. When provided, reaktiform stays in sync with
+   * this value — pass your own filter state here to drive the grid's
+   * per-column filter UI from outside (e.g. a saved filter, URL state, or
+   * an app-level filter panel). Omit this prop for fully uncontrolled
+   * behavior (the grid manages `activeFilters` internally, as before).
+   *
+   * Pass a stable reference (e.g. straight from a store) — a new object
+   * literal on every render will still converge correctly but causes an
+   * extra render round-trip.
+   */
+  filters?: ActiveFilters;
 
   /**
    * Called when the user types in the global search box (server mode only).
@@ -706,6 +725,18 @@ export type GridConfig<TData = Record<string, unknown>> = {
    * @example minHeight="30vh"
    */
   minHeight?: string | number;
+
+  /**
+   * When true, the grid fills 100% of its parent container's height via
+   * flexbox instead of the `maxHeight`/`minHeight` viewport-relative
+   * defaults. Requires the grid to sit inside a properly sized flex
+   * ancestor (e.g. `<div className="flex-1 min-h-0">`) — omit this prop
+   * (the default) if you're not sure your layout provides one, since the
+   * grid would otherwise collapse to zero height.
+   * Ignored when `maxHeight`/`minHeight` are also provided.
+   * @default false
+   */
+  autoHeight?: boolean;
 
   // ── Persistence ──────────────────────────────────────────────
 
