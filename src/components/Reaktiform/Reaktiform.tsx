@@ -564,20 +564,26 @@ function ReaktiformInner<TData = Record<string, unknown>>(
     orderedColumns.forEach((col) => {
       const k = col.key as string;
       // Shift+click = multi-sort (append to sort stack), plain click = single sort
-      onSort.set(k, (e: React.MouseEvent) => {
-        if (e.shiftKey) {
-          grid.setSortMulti(k);
-        } else {
-          grid.setSort(k);
-        }
-      });
+      if (col.sortable !== false) {
+        onSort.set(k, (e: React.MouseEvent) => {
+          if (e.shiftKey) {
+            grid.setSortMulti(k);
+          } else {
+            grid.setSort(k);
+          }
+        });
+      }
       onTogglePin.set(k, () => grid.togglePin(k));
       onToggleGroup.set(k, (grouped: boolean) =>
         grid.setGroupBy(grouped ? null : k),
       );
-      onOpenFilter.set(k, (btn: HTMLButtonElement) => openFilter(k, btn));
-      onResize.set(k, (w: number) => grid.setColumnWidth(k, w));
-      if (col.type === "number" && !col.computed) {
+      if (col.filterable !== false) {
+        onOpenFilter.set(k, (btn: HTMLButtonElement) => openFilter(k, btn));
+      }
+      if (col.resizable !== false) {
+        onResize.set(k, (w: number) => grid.setColumnWidth(k, w));
+      }
+      if (col.type === "number" && !col.computed && col.aggregatable !== false) {
         onCycleAgg.set(k, () => {
           const cur = grid.aggregations[k] ?? "none";
           const next =
@@ -744,6 +750,13 @@ function ReaktiformInner<TData = Record<string, unknown>>(
           );
         })();
 
+  // ── Explicit maxHeight/minHeight always win — autoHeight only applies
+  // when neither is set, so passing a fixed value never gets silently ignored.
+  const useAutoHeight =
+    !!props.autoHeight &&
+    props.maxHeight === undefined &&
+    props.minHeight === undefined;
+
   return (
     <div
       data-reaktiform
@@ -751,6 +764,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
       // so all [data-reaktiform] CSS var overrides take effect automatically.
       className={cn(
         "rf-flex rf-flex-col w-full",
+        props.autoHeight && "h-full min-h-0",
         isDark && "dark",
         props.className,
       )}
@@ -1053,7 +1067,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
       </div>
 
       {/* ── ACTIVE FILTERS BAR ────────────────────────────── */}
-      {Object.keys(grid.activeFilters).length > 0 && (
+      {props.features?.showActiveFilterChips !== false &&
+        Object.keys(grid.activeFilters).length > 0 && (
         <div className="rf-flex rf-items-center rf-gap-2 rf-flex-wrap px-3 py-2 bg-rf-accent-bg border border-rf-accent-br border-b-0 text-[12px]">
           <span className="rf-font-semibold text-rf-accent">
             Active filters:
@@ -1150,7 +1165,10 @@ function ReaktiformInner<TData = Record<string, unknown>>(
 
       {/* ── GRID ──────────────────────────────────────────── */}
       <div
-        className="bg-rf-surface border border-rf-border border-t-0 rounded-b-rf-lg shadow-rf-sm"
+        className={cn(
+          "bg-rf-surface border border-rf-border border-t-0 rounded-b-rf-lg shadow-rf-sm",
+          useAutoHeight && "flex-1 min-h-0",
+        )}
         style={{ overflow: "clip" }}
       >
         {/* isFetching — subtle top progress bar (doesn't block interaction) */}
@@ -1167,14 +1185,21 @@ function ReaktiformInner<TData = Record<string, unknown>>(
         )}
 
         {/* Single scroll container — overflow in both directions
-            thead sticky top-0 works because this div has a fixed maxHeight
-            and overflow-y:auto — sticky is relative to this scroll parent  */}
+            thead sticky top-0 works because this div has a bounded height
+            (either a fixed maxHeight, or h-full inside a flex-1 ancestor
+            when autoHeight is on) and overflow-y:auto — sticky is relative
+            to this scroll parent  */}
         <div
           ref={scrollRef}
-          className="overflow-x-auto overflow-y-auto"
+          className={cn(
+            "overflow-x-auto overflow-y-auto",
+            useAutoHeight && "h-full",
+          )}
           style={{
-            maxHeight: props.maxHeight ?? "calc(100vh - 300px)",
-            minHeight: props.minHeight ?? 380,
+            ...(!useAutoHeight && {
+              maxHeight: props.maxHeight ?? "calc(100vh - 300px)",
+              minHeight: props.minHeight ?? 380,
+            }),
             // NOTE: we cannot use contain:strict here because it creates a
             // new stacking context that traps position:fixed children (error
             // popover, react-select dropdowns) below the sticky thead.
@@ -1336,13 +1361,13 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                         aggregationMode: grid.aggregations[colKey],
                       })}
                       pinOffset={isPinned ? pinOffsets[colKey] : undefined}
-                      onSort={colCallbacks.onSort.get(colKey)!}
+                      onSort={colCallbacks.onSort.get(colKey)}
                       onTogglePin={colCallbacks.onTogglePin.get(colKey)!}
                       onToggleGroup={() =>
                         colCallbacks.onToggleGroup.get(colKey)!(isGrouped)
                       }
-                      onOpenFilter={colCallbacks.onOpenFilter.get(colKey)!}
-                      onResize={colCallbacks.onResize.get(colKey)!}
+                      onOpenFilter={colCallbacks.onOpenFilter.get(colKey)}
+                      onResize={colCallbacks.onResize.get(colKey)}
                       onDragStart={() => {
                         dragColRef.current = colKey;
                       }}
@@ -1935,6 +1960,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                                   saveError={row._saveError}
                                   columns={props.columns as ColumnDef[]}
                                   onClose={() => setErrorPopoverRowId(null)}
+                                  isDark={isDark}
                                 />
                               )}
                           </div>
@@ -2791,6 +2817,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
           const current = grid.activeFilters[filterCol];
           return (
             <FilterPanel
+              key={`${filterCol}-v${grid.filterVersion}`}
               col={col as ColumnDef}
               current={current}
               anchor={filterAnchor}
@@ -2806,6 +2833,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                 setFilterCol(null);
                 setFilterAnchor(null);
               }}
+              isDark={isDark}
             />
           );
         })()}
@@ -2820,6 +2848,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
           onUpdateRule={grid.updateCFRule}
           onDeleteRule={grid.deleteCFRule}
           onClose={() => setCfPanelOpen(false)}
+          isDark={isDark}
         />
       )}
 
@@ -2835,6 +2864,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
           }}
           onReorder={(newOrder) => grid.setColumnOrder(newOrder)}
           onClose={() => setColVisPanelOpen(false)}
+          isDark={isDark}
         />
       )}
 
@@ -2875,12 +2905,12 @@ type ColumnHeaderProps = {
   isDragOver: boolean;
   aggregationMode?: string | undefined;
   pinOffset?: number | undefined;
-  onSort: (e: React.MouseEvent) => void;
+  onSort?: ((e: React.MouseEvent) => void) | undefined;
   sortPriority?: number; // position in multi-sort stack (1-based), undefined = not in stack
   onTogglePin: () => void;
   onToggleGroup: () => void;
-  onOpenFilter: (btn: HTMLButtonElement) => void;
-  onResize: (width: number) => void;
+  onOpenFilter?: ((btn: HTMLButtonElement) => void) | undefined;
+  onResize?: ((width: number) => void) | undefined;
   onDragStart: () => void;
   onDragOver: () => void;
   onDragEnd: () => void;
@@ -2949,14 +2979,14 @@ function ColumnHeader({
       const now = Date.now();
       if (now - lastResizeCall.current >= 16) {
         lastResizeCall.current = now;
-        onResize(w);
+        onResize?.(w);
       }
     };
 
     const onUp = (me: MouseEvent) => {
       resizing.current = false;
       const w = Math.max(60, startW.current + (me.clientX - startX.current));
-      onResize(w);
+      onResize?.(w);
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
@@ -3046,11 +3076,14 @@ function ColumnHeader({
           </svg>
         </div>
 
-        {/* Label + sort — clicking here sorts */}
+        {/* Label + sort — clicking here sorts (when onSort is provided, i.e. col.sortable !== false) */}
         <div
-          className="rf-flex-1 rf-flex rf-items-center rf-gap-1 rf-min-w-0 rf-cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={(e) => onSort(e)}
-          title={`${sortTooltip} · Shift+click for multi-column sort`}
+          className={cn(
+            "rf-flex-1 rf-flex rf-items-center rf-gap-1 rf-min-w-0 transition-opacity",
+            onSort && "rf-cursor-pointer hover:opacity-80",
+          )}
+          onClick={onSort}
+          title={onSort ? `${sortTooltip} · Shift+click for multi-column sort` : undefined}
         >
           <span
             className={cn(
@@ -3075,14 +3108,16 @@ function ColumnHeader({
               fx
             </span>
           )}
-          <SortIcon
-            className={cn(
-              "w-[11px] h-[11px] flex-shrink-0 transition-opacity",
-              isSorted
-                ? "opacity-100 text-rf-accent"
-                : "opacity-0 hover:opacity-100",
-            )}
-          />
+          {onSort && (
+            <SortIcon
+              className={cn(
+                "w-[11px] h-[11px] flex-shrink-0 transition-opacity",
+                isSorted
+                  ? "opacity-100 text-rf-accent"
+                  : "opacity-0 hover:opacity-100",
+              )}
+            />
+          )}
           {/* Multi-sort priority badge — shown when >1 sort active */}
           {sortPriority !== undefined && sortPriority > 0 && (
             <span
@@ -3110,23 +3145,27 @@ function ColumnHeader({
       {/* Bottom row — controls */}
       <div className="rf-flex rf-items-center gap-0.5 h-[28px] px-2 border-t border-rf-border bg-black/[.015]">
         {/* Filter */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenFilter(e.currentTarget as HTMLButtonElement);
-          }}
-          className={cn(
-            "w-5 h-5 rounded-[3px] flex items-center justify-center transition-colors",
-            isFiltered
-              ? "text-rf-accent bg-rf-accent-bg"
-              : "text-rf-text-3 hover:bg-rf-surface hover:text-rf-text-1 hover:shadow-rf-sm",
-          )}
-          title={isFiltered ? "Edit filter" : "Add filter"}
-        >
-          <Filter className="w-[11px] h-[11px]" />
-        </button>
+        {onOpenFilter && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenFilter(e.currentTarget as HTMLButtonElement);
+              }}
+              className={cn(
+                "w-5 h-5 rounded-[3px] flex items-center justify-center transition-colors",
+                isFiltered
+                  ? "text-rf-accent bg-rf-accent-bg"
+                  : "text-rf-text-3 hover:bg-rf-surface hover:text-rf-text-1 hover:shadow-rf-sm",
+              )}
+              title={isFiltered ? "Edit filter" : "Add filter"}
+            >
+              <Filter className="w-[11px] h-[11px]" />
+            </button>
 
-        <div className="w-px rf-icon-sm bg-rf-border mx-[1px] rf-flex-shrink-0" />
+            <div className="w-px rf-icon-sm bg-rf-border mx-[1px] rf-flex-shrink-0" />
+          </>
+        )}
 
         {/* Pin */}
         <button
@@ -3197,17 +3236,19 @@ function ColumnHeader({
 
         {/* Resize handle — RIGHT edge, pointer changes to col-resize */}
         <div className="rf-flex-1" />
-        <div
-          className="w-[6px] rf-h-full rf-flex rf-items-center rf-justify-center cursor-col-resize group/resize rf-flex-shrink-0"
-          onMouseDown={(e) => {
-            // Disable drag while resizing so th.draggable can't fire
-            setDraggable(false);
-            handleResizeStart(e);
-          }}
-          onMouseEnter={() => setDraggable(false)}
-        >
-          <div className="w-[2px] h-[14px] bg-rf-border-strong rounded-sm group-hover/resize:bg-rf-accent rf-transition-colors" />
-        </div>
+        {onResize && (
+          <div
+            className="w-[6px] rf-h-full rf-flex rf-items-center rf-justify-center cursor-col-resize group/resize rf-flex-shrink-0"
+            onMouseDown={(e) => {
+              // Disable drag while resizing so th.draggable can't fire
+              setDraggable(false);
+              handleResizeStart(e);
+            }}
+            onMouseEnter={() => setDraggable(false)}
+          >
+            <div className="w-[2px] h-[14px] bg-rf-border-strong rounded-sm group-hover/resize:bg-rf-accent rf-transition-colors" />
+          </div>
+        )}
       </div>
     </th>
   );
@@ -3234,12 +3275,14 @@ function ErrorPopover({
   saveError,
   columns,
   onClose,
+  isDark,
 }: {
   rowId: string;
   errors: Record<string, string>;
   saveError?: string | undefined; // API error message from last failed save
   columns: ColumnDef[];
   onClose: () => void;
+  isDark: boolean;
 }) {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -3277,6 +3320,7 @@ function ErrorPopover({
       />
       <div
         data-reaktiform
+        className={cn(isDark && "dark")}
         onClick={(e) => e.stopPropagation()}
         style={{
           position: "fixed",
@@ -3480,6 +3524,7 @@ function ColumnVisibilityPanel({
   onReorder,
   onClose,
   anchor,
+  isDark,
 }: {
   columns: ColumnDef[];
   hiddenColumns: Set<string>;
@@ -3488,6 +3533,7 @@ function ColumnVisibilityPanel({
   onReorder: (newOrder: string[]) => void;
   onClose: () => void;
   anchor?: DOMRect | null;
+  isDark: boolean;
 }) {
   const someHidden = hiddenColumns.size > 0;
   const totalVisible = columns.length - hiddenColumns.size;
@@ -3538,14 +3584,19 @@ function ColumnVisibilityPanel({
   }, [columns]);
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 999 }} onClick={onClose}>
+    <div
+      data-reaktiform
+      className={cn(isDark && "dark")}
+      style={{ position: "fixed", inset: 0, zIndex: 999 }}
+      onClick={onClose}
+    >
       <div
         style={{
           ...panelPos,
           width: PANEL_W,
           maxHeight: PANEL_H,
-          background: "#FFFFFF",
-          border: "1px solid #E2E5ED",
+          background: "var(--rf-surface)",
+          border: "1px solid var(--rf-border)",
           borderRadius: 10,
           boxShadow: "0 8px 32px rgba(15,23,42,.18)",
           animation: "rfSlideIn .12s ease",
@@ -3561,7 +3612,7 @@ function ColumnVisibilityPanel({
             alignItems: "center",
             justifyContent: "space-between",
             padding: "12px 16px",
-            borderBottom: "1px solid #E2E5ED",
+            borderBottom: "1px solid var(--rf-border)",
           }}
         >
           <div>
@@ -3569,7 +3620,7 @@ function ColumnVisibilityPanel({
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: "#94A3B8",
+                color: "var(--rf-text-3)",
                 textTransform: "uppercase",
                 letterSpacing: ".06em",
               }}
@@ -3580,7 +3631,7 @@ function ColumnVisibilityPanel({
               style={{
                 fontSize: 13,
                 fontWeight: 600,
-                color: "#0F172A",
+                color: "var(--rf-text-1)",
                 marginTop: 2,
               }}
             >
@@ -3593,7 +3644,7 @@ function ColumnVisibilityPanel({
                 onClick={onShowAll}
                 style={{
                   fontSize: 11.5,
-                  color: "#3B5BDB",
+                  color: "var(--rf-accent)",
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -3615,7 +3666,7 @@ function ColumnVisibilityPanel({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#94A3B8",
+                color: "var(--rf-text-3)",
               }}
             >
               <X style={{ width: 14, height: 14 }} />
@@ -3628,12 +3679,12 @@ function ColumnVisibilityPanel({
           style={{
             padding: "6px 16px 4px",
             fontSize: 10.5,
-            color: "#94A3B8",
+            color: "var(--rf-text-3)",
             display: "flex",
             alignItems: "center",
             gap: 5,
-            borderBottom: "1px solid #E2E5ED",
-            background: "#F1F3F9",
+            borderBottom: "1px solid var(--rf-border)",
+            background: "var(--rf-header)",
           }}
         >
           <GripVertical style={{ width: 10, height: 10 }} />
@@ -3665,7 +3716,7 @@ function ColumnVisibilityPanel({
                 }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLDivElement).style.background =
-                    "#F8FAFF";
+                    "var(--rf-row-hover)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLDivElement).style.background =
@@ -3675,7 +3726,7 @@ function ColumnVisibilityPanel({
                 {/* Drag handle */}
                 <div
                   style={{
-                    color: "#94A3B8",
+                    color: "var(--rf-text-3)",
                     cursor: "grab",
                     flexShrink: 0,
                     display: "flex",
@@ -3699,7 +3750,9 @@ function ColumnVisibilityPanel({
                     flexShrink: 0,
                     cursor: "pointer",
                     transition: "background 150ms",
-                    background: visible ? "#3B5BDB" : "#E2E5ED",
+                    background: visible
+                      ? "var(--rf-accent)"
+                      : "var(--rf-border)",
                   }}
                 >
                   <div
@@ -3710,7 +3763,7 @@ function ColumnVisibilityPanel({
                       width: 14,
                       height: 14,
                       borderRadius: "50%",
-                      background: "#fff",
+                      background: "var(--rf-surface)",
                       boxShadow: "0 1px 3px rgba(0,0,0,.25)",
                       transition: "left 150ms",
                     }}
@@ -3727,13 +3780,15 @@ function ColumnVisibilityPanel({
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      color: visible ? "#0F172A" : "#94A3B8",
+                      color: visible
+                        ? "var(--rf-text-1)"
+                        : "var(--rf-text-3)",
                     }}
                   >
                     {col.label}
                   </span>
                   {col.computed && (
-                    <span style={{ fontSize: 10, color: "#94A3B8" }}>
+                    <span style={{ fontSize: 10, color: "var(--rf-text-3)" }}>
                       {col.editableWhenComputed
                         ? "computed · editable"
                         : "computed"}
@@ -3772,14 +3827,14 @@ function AsyncSelectFilter({
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const T = {
-    border: "#E2E5ED",
-    bg: "#F4F6FA",
-    text1: "#0F172A",
-    text2: "#475569",
-    text3: "#94A3B8",
-    accent: "#3B5BDB",
-    accentBg: "#EEF2FF",
-    rowHover: "#F8FAFF",
+    border: "var(--rf-border)",
+    bg: "var(--rf-bg)",
+    text1: "var(--rf-text-1)",
+    text2: "var(--rf-text-2)",
+    text3: "var(--rf-text-3)",
+    accent: "var(--rf-accent)",
+    accentBg: "var(--rf-accent-bg)",
+    rowHover: "var(--rf-row-hover)",
   };
   const iStyle: React.CSSProperties = {
     width: "100%",
@@ -3975,12 +4030,12 @@ function CreatableFilter({
 }) {
   const [input, setInput] = useState("");
   const T = {
-    border: "#E2E5ED",
-    bg: "#F4F6FA",
-    text1: "#0F172A",
-    text2: "#475569",
-    accent: "#3B5BDB",
-    accentHov: "#2F4AC4",
+    border: "var(--rf-border)",
+    bg: "var(--rf-bg)",
+    text1: "var(--rf-text-1)",
+    text2: "var(--rf-text-2)",
+    accent: "var(--rf-accent)",
+    accentHov: "var(--rf-accent-hover)",
   };
   const add = () => {
     const v = input.trim();
@@ -4083,6 +4138,7 @@ function FilterPanel({
   onApply,
   onClear,
   onClose,
+  isDark,
 }: {
   col: ColumnDef;
   current: FilterValue | undefined;
@@ -4090,9 +4146,10 @@ function FilterPanel({
   onApply: (val: FilterValue) => void;
   onClear: () => void;
   onClose: () => void;
+  isDark: boolean;
 }) {
   const [textVal, setTextVal] = useState(
-    current?.type === "text" ? current.text : "",
+    current?.type === "text" ? current.value : "",
   );
   const [numMin, setNumMin] = useState(
     current?.type === "number" ? String(current.min ?? "") : "",
@@ -4123,7 +4180,7 @@ function FilterPanel({
   const handleApply = () => {
     // ── text-like types: contains search
     if (col.type === "text" || col.type === "email" || col.type === "url") {
-      onApply({ type: "text", text: textVal });
+      onApply({ type: "text", value: textVal });
 
       // ── number-like types: min/max range
     } else if (
@@ -4163,7 +4220,7 @@ function FilterPanel({
       const hasStaticOptions = (col.options?.length ?? 0) > 0;
       const isAsync = !!col.loadOptions;
       if (!hasStaticOptions && !isAsync && textVal) {
-        onApply({ type: "text", text: textVal });
+        onApply({ type: "text", value: textVal });
       } else {
         onApply({ type: "select", values: selVals });
       }
@@ -4184,19 +4241,20 @@ function FilterPanel({
   const PANEL_HEIGHT = 420;
   const panelPos = useAnchoredPosition(anchor, PANEL_WIDTH, PANEL_HEIGHT);
 
-  // Hardcoded tokens — no [data-reaktiform] scope needed since we're in a portal
+  // Themed tokens — scoped via data-reaktiform on the portal root below,
+  // so these resolve to the correct light/dark CSS variable value.
   const FS = {
-    surface: "#FFFFFF",
-    header: "#F1F3F9",
-    bg: "#F4F6FA",
-    border: "#E2E5ED",
-    text1: "#0F172A",
-    text2: "#475569",
-    text3: "#94A3B8",
-    accent: "#3B5BDB",
-    accentBg: "#EEF2FF",
-    accentBr: "#C7D2FE",
-    err: "#DC2626",
+    surface: "var(--rf-surface)",
+    header: "var(--rf-header)",
+    bg: "var(--rf-bg)",
+    border: "var(--rf-border)",
+    text1: "var(--rf-text-1)",
+    text2: "var(--rf-text-2)",
+    text3: "var(--rf-text-3)",
+    accent: "var(--rf-accent)",
+    accentBg: "var(--rf-accent-bg)",
+    accentBr: "var(--rf-accent-br)",
+    err: "var(--rf-err)",
     radiusMd: "7px",
     radiusLg: "10px",
   };
@@ -4223,7 +4281,12 @@ function FilterPanel({
   };
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 999 }} onClick={onClose}>
+    <div
+      data-reaktiform
+      className={cn(isDark && "dark")}
+      style={{ position: "fixed", inset: 0, zIndex: 999 }}
+      onClick={onClose}
+    >
       <div
         style={{
           ...panelPos,
@@ -5056,6 +5119,7 @@ function CFPanel({
   onDeleteRule,
   onClose,
   anchor,
+  isDark,
 }: {
   columns: ColumnDef[];
   rules: CFRule[];
@@ -5064,6 +5128,7 @@ function CFPanel({
   onDeleteRule: (id: string) => void;
   onClose: () => void;
   anchor?: DOMRect | null;
+  isDark: boolean;
 }) {
   const inp = cn(
     "px-2 py-1 text-[12px] border border-rf-border rounded-rf-md",
@@ -5085,21 +5150,22 @@ function CFPanel({
     onUpdateRule(rule.id, { conditions: conds });
   };
 
-  // ── Inline style tokens — no dependency on Tailwind or [data-reaktiform] scope
+  // ── Inline style tokens — themed via the data-reaktiform scope applied
+  // to this panel's portal root below (light/dark resolved by CSS var).
   const S = {
-    surface: "#FFFFFF",
-    header: "#F1F3F9",
-    bg: "#F4F6FA",
-    border: "#E2E5ED",
-    text1: "#0F172A",
-    text2: "#475569",
-    text3: "#94A3B8",
-    accent: "#3B5BDB",
-    accentBg: "#EEF2FF",
-    accentBr: "#C7D2FE",
-    err: "#DC2626",
-    errBg: "#FFF1F2",
-    purple: "#7C3AED",
+    surface: "var(--rf-surface)",
+    header: "var(--rf-header)",
+    bg: "var(--rf-bg)",
+    border: "var(--rf-border)",
+    text1: "var(--rf-text-1)",
+    text2: "var(--rf-text-2)",
+    text3: "var(--rf-text-3)",
+    accent: "var(--rf-accent)",
+    accentBg: "var(--rf-accent-bg)",
+    accentBr: "var(--rf-accent-br)",
+    err: "var(--rf-err)",
+    errBg: "var(--rf-err-bg)",
+    purple: "var(--rf-purple)",
     radiusMd: "7px",
     radiusLg: "10px",
   };
@@ -5116,7 +5182,12 @@ function CFPanel({
   };
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 900 }} onClick={onClose}>
+    <div
+      data-reaktiform
+      className={cn(isDark && "dark")}
+      style={{ position: "fixed", inset: 0, zIndex: 900 }}
+      onClick={onClose}
+    >
       <div
         style={{
           ...panelPos,

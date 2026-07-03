@@ -1661,63 +1661,10 @@ Generic names like .flex and .hidden ONLY apply inside
   z-index: 9999 !important;
 }
 
-/* Filter panel / CF panel / Column visibility panel (rendered in fixed overlay) */
-/* These panels render outside [data-reaktiform] via createPortal / fixed positioning.
-   We re-apply the design tokens and scoped classes via a separate portal scope. */
-[data-rf-portal] {
-  --rf-bg: #f4f6fa;
-  --rf-surface: #ffffff;
-  --rf-header: #f1f3f9;
-  --rf-border: #e2e5ed;
-  --rf-border-strong: #c5cad6;
-  --rf-text-1: #0f172a;
-  --rf-text-2: #475569;
-  --rf-text-3: #94a3b8;
-  --rf-accent: #3b5bdb;
-  --rf-accent-hover: #2f4ac4;
-  --rf-accent-bg: #eef2ff;
-  --rf-accent-br: #c7d2fe;
-  --rf-ok: #16a34a;
-  --rf-ok-bg: #f0fdf4;
-  --rf-ok-br: #bbf7d0;
-  --rf-warn: #d97706;
-  --rf-warn-bg: #fffbeb;
-  --rf-warn-br: #fde68a;
-  --rf-err: #dc2626;
-  --rf-err-bg: #fff1f2;
-  --rf-err-br: #fecdd3;
-  --rf-purple: #7c3aed;
-  --rf-purple-bg: #f5f3ff;
-  --rf-purple-br: #ddd6fe;
-  --rf-amber: #b45309;
-  --rf-amber-bg: #fffbeb;
-  --rf-amber-br: #fde68a;
-  --rf-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07);
-  --rf-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
-  --rf-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14);
-  --rf-font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --rf-font-mono: "JetBrains Mono", "Fira Code", monospace;
-  --rf-radius-md: 8px;
-  --rf-radius-lg: 12px;
-  font-family: var(--rf-font-sans);
-  box-sizing: border-box;
-}
-.dark [data-rf-portal],
-[data-rf-portal].dark,
-[data-theme="dark"] [data-rf-portal],
-[data-color-mode="dark"] [data-rf-portal],
-[data-bs-theme="dark"] [data-rf-portal] {
-  --rf-surface: #1e293b;
-  --rf-header: #1a2744;
-  --rf-border: #334155;
-  --rf-text-1: #f1f5f9;
-  --rf-text-2: #94a3b8;
-  --rf-text-3: #64748b;
-  --rf-accent: #6b8ef0;
-  --rf-accent-bg: #1e2a4a;
-  --rf-err: #f87171;
-  --rf-err-bg: #2d0b0b;
-}
+/* Filter panel / CF panel / Column visibility panel (rendered in fixed overlay)
+   now carry `data-reaktiform` (+ a conditional `.dark` class) directly on
+   their portal root, reusing the same scope/tokens as the main grid instead
+   of a separate portal-specific scope — see Reaktiform.tsx. */
 
 /* ─────────────────────────────────────────────────────────────
    NEW CELL TYPES — email, url, currency, percentage, rating,

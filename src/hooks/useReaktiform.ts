@@ -40,6 +40,8 @@ export function useReaktiform<TData = Record<string, unknown>>(
     onSortChange,
     onFilterChange,
     onSearchChange,
+    // Controlled filters
+    filters,
     onAggregationChange,
     aggregationValues,
     // Row mutation
@@ -213,6 +215,21 @@ export function useReaktiform<TData = Record<string, unknown>>(
     // means React skips re-rendering unchanged rows entirely
     actionsRef.current.mergeRows(enrichedIncoming, rowIdKey, skipIds);
   }, [data, rowIdKey, storeInstance]);
+
+  // ── Sync external filters → store when the `filters` prop changes
+  // (controlled mode only — skipped entirely when `filters` is omitted,
+  // preserving fully uncontrolled behavior for existing consumers).
+  // Reference-equality gated, same convergence pattern as the data sync
+  // above: an echoed value that's the same reference is a no-op; a new
+  // object with identical content costs one extra render, then stabilizes.
+  const lastSyncedFiltersRef = useRef(filters);
+  useEffect(() => {
+    if (!initialized.current) return;
+    if (filters === undefined) return;
+    if (filters === lastSyncedFiltersRef.current) return;
+    lastSyncedFiltersRef.current = filters;
+    actionsRef.current.setFilters(filters);
+  }, [filters]);
 
   // ── SERVER MODE: stable callback refs
   // Callbacks from consumer are often inline arrows that recreate every render.
@@ -404,11 +421,11 @@ export function useReaktiform<TData = Record<string, unknown>>(
         const rawVal = draft.getVal(original, colKey);
 
         if (filter.type === "text") {
-          if (!filter.text) continue;
+          if (!filter.value) continue;
           if (
             !String(rawVal ?? "")
               .toLowerCase()
-              .includes(filter.text.toLowerCase())
+              .includes(filter.value.toLowerCase())
           )
             return false;
         } else if (filter.type === "number") {
@@ -599,6 +616,7 @@ export function useReaktiform<TData = Record<string, unknown>>(
     sortModel,
     sortingMode: sortingMode as SortingMode,
     activeFilters,
+    filterVersion: filterVersionRef.current,
     searchQuery,
     groupByCol,
     selectedIds,
@@ -657,6 +675,7 @@ export function useReaktiform<TData = Record<string, unknown>>(
     setFilter: actions.setFilter,
     clearFilter: actions.clearFilter,
     clearAllFilters: actions.clearAllFilters,
+    setFilters: actions.setFilters,
     setSearch: actions.setSearchQuery,
     setGroupBy: actions.setGroupBy,
     clearGroupBy: actions.clearGroupBy,

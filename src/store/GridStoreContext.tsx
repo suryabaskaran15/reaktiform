@@ -91,6 +91,7 @@ export function useGridActions() {
   const setFilter = useGridStore((s) => s.setFilter);
   const clearFilter = useGridStore((s) => s.clearFilter);
   const clearAllFilters = useGridStore((s) => s.clearAllFilters);
+  const setFilters = useGridStore((s) => s.setFilters);
   const setSearchQuery = useGridStore((s) => s.setSearchQuery);
   const setGroupBy = useGridStore((s) => s.setGroupBy);
   const toggleCollapsedGroup = useGridStore((s) => s.toggleCollapsedGroup);
@@ -135,6 +136,7 @@ export function useGridActions() {
       setFilter,
       clearFilter,
       clearAllFilters,
+      setFilters,
       setSearchQuery,
       setGroupBy,
       toggleCollapsedGroup,
@@ -178,6 +180,7 @@ export function useGridActions() {
       setFilter,
       clearFilter,
       clearAllFilters,
+      setFilters,
       setSearchQuery,
       setGroupBy,
       toggleCollapsedGroup,
