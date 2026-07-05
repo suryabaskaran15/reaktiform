@@ -3,7 +3,7 @@ import { produce } from "immer";
 import { useGridStore, useGridActions } from "../store";
 import { validateRow, buildZodSchema } from "../validation/buildZodSchema";
 import { generateId, deepClone } from "../utils";
-import type { ColumnDef, Row } from "../types";
+import type { ColumnDef, Row, SelectOption } from "../types";
 import type { HistoryEntry } from "../store/gridStore";
 import type { useComputedColumns } from "./useComputedColumns";
 
@@ -68,17 +68,25 @@ export function useDraft<TData = Record<string, unknown>>({
   }, [columns]);
 
   // ── Get display value (draft takes priority over committed)
-  // Applies valueTransform.read if defined — converts backend shapes to flat values
+  // Applies valueTransform.read if defined — converts backend shapes to flat values.
+  // Only applied to the committed value: a draft value was already written by the
+  // cell itself in internal (post-read) shape, so re-running read() on it would
+  // treat already-transformed data as if it were still raw wire data.
   const getVal = useCallback(
     (row: Row<TData>, key: string): unknown => {
-      const raw =
-        row._draft && key in row._draft
-          ? row._draft[key]
-          : (row as Record<string, unknown>)[key];
+      const isDraftValue = row._draft !== null && key in row._draft;
+      const raw = isDraftValue
+        ? row._draft![key]
+        : (row as Record<string, unknown>)[key];
 
-      // Apply read transform if defined on this column
+      // Apply read transform only to values coming straight from the committed row
       const col = columns.find((c) => c.key === key);
-      if (col?.valueTransform?.read && raw !== undefined && raw !== null) {
+      if (
+        !isDraftValue &&
+        col?.valueTransform?.read &&
+        raw !== undefined &&
+        raw !== null
+      ) {
         try {
           return col.valueTransform.read(raw);
         } catch {
@@ -195,6 +203,22 @@ export function useDraft<TData = Record<string, unknown>>({
         _new: false,
       };
 
+      // Computed columns are never written into the draft (see useComputedColumns),
+      // so a saveable computed column's live formula result has to be pulled in
+      // explicitly here — otherwise the payload sends whatever placeholder value
+      // was seeded when the row was created (e.g. "" for a new number column).
+      if (computed) {
+        for (const col of columns) {
+          if (col.computed && col.saveable) {
+            const key = col.key as string;
+            const val = computed.getComputedValue(row, key);
+            if (val !== undefined) {
+              (committed as Record<string, unknown>)[key] = val;
+            }
+          }
+        }
+      }
+
       // ── Call consumer callback — priority order:
       //   isNew  → onCreate  else onSave(row, true)
       //   !isNew → onUpdate  else onSave(row, false)
@@ -223,7 +247,7 @@ export function useDraft<TData = Record<string, unknown>>({
           if (internalVal === undefined || internalVal === null) continue;
           try {
             apiPayload[key] = col.valueTransform.write(
-              internalVal as string | string[],
+              internalVal as string | string[] | SelectOption,
             );
           } catch {
             // Transform failed — send raw value
@@ -391,15 +415,51 @@ export function useDraft<TData = Record<string, unknown>>({
     if (onBulkSave) {
       try {
         // Build committed versions of all valid rows
-        const committedRows = valid.map((row) => ({
-          ...row,
-          ...row._draft,
-          _draft: null,
-          _saved: true,
-          _new: false,
-        }));
+        const committedRows = valid.map((row) => {
+          const merged: Record<string, unknown> = {
+            ...row,
+            ...row._draft,
+            _draft: null,
+            _saved: true,
+            _new: false,
+          };
+          // See saveRow() — computed+saveable columns need their live formula
+          // result pulled in explicitly since it's never written into the draft.
+          if (computed) {
+            for (const col of columns) {
+              if (col.computed && col.saveable) {
+                const key = col.key as string;
+                const val = computed.getComputedValue(row, key);
+                if (val !== undefined) merged[key] = val;
+              }
+            }
+          }
+          return merged as unknown as Row<TData>;
+        });
 
-        const payloads = committedRows.map((r) => r as unknown as TData);
+        // Build API payloads separately from committedRows — apply write
+        // transforms so the server gets its expected shape while the store
+        // (updated below from committedRows) keeps the internal shape.
+        // See saveRow()'s identical apiPayload construction.
+        const payloads = committedRows.map((committedRow) => {
+          const apiPayload = {
+            ...(committedRow as unknown as Record<string, unknown>),
+          };
+          for (const col of columns) {
+            const key = col.key as string;
+            if (!col.valueTransform?.write) continue;
+            const internalVal = apiPayload[key];
+            if (internalVal === undefined || internalVal === null) continue;
+            try {
+              apiPayload[key] = col.valueTransform.write(
+                internalVal as string | string[] | SelectOption,
+              );
+            } catch {
+              // Transform failed — send raw value
+            }
+          }
+          return apiPayload as unknown as TData;
+        });
         const serverResponses = await onBulkSave(payloads);
 
         // Apply each committed row to store
@@ -477,6 +537,10 @@ export function useDraft<TData = Record<string, unknown>>({
       // Set defaults per column type
       for (const col of columns) {
         if (!((col.key as string) in emptyRow)) {
+          if (col.default !== undefined) {
+            emptyRow[col.key as string] = col.default;
+            continue;
+          }
           switch (col.type) {
             case "text":
               emptyRow[col.key as string] = "";
@@ -653,9 +717,13 @@ function buildDraftFromRow<TData>(
 ): Record<string, unknown> {
   const draft: Record<string, unknown> = {};
   for (const col of columns) {
-    draft[col.key as string] = (row as Record<string, unknown>)[
-      col.key as string
-    ];
+    const raw = (row as Record<string, unknown>)[col.key as string];
+    // Seed the draft in internal (post-read) shape so it stays consistent
+    // with values cell edits write directly — see getVal() above.
+    draft[col.key as string] =
+      col.valueTransform?.read && raw !== undefined && raw !== null
+        ? col.valueTransform.read(raw)
+        : raw;
   }
   return draft;
 }

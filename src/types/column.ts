@@ -98,6 +98,16 @@ export type ColumnDef<TData = Record<string, unknown>> = {
   /** Description shown in the column visibility panel. */
   description?: string;
 
+  // ── Row creation ──────────────────────────────────────────────
+  /**
+   * Default value for this field when a new row is added.
+   * Takes priority over the built-in per-type default (e.g. "" for text/number,
+   * false for checkbox, today's date for date columns).
+   * @example default: 0
+   * @example default: DeductionUnit.PERCENTAGE
+   */
+  default?: unknown;
+
   // ── Behaviour ───────────────────────────────────────────────
   /** Allow sorting by this column. Default: true */
   sortable?: boolean;
@@ -298,10 +308,17 @@ export type ColumnDef<TData = Record<string, unknown>> = {
    *   read:  (raw) => (raw as { id: string }).id,
    *   write: (flat) => ({ id: flat as string }),
    * }
+   * @example
+   * // API expects { id, name } but an async select cell stores { value, label }
+   * valueTransform: {
+   *   read:  (raw) => { const r = raw as { id: string; name: string } | null;
+   *     return r ? { value: r.id, label: r.name } : { value: '', label: '' }; },
+   *   write: (opt) => { const o = opt as SelectOption; return { id: o.value, name: o.label }; },
+   * }
    */
   valueTransform?: {
-    read: (rawValue: unknown) => string | string[];
-    write: (value: string | string[]) => unknown;
+    read: (rawValue: unknown) => string | string[] | SelectOption | undefined;
+    write: (value: string | string[] | SelectOption) => unknown;
   };
 
   // ── Computed / formula column ────────────────────────────────
