@@ -29,6 +29,9 @@ export type RowComment = {
 };
 
 // ── Row attachment
+// Represents a *completed* attachment only. In-flight uploads (with
+// progress/error state) are tracked internally by ReaktiformPanel and never
+// take this shape.
 export type RowAttachment = {
   id: string;
   name: string;
@@ -37,6 +40,13 @@ export type RowAttachment = {
   url?: string;
   uploadedAt?: string;
   uploadedBy?: string;
+  /**
+   * Opaque passthrough for consumer-specific data (e.g. an app's own file
+   * reference/metadata shape). Reaktiform never reads this itself — it's here
+   * purely so a custom `renderAttachment` can recover data lost in whatever
+   * mapping produced this RowAttachment.
+   */
+  meta?: unknown;
 };
 
 // ── Row state enum (for styling)

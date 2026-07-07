@@ -31,4 +31,5 @@ export type {
   FetchMoreParams,
   FetchParams,
   UseReaktiformReturn,
+  UploadProgressReporter,
 } from './config'

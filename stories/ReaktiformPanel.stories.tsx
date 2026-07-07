@@ -195,12 +195,25 @@ export const Default: Story = {
       onSave={(id, data) => console.log("[reaktiform] onSave", id, data)}
       onDiscard={(id) => console.log("[reaktiform] onDiscard", id)}
       onAddComment={(id, text) => console.log("[reaktiform] comment", id, text)}
-      onUploadFile={(id, file) =>
-        console.log("[reaktiform] upload", id, file.name)
-      }
-      onDeleteAttachment={(id, attId) =>
-        console.log("[reaktiform] delete attachment", id, attId)
-      }
+      onUploadFile={(id, files) => {
+        console.log(
+          "[reaktiform] upload",
+          id,
+          files.map((f) => f.name),
+        );
+        return Promise.resolve(
+          files.map((file) => ({
+            id: `${Date.now()}-${file.name}`,
+            name: file.name,
+            size: `${(file.size / 1024).toFixed(1)} KB`,
+            type: file.name.split(".").pop()?.toLowerCase() ?? "",
+          })),
+        );
+      }}
+      onDeleteAttachment={(id, attId) => {
+        console.log("[reaktiform] delete attachment", id, attId);
+        return Promise.resolve();
+      }}
     />
   ),
 };

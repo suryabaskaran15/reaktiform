@@ -36,6 +36,8 @@ export { FieldWrapper } from "./components/cells/FieldWrapper";
 // ── Primitives (also available from reaktiform/primitives)
 export { Badge, OptionBadge } from "./components/primitives/Badge";
 export { ProgressBar } from "./components/primitives/ProgressBar";
+export { Spinner } from "./components/primitives/Spinner";
+export { Skeleton } from "./components/primitives/Skeleton";
 
 // ── Hooks
 export { useReaktiform } from "./hooks/useReaktiform";

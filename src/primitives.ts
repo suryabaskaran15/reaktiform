@@ -11,5 +11,7 @@
 
 export { Badge, OptionBadge } from './components/primitives/Badge'
 export { ProgressBar }        from './components/primitives/ProgressBar'
+export { Spinner }            from './components/primitives/Spinner'
+export { Skeleton }           from './components/primitives/Skeleton'
 
 export type { SelectOption }  from './types'

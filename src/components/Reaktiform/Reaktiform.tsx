@@ -2796,14 +2796,23 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               )}
               canComment={grid.permissions.canComment}
               canUploadFiles={grid.permissions.canUploadFiles}
+              {...(props.allowMultipleFileUpload !== undefined && {
+                allowMultipleFileUpload: props.allowMultipleFileUpload,
+              })}
               {...(props.onAddComment !== undefined && {
                 onAddComment: props.onAddComment,
+              })}
+              {...(props.onLoadAttachments !== undefined && {
+                onLoadAttachments: props.onLoadAttachments,
               })}
               {...(props.onUploadFile !== undefined && {
                 onUploadFile: props.onUploadFile,
               })}
               {...(props.onDeleteAttachment !== undefined && {
                 onDeleteAttachment: props.onDeleteAttachment,
+              })}
+              {...(props.renderAttachment !== undefined && {
+                renderAttachment: props.renderAttachment,
               })}
             />
           );
