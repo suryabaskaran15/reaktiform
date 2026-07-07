@@ -3,6 +3,13 @@ import type { ColumnDef, AggregationMode } from "./column";
 import type { CFRule, ActiveFilters } from "./filter";
 import type { RowAttachment, RowComment } from "./row";
 
+/**
+ * Reports upload progress for a single file back into reaktiform's built-in
+ * progress bar. `fileId` matches one of the ids handed to you via
+ * `onUploadFile`'s `helpers.fileIds`.
+ */
+export type UploadProgressReporter = (fileId: string, percent: number) => void;
+
 // ─────────────────────────────────────────────────────────────
 //  PERMISSIONS — role-based access control
 // ─────────────────────────────────────────────────────────────
@@ -689,18 +696,59 @@ export type GridConfig<TData = Record<string, unknown>> = {
   onLoadAttachments?: (rowId: string) => Promise<RowAttachment[]>;
 
   /**
-   * Upload a file attachment from the detail panel.
+   * Upload one or more file attachments from the detail panel. Always
+   * receives an array — a single-file selection is a one-element array.
+   *
+   * The optional third argument gives you a way to report real upload
+   * progress back into reaktiform's built-in progress bar. `fileIds` is a
+   * reaktiform-generated id per file (same order/length as `files`) — call
+   * `helpers.onProgress(fileIds[i], percent)` as bytes are sent for file `i`.
+   * If you never call it, reaktiform automatically falls back to an
+   * indeterminate animated bar after a short delay, so upload feedback never
+   * looks stuck at 0%.
    * @example
-   * onUploadFile={async (rowId, file) => {
-   *   const form = new FormData()
-   *   form.append('file', file)
-   *   return await api.post(`/rows/${rowId}/attachments`, form)
+   * onUploadFile={async (rowId, files, helpers) => {
+   *   const uploaded = await Promise.all(files.map((file, i) => {
+   *     const form = new FormData()
+   *     form.append('file', file)
+   *     return api.post(`/rows/${rowId}/attachments`, form, {
+   *       onUploadProgress: (e) => {
+   *         if (e.total) helpers?.onProgress(helpers.fileIds[i], Math.round((e.loaded / e.total) * 100))
+   *       },
+   *     })
+   *   }))
+   *   return uploaded
    * }}
    */
-  onUploadFile?: (rowId: string, file: File) => Promise<RowAttachment>;
+  onUploadFile?: (
+    rowId: string,
+    files: File[],
+    helpers?: { onProgress: UploadProgressReporter; fileIds: string[] },
+  ) => Promise<RowAttachment[]>;
 
   /** Delete an attachment from the detail panel. */
   onDeleteAttachment?: (rowId: string, attachmentId: string) => Promise<void>;
+
+  /**
+   * Render a custom component for each attachment row in the Files tab,
+   * replacing reaktiform's built-in icon/name/size/delete row entirely.
+   * Falls back to the built-in row when omitted.
+   * @example
+   * renderAttachment={(attachment, { onDelete }) => (
+   *   <MyFileCard attachment={attachment} onDelete={onDelete} />
+   * )}
+   */
+  renderAttachment?: (
+    attachment: RowAttachment,
+    helpers: { onDelete: () => void },
+  ) => React.ReactNode;
+
+  /**
+   * Allow selecting/dropping more than one file at a time in the detail
+   * panel's Files tab (drag-and-drop and the file picker both respect this).
+   * @default false
+   */
+  allowMultipleFileUpload?: boolean;
 
   // ── Styling ──────────────────────────────────────────────────
 

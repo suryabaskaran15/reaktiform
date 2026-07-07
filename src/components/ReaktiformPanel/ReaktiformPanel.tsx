@@ -21,7 +21,7 @@ import {
   Check,
   Lock,
 } from "lucide-react";
-import { cn, resolveConstraint } from "../../utils";
+import { cn, resolveConstraint, generateId, formatFileSize } from "../../utils";
 import AsyncSelect from "react-select/async";
 import AsyncCreatableSelect from "react-select/async-creatable";
 import {
@@ -31,7 +31,16 @@ import {
 } from "../cells/SelectCell";
 import { buildZodSchema } from "../../validation/buildZodSchema";
 import { OptionBadge } from "../primitives/Badge";
-import type { ColumnDef, Row, RowComment, RowAttachment } from "../../types";
+import { ProgressBar } from "../primitives/ProgressBar";
+import { Spinner } from "../primitives/Spinner";
+import { Skeleton } from "../primitives/Skeleton";
+import type {
+  ColumnDef,
+  Row,
+  RowComment,
+  RowAttachment,
+  UploadProgressReporter,
+} from "../../types";
 
 // ─────────────────────────────────────────────────────────────
 //  TYPES
@@ -57,8 +66,19 @@ export type ReaktiformPanelProps<TData = Record<string, unknown>> = {
    */
   onFieldChange?: (rowId: string, field: string, value: unknown) => void;
   onAddComment?: (rowId: string, text: string) => void;
-  onUploadFile?: (rowId: string, file: File) => void;
-  onDeleteAttachment?: (rowId: string, attachmentId: string) => void;
+  /** Load file attachments for a row when its detail panel opens. */
+  onLoadAttachments?: (rowId: string) => Promise<RowAttachment[]>;
+  onUploadFile?: (
+    rowId: string,
+    files: File[],
+    helpers?: { onProgress: UploadProgressReporter; fileIds: string[] },
+  ) => Promise<RowAttachment[]>;
+  onDeleteAttachment?: (rowId: string, attachmentId: string) => Promise<void>;
+  /** Render a custom component for each attachment row, replacing the built-in row. */
+  renderAttachment?: (
+    attachment: RowAttachment,
+    helpers: { onDelete: () => void },
+  ) => React.ReactNode;
   width?: number;
   className?: string | undefined;
   // ── Tab control
@@ -76,6 +96,8 @@ export type ReaktiformPanelProps<TData = Record<string, unknown>> = {
   canComment?: boolean;
   /** Allow uploading files. Default: true */
   canUploadFiles?: boolean;
+  /** Allow selecting/dropping more than one file at a time in the Files tab. Default: false */
+  allowMultipleFileUpload?: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -869,100 +891,294 @@ const ATTACH_COLORS: Record<string, string> = {
   doc: "bg-blue-50 text-blue-600",
 };
 
+// An upload that's in flight or has failed. Never becomes a RowAttachment
+// directly — the parent removes it once the consumer's onUploadFile resolves
+// and appends the real RowAttachment(s) it returned.
+type PendingUpload = {
+  id: string;
+  rowId: string;
+  file: File;
+  name: string;
+  sizeLabel: string;
+  percent: number;
+  status: "uploading" | "error";
+  errorMessage?: string | undefined;
+  lastProgressAt: number;
+};
+
+// How long an upload can sit at 0% with no onProgress call before we stop
+// showing a literal (stuck-looking) 0% bar and switch to an indeterminate one.
+const STALL_THRESHOLD_MS = 1500;
+
 function AttachmentsTab({
   rowId,
   attachments,
   onUploadFile,
   onDeleteAttachment,
+  renderAttachment,
   canUploadFiles = true,
+  isLoading = false,
+  allowMultipleFileUpload = false,
+  pendingUploads,
+  onRetryUpload,
+  onDismissUpload,
 }: {
   rowId: string;
   attachments: RowAttachment[];
-  onUploadFile?: (rowId: string, file: File) => void;
+  onUploadFile?: (rowId: string, files: File[]) => void;
   onDeleteAttachment?: (rowId: string, id: string) => void;
+  renderAttachment?: (
+    attachment: RowAttachment,
+    helpers: { onDelete: () => void },
+  ) => React.ReactNode;
   canUploadFiles?: boolean;
+  isLoading?: boolean;
+  /** Allow selecting/dropping more than one file at a time. Default: false (single file, original behavior). */
+  allowMultipleFileUpload?: boolean;
+  pendingUploads: PendingUpload[];
+  onRetryUpload: (pendingId: string) => void;
+  onDismissUpload: (pendingId: string) => void;
 }) {
+  const isEmpty = attachments.length === 0;
+  const [isDragActive, setIsDragActive] = useState(false);
+  // Forces a re-render every 500ms while any upload might need to flip to
+  // indeterminate — otherwise the stall check below would only re-evaluate
+  // on the next unrelated render.
+  const [, forceTick] = useState(0);
+
+  useEffect(() => {
+    const hasStalledCandidate = pendingUploads.some(
+      (p) => p.status === "uploading" && p.percent === 0,
+    );
+    if (!hasStalledCandidate) return;
+    const interval = setInterval(() => forceTick((t) => t + 1), 500);
+    return () => clearInterval(interval);
+  }, [pendingUploads]);
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    setIsDragActive(false);
     if (!canUploadFiles) return;
-    const file = e.dataTransfer.files[0];
-    if (file) onUploadFile?.(rowId, file);
+    const files = allowMultipleFileUpload
+      ? Array.from(e.dataTransfer.files)
+      : e.dataTransfer.files[0]
+        ? [e.dataTransfer.files[0]]
+        : [];
+    if (files.length) onUploadFile?.(rowId, files);
   };
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canUploadFiles) return;
-    const file = e.target.files?.[0];
-    if (file) onUploadFile?.(rowId, file);
+    const picked = e.target.files;
+    const files = allowMultipleFileUpload
+      ? Array.from(picked ?? [])
+      : picked?.[0]
+        ? [picked[0]]
+        : [];
+    if (files.length) onUploadFile?.(rowId, files);
+    // reset so picking the same file(s) again still fires onChange
+    e.target.value = "";
   };
 
+  const showEmptyText = !isLoading && isEmpty && pendingUploads.length === 0;
+
   return (
-    <div>
-      <div className="text-[11px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em] mb-3 pb-1.5 border-b border-rf-border">
-        Files ({attachments.length})
+    <div className="rf-flex rf-flex-col rf-h-full">
+      <div className="sticky top-0 -mt-4 pt-4 z-40 bg-rf-surface rf-flex-shrink-0">
+        {onUploadFile && canUploadFiles && (
+          <label
+            className={cn(
+              "rf-flex rf-flex-col rf-items-center rf-justify-center rf-gap-2 border-2 border-dashed rounded-rf-lg p-6 rf-cursor-pointer transition-all",
+              isDragActive
+                ? "border-rf-accent bg-rf-accent-bg text-rf-accent"
+                : "border-rf-border hover:border-rf-accent hover:bg-rf-accent-bg hover:text-rf-accent text-rf-text-3",
+            )}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setIsDragActive(true);
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDragLeave={() => setIsDragActive(false)}
+            onDrop={handleDrop}
+          >
+            <div className="w-9 h-9 rf-flex rf-items-center rf-justify-center rounded-full bg-rf-accent-bg text-rf-accent">
+              <Upload className="w-4 h-4" />
+            </div>
+            <span className="text-[12.5px] rf-font-medium">
+              Click to upload or drag & drop
+            </span>
+            <span className="text-[11px]">PDF, DOCX, XLSX, PNG, JPG</span>
+            <input
+              type="file"
+              multiple={allowMultipleFileUpload}
+              className="rf-hidden"
+              onChange={handlePick}
+            />
+          </label>
+        )}
+        {onUploadFile && !canUploadFiles && (
+          <div className="rf-flex rf-items-center rf-justify-center rf-gap-2 border border-rf-border rounded-rf-lg p-4 text-rf-text-3 text-[12.5px]">
+            <Lock className="rf-icon-sm" /> You do not have permission to
+            upload files
+          </div>
+        )}
+        <div className="rf-flex-shrink-0 text-[11px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em] mt-4 mb-3 pb-1.5 border-b border-rf-border">
+          Files ({attachments.length})
+        </div>
       </div>
-      <div className="rf-flex-col rf-gap-1.5 mb-4">
-        {attachments.length === 0 && (
-          <div className="text-center py-6 text-[12.5px] text-rf-text-3 rf-italic">
+      <div
+        className={cn(
+          "rf-flex rf-flex-col",
+          showEmptyText && "rf-justify-center rf-flex-1",
+        )}
+      >
+        {pendingUploads.length > 0 && (
+          <div className="rf-flex-col rf-gap-1.5 mb-2">
+            {pendingUploads.map((p) => {
+              const isStalled =
+                p.status === "uploading" &&
+                p.percent === 0 &&
+                Date.now() - p.lastProgressAt > STALL_THRESHOLD_MS;
+              return (
+                <div
+                  key={p.id}
+                  className={cn(
+                    "rf-flex rf-items-center rf-gap-2.5 p-2.5 border rounded-rf-md",
+                    p.status === "error"
+                      ? "border-rf-err-br bg-rf-err-bg"
+                      : "border-rf-border",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-rf-sm flex items-center justify-center flex-shrink-0",
+                      p.status === "error"
+                        ? "bg-rf-err-bg text-rf-err"
+                        : "bg-rf-accent-bg text-rf-accent",
+                    )}
+                  >
+                    {p.status === "error" ? (
+                      <AlertCircle className="rf-icon-lg" />
+                    ) : (
+                      <Spinner size={16} />
+                    )}
+                  </div>
+                  <div className="rf-flex-1 rf-min-w-0">
+                    <div className="text-[12.5px] rf-font-medium text-rf-text-1 rf-truncate">
+                      {p.name}
+                    </div>
+                    {p.status === "error" ? (
+                      <div className="text-[11px] text-rf-err rf-truncate">
+                        {p.errorMessage ?? "Upload failed"}
+                      </div>
+                    ) : (
+                      <ProgressBar
+                        value={p.percent}
+                        tone="accent"
+                        indeterminate={isStalled}
+                        className="mt-1"
+                      />
+                    )}
+                  </div>
+                  {p.status === "error" && (
+                    <div className="rf-flex rf-items-center rf-gap-1 rf-flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => onRetryUpload(p.id)}
+                        className="px-2 py-1 text-[11px] rf-font-semibold rounded text-rf-accent hover:bg-rf-accent-bg rf-transition-colors"
+                      >
+                        Retry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDismissUpload(p.id)}
+                        className="p-1 rounded text-rf-text-3 hover:text-rf-err hover:bg-rf-err-bg rf-transition-colors"
+                        title="Dismiss"
+                      >
+                        <X className="rf-icon-sm" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {isLoading ? (
+          <div className="rf-flex-col rf-gap-1.5 mb-4">
+            {Array.from({ length: Math.max(attachments.length, 3) }).map(
+              (_, i) => (
+                <div
+                  key={i}
+                  className="rf-flex rf-items-center rf-gap-2.5 p-2.5 border border-rf-border rounded-rf-md"
+                >
+                  <Skeleton width={32} height={32} rounded="sm" />
+                  <div className="rf-flex-1 rf-min-w-0 rf-flex rf-flex-col rf-gap-1.5">
+                    <Skeleton width="70%" height={12} />
+                    <Skeleton width="35%" height={10} />
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
+        ) : (
+          !isEmpty && (
+            <div className="rf-flex-col rf-gap-1.5 mb-4">
+              {attachments.map((a) => {
+                if (renderAttachment) {
+                  return (
+                    <div key={a.id}>
+                      {renderAttachment(a, {
+                        onDelete: () => onDeleteAttachment?.(rowId, a.id),
+                      })}
+                    </div>
+                  );
+                }
+
+                const ext = a.name.split(".").pop()?.toLowerCase() ?? "";
+                const IconComp = ATTACH_ICONS[ext] ?? File;
+                const colorClass =
+                  ATTACH_COLORS[ext] ?? "bg-rf-header text-rf-text-2";
+                return (
+                  <div
+                    key={a.id}
+                    className="rf-flex rf-items-center rf-gap-2.5 p-2.5 border border-rf-border rounded-rf-md hover:bg-rf-row-hover rf-transition-colors group"
+                  >
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded-rf-sm flex items-center justify-center flex-shrink-0",
+                        colorClass,
+                      )}
+                    >
+                      <IconComp className="rf-icon-lg" />
+                    </div>
+                    <div className="rf-flex-1 rf-min-w-0">
+                      <div className="text-[12.5px] rf-font-medium text-rf-text-1 rf-truncate">
+                        {a.name}
+                      </div>
+                      <div className="text-[11px] text-rf-text-3">{a.size}</div>
+                    </div>
+                    {onDeleteAttachment && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteAttachment(rowId, a.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded text-rf-text-3 hover:text-rf-err hover:bg-rf-err-bg transition-all"
+                        title="Remove"
+                      >
+                        <X className="rf-icon-sm" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+        {showEmptyText && (
+          <div className="text-center py-3 text-[12.5px] text-rf-text-3 rf-italic mb-4">
             No files attached
           </div>
         )}
-        {attachments.map((a) => {
-          const ext = a.name.split(".").pop()?.toLowerCase() ?? "";
-          const IconComp = ATTACH_ICONS[ext] ?? File;
-          const colorClass =
-            ATTACH_COLORS[ext] ?? "bg-rf-header text-rf-text-2";
-          return (
-            <div
-              key={a.id}
-              className="rf-flex rf-items-center rf-gap-2.5 p-2.5 border border-rf-border rounded-rf-md hover:bg-rf-row-hover rf-transition-colors group"
-            >
-              <div
-                className={cn(
-                  "w-8 h-8 rounded-rf-sm flex items-center justify-center flex-shrink-0",
-                  colorClass,
-                )}
-              >
-                <IconComp className="rf-icon-lg" />
-              </div>
-              <div className="rf-flex-1 rf-min-w-0">
-                <div className="text-[12.5px] rf-font-medium text-rf-text-1 rf-truncate">
-                  {a.name}
-                </div>
-                <div className="text-[11px] text-rf-text-3">{a.size}</div>
-              </div>
-              {onDeleteAttachment && (
-                <button
-                  type="button"
-                  onClick={() => onDeleteAttachment(rowId, a.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-rf-text-3 hover:text-rf-err hover:bg-rf-err-bg transition-all"
-                  title="Remove"
-                >
-                  <X className="rf-icon-sm.5" />
-                </button>
-              )}
-            </div>
-          );
-        })}
       </div>
-      {onUploadFile && canUploadFiles && (
-        <label
-          className="rf-flex-col rf-items-center rf-justify-center rf-gap-2 border-2 border-dashed border-rf-border rounded-rf-lg p-6 rf-cursor-pointer transition-all hover:border-rf-accent hover:bg-rf-accent-bg hover:text-rf-accent text-rf-text-3"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
-        >
-          <Upload className="w-5 h-5" />
-          <span className="text-[12.5px] rf-font-medium">
-            Click to upload or drag & drop
-          </span>
-          <span className="text-[11px]">PDF, DOCX, XLSX, PNG, JPG</span>
-          <input type="file" className="rf-hidden" onChange={handlePick} />
-        </label>
-      )}
-      {onUploadFile && !canUploadFiles && (
-        <div className="rf-flex rf-items-center rf-justify-center rf-gap-2 border border-rf-border rounded-rf-lg p-4 text-rf-text-3 text-[12.5px]">
-          <Lock className="rf-icon-sm.5" /> You do not have permission to upload
-          files
-        </div>
-      )}
     </div>
   );
 }
@@ -984,8 +1200,10 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
   onDiscard,
   onFieldChange,
   onAddComment,
+  onLoadAttachments,
   onUploadFile,
   onDeleteAttachment,
+  renderAttachment,
   width = 440,
   className,
   panelTabs,
@@ -993,6 +1211,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
   canEdit = true,
   canComment = true,
   canUploadFiles = true,
+  allowMultipleFileUpload = false,
 }: ReaktiformPanelProps<TData>) {
   const [activeTab, setActiveTab] = useState<PMFormTab>("details");
   // Incremented when Discard is clicked — forces DetailsTab to reset RHF state
@@ -1009,6 +1228,142 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
     : "";
   const isDirty = !!row?._draft;
   const hasErrors = Object.keys(row?._errors ?? {}).length > 0;
+
+  // Loaded on-demand via onLoadAttachments when a row's panel opens — falls
+  // back to row._attachments (static, consumer-provided) until loaded / if
+  // onLoadAttachments isn't provided at all.
+  const [loadedAttachments, setLoadedAttachments] = useState<
+    RowAttachment[] | null
+  >(null);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !rowId || !onLoadAttachments) {
+      setLoadedAttachments(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadedAttachments(null);
+    setAttachmentsLoading(true);
+    onLoadAttachments(rowId)
+      .then((result) => {
+        if (!cancelled) setLoadedAttachments(result);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadedAttachments([]);
+      })
+      .finally(() => {
+        if (!cancelled) setAttachmentsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, rowId, onLoadAttachments]);
+
+  // In-flight/failed uploads, tracked separately from the committed
+  // RowAttachment[] list. Tagged with the rowId they belong to so switching
+  // rows (onPrev/onNext) never shows one row's uploads on another.
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+
+  // Shared by both a fresh upload and a retry — starts the consumer's
+  // onUploadFile call and reconciles pendingUploads based on the outcome.
+  const runUpload = (
+    targetRowId: string,
+    filesToUpload: File[],
+    fileIds: string[],
+  ) => {
+    if (!onUploadFile) return;
+    const onProgress: UploadProgressReporter = (fileId, percent) => {
+      setPendingUploads((prev) =>
+        prev.map((p) =>
+          p.id === fileId ? { ...p, percent, lastProgressAt: Date.now() } : p,
+        ),
+      );
+    };
+    onUploadFile(targetRowId, filesToUpload, { onProgress, fileIds })
+      .then((newAttachments) => {
+        setPendingUploads((prev) =>
+          prev.filter((p) => !fileIds.includes(p.id)),
+        );
+        setLoadedAttachments((prev) => [
+          ...(prev ?? row?._attachments ?? []),
+          ...newAttachments,
+        ]);
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "Upload failed";
+        setPendingUploads((prev) =>
+          prev.map((p) =>
+            fileIds.includes(p.id)
+              ? { ...p, status: "error" as const, errorMessage: message }
+              : p,
+          ),
+        );
+      });
+  };
+
+  const handleAttachmentUpload = (targetRowId: string, files: File[]) => {
+    if (!onUploadFile) return;
+    const fileIds = files.map(() => generateId("upload"));
+    const startedAt = Date.now();
+    setPendingUploads((prev) => [
+      ...prev,
+      ...files.map((file, i) => ({
+        id: fileIds[i]!,
+        rowId: targetRowId,
+        file,
+        name: file.name,
+        sizeLabel: formatFileSize(file.size),
+        percent: 0,
+        status: "uploading" as const,
+        lastProgressAt: startedAt,
+      })),
+    ]);
+    runUpload(targetRowId, files, fileIds);
+  };
+
+  const handleRetryUpload = (pendingId: string) => {
+    if (!isOpen) return;
+    const target = pendingUploads.find((p) => p.id === pendingId);
+    if (!target) return;
+    setPendingUploads((prev) =>
+      prev.map((p) =>
+        p.id === pendingId
+          ? {
+              ...p,
+              status: "uploading" as const,
+              percent: 0,
+              errorMessage: undefined,
+              lastProgressAt: Date.now(),
+            }
+          : p,
+      ),
+    );
+    runUpload(target.rowId, [target.file], [pendingId]);
+  };
+
+  const handleDismissUpload = (pendingId: string) => {
+    setPendingUploads((prev) => prev.filter((p) => p.id !== pendingId));
+  };
+
+  const handleAttachmentDelete = (
+    targetRowId: string,
+    attachmentId: string,
+  ) => {
+    if (!onDeleteAttachment) return;
+    onDeleteAttachment(targetRowId, attachmentId)
+      .then(() => {
+        setLoadedAttachments((prev) =>
+          (prev ?? row?._attachments ?? []).filter(
+            (a) => a.id !== attachmentId,
+          ),
+        );
+      })
+      .catch(() => {
+        // app already surfaces the error (toast); leave attachment in place
+      });
+  };
 
   // Build the visible tabs list:
   // 1. Filter by panelTabs prop (if provided)
@@ -1134,7 +1489,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                   : "text-rf-text-3 border-transparent hover:text-rf-text-2",
               )}
             >
-              <Icon className="rf-icon-sm.5" />
+              <Icon className="rf-icon-sm" />
               {label}
             </button>
           ))}
@@ -1174,10 +1529,20 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
           {row && activeTab === "attachments" && (
             <AttachmentsTab
               rowId={rowId}
-              attachments={row._attachments ?? []}
+              attachments={loadedAttachments ?? row._attachments ?? []}
+              isLoading={attachmentsLoading}
               canUploadFiles={canUploadFiles}
-              {...(onUploadFile !== undefined && { onUploadFile })}
-              {...(onDeleteAttachment !== undefined && { onDeleteAttachment })}
+              allowMultipleFileUpload={allowMultipleFileUpload}
+              pendingUploads={pendingUploads.filter((p) => p.rowId === rowId)}
+              onRetryUpload={handleRetryUpload}
+              onDismissUpload={handleDismissUpload}
+              {...(onUploadFile !== undefined && {
+                onUploadFile: handleAttachmentUpload,
+              })}
+              {...(onDeleteAttachment !== undefined && {
+                onDeleteAttachment: handleAttachmentDelete,
+              })}
+              {...(renderAttachment !== undefined && { renderAttachment })}
             />
           )}
           {!row && (
@@ -1207,31 +1572,12 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                     >
                       {isSavingRow ? (
                         <>
-                          <svg
-                            style={{
-                              width: 14,
-                              height: 14,
-                              animation: "rf-spin 0.8s linear infinite",
-                            }}
-                            viewBox="0 0 24 24"
-                            fill="none"
-                          >
-                            <circle
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeDasharray="32"
-                              strokeDashoffset="12"
-                              strokeLinecap="round"
-                            />
-                          </svg>
+                          <Spinner size={14} />
                           Saving…
                         </>
                       ) : (
                         <>
-                          <Save className="rf-icon-sm.5" /> Save Changes
+                          <Save className="rf-icon-sm" /> Save Changes
                         </>
                       )}
                     </button>
@@ -1244,14 +1590,14 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                       }}
                       className="rf-inline-flex rf-items-center rf-justify-center rf-gap-1.5 px-4 py-2.5 text-[13px] rf-font-medium rounded-rf-md bg-rf-surface text-rf-text-2 border border-rf-border hover:bg-rf-header rf-transition-colors disabled:rf-opacity-60 disabled:rf-cursor-not-allowed"
                     >
-                      <RotateCcw className="rf-icon-sm.5" /> Discard
+                      <RotateCcw className="rf-icon-sm" /> Discard
                     </button>
                   </>
                 );
               })()
             ) : (
               <div className="rf-flex-1 rf-flex rf-items-center rf-justify-center rf-gap-2 py-2 text-[12.5px] text-rf-text-3">
-                <Lock className="rf-icon-sm.5" />
+                <Lock className="rf-icon-sm" />
                 {!canEdit
                   ? "Read-only — you do not have edit permission"
                   : "Saving is disabled"}

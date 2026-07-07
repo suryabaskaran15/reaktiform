@@ -1049,6 +1049,9 @@ Generic names like .flex and .hidden ONLY apply inside
 [data-reaktiform] .pt-3 {
   padding-top: 0.75rem;
 }
+[data-reaktiform] .pt-4 {
+  padding-top: 1rem;
+}
 [data-reaktiform] .pt-14 {
   padding-top: 3.5rem;
 }
@@ -1083,6 +1086,9 @@ Generic names like .flex and .hidden ONLY apply inside
 /* ── Margin ── */
 [data-reaktiform] .-mt-px {
   margin-top: -1px;
+}
+[data-reaktiform] .-mt-4 {
+  margin-top: -1rem;
 }
 [data-reaktiform] .mt-1 {
   margin-top: 0.25rem;
@@ -1645,6 +1651,23 @@ Generic names like .flex and .hidden ONLY apply inside
   60%,
   100% {
     transform: translateX(150%);
+  }
+}
+@keyframes rf-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes rf-progress-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(220%);
   }
 }
 
