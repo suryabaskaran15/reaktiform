@@ -79,8 +79,10 @@ export function useReaktiform<TData = Record<string, unknown>>(
   const canExport = permissions.canExport !== false;
   const canSave = permissions.canSave !== false;
 
-  const canEditRow = (row: Record<string, unknown>) =>
-    resolvePermission(permissions.canEdit, row);
+  const canEditRow = (row: Record<string, unknown>) => {
+    if (row["_new"] === true) return canCreate;
+    return resolvePermission(permissions.canEdit, row);
+  };
   const canDeleteRow = (row: Record<string, unknown>) =>
     resolvePermission(permissions.canDelete, row);
   const canDuplicateRow = (row: Record<string, unknown>) =>
