@@ -408,3 +408,13 @@ export const WithPinnedColumns: Story = {
     initialPinnedColumns: ["riskId", "status", "severity"],
   },
 };
+
+// ── 7. TEMP VERIFICATION — canCreate true, canEdit false
+export const _TempCreateOnly: Story = {
+  name: "TEMP verify — create only",
+  args: {
+    columns: columns as any,
+    data: sampleData,
+    permissions: { canCreate: true, canEdit: false },
+  },
+};
