@@ -610,6 +610,21 @@ export function useReaktiform<TData = Record<string, unknown>>(
 
   const processedRows = table.getRowModel().rows;
 
+  // ── Stable wrappers around store actions that need a small transform
+  // (or, for closePanel, a fixed argument). Previously these were inline
+  // arrows recreated on every render — openPanel specifically feeds
+  // useKeyboardNav's window-listener effect deps (see Reaktiform.tsx),
+  // where a fresh identity forces an unnecessary teardown/re-attach.
+  const toggleSelectAll = useCallback(
+    (allIds: string[]) => actions.toggleSelectAll(allIds),
+    [actions],
+  );
+  const openPanel = useCallback(
+    (rowId: string) => actions.setPanelRowId(rowId),
+    [actions],
+  );
+  const closePanel = useCallback(() => actions.setPanelRowId(null), [actions]);
+
   return {
     table,
     processedRows,
@@ -687,10 +702,10 @@ export function useReaktiform<TData = Record<string, unknown>>(
     setColumnWidth: actions.setColumnWidth,
     setColumnOrder: actions.setColumnOrder,
     toggleSelect: actions.toggleSelect,
-    toggleSelectAll: (allIds: string[]) => actions.toggleSelectAll(allIds),
+    toggleSelectAll,
     clearSelection: actions.clearSelection,
-    openPanel: (rowId: string) => actions.setPanelRowId(rowId),
-    closePanel: () => actions.setPanelRowId(null),
+    openPanel,
+    closePanel,
     addCFRule: actions.addCFRule,
     updateCFRule: actions.updateCFRule,
     deleteCFRule: actions.deleteCFRule,

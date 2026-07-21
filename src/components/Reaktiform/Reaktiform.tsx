@@ -583,7 +583,11 @@ function ReaktiformInner<TData = Record<string, unknown>>(
       if (col.resizable !== false) {
         onResize.set(k, (w: number) => grid.setColumnWidth(k, w));
       }
-      if (col.type === "number" && !col.computed && col.aggregatable !== false) {
+      if (
+        col.type === "number" &&
+        !col.computed &&
+        col.aggregatable !== false
+      ) {
         onCycleAgg.set(k, () => {
           const cur = grid.aggregations[k] ?? "none";
           const next =
@@ -1069,35 +1073,35 @@ function ReaktiformInner<TData = Record<string, unknown>>(
       {/* ── ACTIVE FILTERS BAR ────────────────────────────── */}
       {props.features?.showActiveFilterChips !== false &&
         Object.keys(grid.activeFilters).length > 0 && (
-        <div className="rf-flex rf-items-center rf-gap-2 rf-flex-wrap px-3 py-2 bg-rf-accent-bg border border-rf-accent-br border-b-0 text-[12px]">
-          <span className="rf-font-semibold text-rf-accent">
-            Active filters:
-          </span>
-          {Object.entries(grid.activeFilters).map(([key]) => {
-            const col = props.columns.find((c) => c.key === key);
-            return (
-              <span
-                key={key}
-                className="rf-inline-flex rf-items-center rf-gap-1 bg-rf-surface border border-rf-accent-br rounded-full px-2.5 py-0.5 text-rf-accent rf-font-medium"
-              >
-                {col?.label ?? key}
-                <button
-                  onClick={() => grid.clearFilter(key)}
-                  className="rf-opacity-60 hover:opacity-100"
+          <div className="rf-flex rf-items-center rf-gap-2 rf-flex-wrap px-3 py-2 bg-rf-accent-bg border border-rf-accent-br border-b-0 text-[12px]">
+            <span className="rf-font-semibold text-rf-accent">
+              Active filters:
+            </span>
+            {Object.entries(grid.activeFilters).map(([key]) => {
+              const col = props.columns.find((c) => c.key === key);
+              return (
+                <span
+                  key={key}
+                  className="rf-inline-flex rf-items-center rf-gap-1 bg-rf-surface border border-rf-accent-br rounded-full px-2.5 py-0.5 text-rf-accent rf-font-medium"
                 >
-                  <X className="rf-icon-xs" />
-                </button>
-              </span>
-            );
-          })}
-          <button
-            onClick={grid.clearAllFilters}
-            className="rf-ml-auto text-rf-accent rf-font-medium opacity-70 hover:opacity-100"
-          >
-            Clear all
-          </button>
-        </div>
-      )}
+                  {col?.label ?? key}
+                  <button
+                    onClick={() => grid.clearFilter(key)}
+                    className="rf-opacity-60 hover:opacity-100"
+                  >
+                    <X className="rf-icon-xs" />
+                  </button>
+                </span>
+              );
+            })}
+            <button
+              onClick={grid.clearAllFilters}
+              className="rf-ml-auto text-rf-accent rf-font-medium opacity-70 hover:opacity-100"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
 
       {/* ── BULK ACTIONS BAR ──────────────────────────────── */}
       {grid.selectedIds.size > 0 && (
@@ -1235,7 +1239,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                   }}
                 />
               ))}
-              {showActionsColumn && <col />}
+              {showActionsColumn && <col style={{ width: COL_WIDTHS.act }} />}
             </colgroup>
 
             {/* ── THEAD ─────────────────────────────────── */}
@@ -2089,6 +2093,18 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                         const computedVal = col.computed
                           ? grid.getComputedValue(row, colKey)
                           : undefined;
+
+                        // For editableWhenComputed: when editing use the draft/committed value
+                        // so the user sees what they typed. When reading, use the formula result.
+                        const fieldValue =
+                          col.computed && col.editableWhenComputed
+                            ? isEditing
+                              ? cellVal
+                              : (computedVal ?? cellVal)
+                            : col.computed
+                              ? computedVal
+                              : cellVal;
+
                         const errMsg = row._errors?.[colKey];
                         const hasErr = !!errMsg;
 
@@ -2145,29 +2161,25 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                                     : undefined,
                               borderRight: "1px solid var(--rf-border)",
                               overflow: "hidden",
-                              cursor: isReadOnly
-                                ? "default"
-                                : grid.permissions.canEditRow(
-                                      row as Record<string, unknown>,
-                                    ) &&
-                                    grid.permissions.canEditCol(colKey) &&
-                                    col.type !== "checkbox" &&
-                                    (!col.computed || col.editableWhenComputed)
-                                  ? "text"
-                                  : "default",
+                              cursor: canEditCell(
+                                row as Record<string, unknown>,
+                                col,
+                              )
+                                ? "text"
+                                : "default",
                             }}
+                            ref={isEditing ? activeCellRef : undefined}
                             onClick={() => {
-                              const rowData = row as Record<string, unknown>;
-                              const canEdit =
-                                grid.permissions.canEditRow(rowData) &&
-                                grid.permissions.canEditCol(colKey) &&
-                                !isReadOnly;
-                              const isEditableComputed =
-                                col.computed && col.editableWhenComputed;
+                              // Only (re)activate when this cell isn't already
+                              // the one being edited — re-firing activateCell
+                              // on every click of an already-open editor is
+                              // what let the container's old unconditional
+                              // deactivate "win" the race and close cells
+                              // that should have stayed open (e.g. clicking
+                              // mid-text to place the cursor).
                               if (
-                                canEdit &&
-                                col.type !== "checkbox" &&
-                                (!col.computed || isEditableComputed)
+                                !isEditing &&
+                                canEditCell(row as Record<string, unknown>, col)
                               ) {
                                 activateCell(rowId, colKey);
                               }
@@ -2177,17 +2189,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                             <CellRenderer
                               row={row}
                               colDef={col as ColumnDef}
-                              value={
-                                // For editableWhenComputed: when editing use the draft/committed value
-                                // so the user sees what they typed. When reading, use the formula result.
-                                col.computed && col.editableWhenComputed
-                                  ? isEditing
-                                    ? cellVal
-                                    : (computedVal ?? cellVal)
-                                  : col.computed
-                                    ? computedVal
-                                    : cellVal
-                              }
+                              value={fieldValue}
                               isEditing={isEditing}
                               isError={hasErr}
                               onCommit={(val) => {
@@ -2201,6 +2203,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                               {...(errMsg !== undefined && {
                                 errorMessage: errMsg,
                               })}
+                              className={col?.cellClassName?.(fieldValue, row)}
                             />
                           </td>
                         );
@@ -2536,54 +2539,56 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               )}
 
               {/* Add record button */}
-              {!grid.isLoading && grid.permissions.canCreate && (
-                <tr>
-                  <td
-                    colSpan={
-                      visibleDataCols.length +
-                      (showSelectColumn ? 1 : 0) +
-                      (showRowNumbers ? 1 : 0) +
-                      (showExpanderColumn ? 1 : 0) +
-                      (showActionsColumn ? 1 : 0)
-                    }
-                    style={{
-                      padding: 0,
-                      borderTop: "1px solid var(--rf-border)",
-                    }}
-                  >
-                    <button
-                      onClick={() => grid.addRow()}
+              {!grid.isLoading &&
+                grid.permissions.canCreate &&
+                props?.features?.showAddButtonAtFooter && (
+                  <tr>
+                    <td
+                      colSpan={
+                        visibleDataCols.length +
+                        (showSelectColumn ? 1 : 0) +
+                        (showRowNumbers ? 1 : 0) +
+                        (showExpanderColumn ? 1 : 0) +
+                        (showActionsColumn ? 1 : 0)
+                      }
                       style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "9px 16px",
-                        fontSize: 12.5,
-                        fontWeight: 500,
-                        color: "var(--rf-text-3)",
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        textAlign: "left",
-                      }}
-                      onMouseEnter={(e) => {
-                        const b = e.currentTarget as HTMLButtonElement;
-                        b.style.color = "var(--rf-accent)";
-                        b.style.background = "var(--rf-row-hover)";
-                      }}
-                      onMouseLeave={(e) => {
-                        const b = e.currentTarget as HTMLButtonElement;
-                        b.style.color = "var(--rf-text-3)";
-                        b.style.background = "transparent";
+                        padding: 0,
+                        borderTop: "1px solid var(--rf-border)",
                       }}
                     >
-                      <Plus style={{ width: 15, height: 15 }} /> Add record
-                    </button>
-                  </td>
-                </tr>
-              )}
+                      <button
+                        onClick={() => grid.addRow()}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "9px 16px",
+                          fontSize: 12.5,
+                          fontWeight: 500,
+                          color: "var(--rf-text-3)",
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          textAlign: "left",
+                        }}
+                        onMouseEnter={(e) => {
+                          const b = e.currentTarget as HTMLButtonElement;
+                          b.style.color = "var(--rf-accent)";
+                          b.style.background = "var(--rf-row-hover)";
+                        }}
+                        onMouseLeave={(e) => {
+                          const b = e.currentTarget as HTMLButtonElement;
+                          b.style.color = "var(--rf-text-3)";
+                          b.style.background = "transparent";
+                        }}
+                      >
+                        <Plus style={{ width: 15, height: 15 }} /> Add record
+                      </button>
+                    </td>
+                  </tr>
+                )}
             </tbody>
 
             {/* ── TFOOT — Aggregation row ────────────────── */}
@@ -3092,7 +3097,11 @@ function ColumnHeader({
             onSort && "rf-cursor-pointer hover:opacity-80",
           )}
           onClick={onSort}
-          title={onSort ? `${sortTooltip} · Shift+click for multi-column sort` : undefined}
+          title={
+            onSort
+              ? `${sortTooltip} · Shift+click for multi-column sort`
+              : undefined
+          }
         >
           <span
             className={cn(
@@ -3789,9 +3798,7 @@ function ColumnVisibilityPanel({
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      color: visible
-                        ? "var(--rf-text-1)"
-                        : "var(--rf-text-3)",
+                      color: visible ? "var(--rf-text-1)" : "var(--rf-text-3)",
                     }}
                   >
                     {col.label}

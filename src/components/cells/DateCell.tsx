@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 import { cn } from "../../utils";
-import { formatDate, getDaysFromToday } from "../../utils";
+import { formatDate } from "../../utils";
 
 // ── READ MODE
 type DateCellReadProps = {
@@ -23,15 +23,13 @@ export function DateCellRead({
     );
   }
 
-  const days = getDaysFromToday(value);
-  const colorClass =
-    days < 0 ? "text-rf-err" : days < 7 ? "text-rf-warn" : "text-rf-text-1";
+  // const days = getDaysFromToday(value);
+  // const colorClass =
+  //   days < 0 ? "text-rf-err" : days < 7 ? "text-rf-warn" : "text-rf-text-1";
 
   return (
     <div className={cn("flex items-center px-[10px] h-full", className)}>
-      <span className={cn("text-[12.5px] font-mono", colorClass)}>
-        {formatDate(value)}
-      </span>
+      <span className={cn("text-[12.5px] font-mono")}>{formatDate(value)}</span>
     </div>
   );
 }

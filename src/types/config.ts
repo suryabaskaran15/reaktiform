@@ -193,6 +193,13 @@ export type GridFeatures = {
    * @example features={{ showActiveFilterChips: false }}
    */
   showActiveFilterChips?: boolean;
+  /**
+   * Show the Add ("+") button in the table footer instead of the toolbar.
+   * Useful when the toolbar is hidden or when you want add actions closer to
+   * the data rows. Default: `false`
+   * @example showAddButtonAtFooter={true}
+   */
+  showAddButtonAtFooter?: boolean;
   /** Row drag-to-reorder. Coming in v2. */
   rowDrag?: boolean;
   /** Import from CSV/XLSX. Coming in v2. */

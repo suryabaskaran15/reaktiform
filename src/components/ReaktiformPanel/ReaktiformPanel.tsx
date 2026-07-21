@@ -1017,8 +1017,8 @@ function AttachmentsTab({
         )}
         {onUploadFile && !canUploadFiles && (
           <div className="rf-flex rf-items-center rf-justify-center rf-gap-2 border border-rf-border rounded-rf-lg p-4 text-rf-text-3 text-[12.5px]">
-            <Lock className="rf-icon-sm" /> You do not have permission to
-            upload files
+            <Lock className="rf-icon-sm" /> You do not have permission to upload
+            files
           </div>
         )}
         <div className="rf-flex-shrink-0 text-[11px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em] mt-4 mb-3 pb-1.5 border-b border-rf-border">
@@ -1526,25 +1526,34 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
               {...(onAddComment !== undefined && { onAddComment })}
             />
           )}
-          {row && activeTab === "attachments" && (
-            <AttachmentsTab
-              rowId={rowId}
-              attachments={loadedAttachments ?? row._attachments ?? []}
-              isLoading={attachmentsLoading}
-              canUploadFiles={canUploadFiles}
-              allowMultipleFileUpload={allowMultipleFileUpload}
-              pendingUploads={pendingUploads.filter((p) => p.rowId === rowId)}
-              onRetryUpload={handleRetryUpload}
-              onDismissUpload={handleDismissUpload}
-              {...(onUploadFile !== undefined && {
-                onUploadFile: handleAttachmentUpload,
-              })}
-              {...(onDeleteAttachment !== undefined && {
-                onDeleteAttachment: handleAttachmentDelete,
-              })}
-              {...(renderAttachment !== undefined && { renderAttachment })}
-            />
-          )}
+          {row &&
+            activeTab === "attachments" &&
+            (row?._new ? (
+              <div className="rf-flex-col rf-items-center rf-justify-center rf-h-full text-rf-text-3 rf-gap-3">
+                <FileCheck className="w-10 h-10 opacity-30" />
+                <span className="text-[13px]">
+                  Save the records to upload the files
+                </span>
+              </div>
+            ) : (
+              <AttachmentsTab
+                rowId={rowId}
+                attachments={loadedAttachments ?? row._attachments ?? []}
+                isLoading={attachmentsLoading}
+                canUploadFiles={canUploadFiles}
+                allowMultipleFileUpload={allowMultipleFileUpload}
+                pendingUploads={pendingUploads.filter((p) => p.rowId === rowId)}
+                onRetryUpload={handleRetryUpload}
+                onDismissUpload={handleDismissUpload}
+                {...(onUploadFile !== undefined && {
+                  onUploadFile: handleAttachmentUpload,
+                })}
+                {...(onDeleteAttachment !== undefined && {
+                  onDeleteAttachment: handleAttachmentDelete,
+                })}
+                {...(renderAttachment !== undefined && { renderAttachment })}
+              />
+            ))}
           {!row && (
             <div className="rf-flex-col rf-items-center rf-justify-center rf-h-full text-rf-text-3 rf-gap-3">
               <FileCheck className="w-10 h-10 opacity-30" />
