@@ -17,14 +17,18 @@ type PersistedState = {
   activeFilters: ActiveFilters;
   aggregations: Record<string, string>;
   cfRules: CFRule[];
+  // editLocked IS persisted (unlike sort/groupBy) — resetting it to
+  // "unlocked" on every reload would defeat its purpose as a safety toggle.
+  editLocked: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────
 //  VERSION — bump this whenever the persisted shape changes.
 //  Old data is automatically cleared on version mismatch.
 //  v1 → v2: added sortModel to store state
+//  v2 → v3: added editLocked
 // ─────────────────────────────────────────────────────────────
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 
 // ─────────────────────────────────────────────────────────────
 //  SAFE READ — never throws, returns null on any error
@@ -99,6 +103,9 @@ export function loadPersistedState(
   if (saved.cfRules?.length) {
     state.setCFRules(saved.cfRules);
   }
+  if (saved.editLocked !== undefined) {
+    state.setEditLocked(saved.editLocked);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -135,6 +142,7 @@ export function useGridPersistence(
           activeFilters: state.activeFilters,
           aggregations: state.aggregations,
           cfRules: state.cfRules,
+          editLocked: state.editLocked,
           // sortState and groupByCol intentionally excluded
         };
         writeStorage(storageKey, persisted);

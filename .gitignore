@@ -46,3 +46,13 @@ main.css
 .gitignore
 .gitignore
 mockApi.ts
+
+# Benchmark infrastructure — raw per-run output is noisy and meant for CI
+# artifact storage, not git history. budgets.json IS tracked (small,
+# meaningful diffs when thresholds change) via the negation pattern below.
+bench/app/.dist-bench/
+bench/.cache/
+bench/reports/*.json
+bench/reports/*.md
+bench/reports/*.html
+!bench/reports/budgets.json

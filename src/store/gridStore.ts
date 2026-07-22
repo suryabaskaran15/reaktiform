@@ -76,10 +76,17 @@ export type GridState = {
   kbFocusRowId: string | null;
   kbFocusColIdx: number | null;
 
+  // ── Editing — which single cell (if any) has its *Edit widget mounted.
+  // Session-only, same category as kbFocus* above — not persisted.
+  editingCell: { rowId: string; colKey: string } | null;
+
   // ── UI flags
   isLoading: boolean;
   isFetching: boolean; // NEW — background refetch indicator
   isSaving: boolean;
+
+  // ── Edit Lock — session-level "child lock", narrows permissions only
+  editLocked: boolean;
 };
 
 // ── Actions shape
@@ -153,11 +160,17 @@ export type GridActions = {
   // Keyboard nav
   setKbFocus: (rowId: string | null, colIdx: number | null) => void;
 
+  // Editing
+  setEditingCell: (rowId: string | null, colKey: string | null) => void;
+
   // UI flags
   setLoading: (v: boolean) => void;
   setFetching: (v: boolean) => void; // NEW
   setSaving: (v: boolean) => void;
   setSortingMode: (mode: SortingMode) => void; // NEW
+
+  // Edit Lock
+  setEditLocked: (v: boolean) => void;
 
   // Reset entire store
   reset: () => void;
@@ -194,9 +207,11 @@ const initialState = (): GridState => ({
   panelRowId: null,
   kbFocusRowId: null,
   kbFocusColIdx: null,
+  editingCell: null,
   isLoading: false,
   isFetching: false, // NEW
   isSaving: false,
+  editLocked: false,
 });
 
 // ── Create the store
@@ -558,6 +573,13 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
               state.kbFocusColIdx = colIdx;
             }),
 
+          // ── Editing ───────────────────────────────────────
+          setEditingCell: (rowId, colKey) =>
+            set((state) => {
+              state.editingCell =
+                rowId !== null && colKey !== null ? { rowId, colKey } : null;
+            }),
+
           // ── UI flags ──────────────────────────────────────
           setLoading: (v) =>
             set((state) => {
@@ -577,6 +599,12 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
           setSortingMode: (mode) =>
             set((state) => {
               state.sortingMode = mode;
+            }),
+
+          // ── Edit Lock ─────────────────────────────────────
+          setEditLocked: (v) =>
+            set((state) => {
+              state.editLocked = v;
             }),
 
           // ── Reset ─────────────────────────────────────────

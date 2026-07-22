@@ -1172,6 +1172,23 @@ import {
 
 ## Changelog
 
+### v1.2.9
+
+**New Features**
+
+- **Edit Lock** — a session-level "child lock" toggle (`editLocked` / `onEditLockedChange` / `initialEditLocked` / `features.editLock`). Lets a user who already has edit rights browse without risking an accidental edit — narrows what `permissions` allows, never widens it. Toolbar toggle shown by default; state persists via `storageKey`.
+
+**Performance**
+
+- Row rendering is now `React.memo`'d (new internal `GridRow` component) — scrolling, selecting, editing, or locking one row no longer re-renders every visible row. Scroll frame rate roughly doubled on a 5,000-row benchmark.
+- Cell editors focus/select before paint instead of after, removing a brief unfocused-input flash on click-to-edit.
+
+**Bug Fixes**
+
+- `Enter` on a keyboard-focused cell now respects `readOnly` / permissions / Edit Lock the same way a mouse click already did (previously bypassed them).
+
+*(Note: v1.2.5 and v1.2.8 aren't reflected below yet — see `Changelog.md` at the repo root for the complete, up-to-date history; this section lags behind it.)*
+
 ### v1.2.1
 
 **New Features**

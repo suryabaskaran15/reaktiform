@@ -28,6 +28,9 @@ export function useReaktiform<TData = Record<string, unknown>>(
     features = {},
     permissions = {},
     panelTabs,
+    // Edit Lock
+    editLocked: editLockedProp,
+    onEditLockedChange,
     isLoading: isLoadingProp = false,
     isFetching: isFetchingProp = false,
     isFetchingMore: isFetchingMoreProp = false,
@@ -75,18 +78,25 @@ export function useReaktiform<TData = Record<string, unknown>>(
     return true;
   };
 
-  const canCreate = permissions.canCreate !== false;
-  const canExport = permissions.canExport !== false;
-  const canSave = permissions.canSave !== false;
+  // ── Edit Lock — session-level "child lock". Read from the store up front
+  // so the permission resolvers below can fold it in. It only ever NARROWS
+  // what `permissions` already allows, never widens it — see canCreate/
+  // canEditRow/canDeleteRow/canDuplicateRow/canSave below.
+  const editLockedStore = useGridStore((s) => s.editLocked);
+
+  const canCreate = permissions.canCreate !== false && !editLockedStore;
+  const canExport = permissions.canExport !== false; // reading isn't a mutation — unaffected by lock
+  const canSave = permissions.canSave !== false && !editLockedStore;
 
   const canEditRow = (row: Record<string, unknown>) => {
+    if (editLockedStore) return false;
     if (row["_new"] === true) return canCreate;
     return resolvePermission(permissions.canEdit, row);
   };
   const canDeleteRow = (row: Record<string, unknown>) =>
-    resolvePermission(permissions.canDelete, row);
+    !editLockedStore && resolvePermission(permissions.canDelete, row);
   const canDuplicateRow = (row: Record<string, unknown>) =>
-    resolvePermission(permissions.canDuplicate, row);
+    !editLockedStore && resolvePermission(permissions.canDuplicate, row);
   const canEditCol = (colKey: string) =>
     permissions.canEditColumn ? permissions.canEditColumn(colKey) : true;
   const canComment = permissions.canComment !== false;
@@ -232,6 +242,31 @@ export function useReaktiform<TData = Record<string, unknown>>(
     lastSyncedFiltersRef.current = filters;
     actionsRef.current.setFilters(filters);
   }, [filters]);
+
+  // ── Sync external editLocked → store when the controlled prop changes
+  // (controlled mode only — skipped when `editLocked` is omitted). Booleans
+  // are cheap to compare by value every render, so no ref-based reference
+  // guard is needed here — a straightforward value diff is always correct.
+  useEffect(() => {
+    if (!initialized.current) return;
+    if (editLockedProp === undefined) return;
+    if (editLockedProp === editLockedStore) return;
+    actionsRef.current.setEditLocked(editLockedProp);
+  }, [editLockedProp, editLockedStore]);
+
+  // toggleEditLocked — always flips the store locally (so uncontrolled usage
+  // works out of the box), and notifies the consumer via onEditLockedChange.
+  // In controlled mode, if the consumer doesn't feed the new value back
+  // through `editLocked`, the sync effect above snaps the store back to the
+  // controlled value on the next render — same "controlled wins" contract
+  // as the `filters` prop above.
+  const onEditLockedChangeRef = useRef(onEditLockedChange);
+  onEditLockedChangeRef.current = onEditLockedChange;
+  const toggleEditLocked = useCallback(() => {
+    const next = !editLockedStore;
+    actionsRef.current.setEditLocked(next);
+    onEditLockedChangeRef.current?.(next);
+  }, [editLockedStore]);
 
   // ── SERVER MODE: stable callback refs
   // Callbacks from consumer are often inline arrows that recreate every render.
@@ -625,6 +660,21 @@ export function useReaktiform<TData = Record<string, unknown>>(
   );
   const closePanel = useCallback(() => actions.setPanelRowId(null), [actions]);
 
+  // activateCell — gates the col.computed business rule (a fact about the
+  // column definition) before writing to the store. Kept separate from the
+  // permissions/Edit-Lock gate, which is Reaktiform.tsx-local (canEditCell,
+  // depends on visibleRowsRef there) — this wrapper only owns the
+  // computed-column invariant, same identity-stability reasoning as
+  // openPanel/closePanel above.
+  const activateCell = useCallback(
+    (rowId: string, colKey: string) => {
+      const col = columns.find((c) => c.key === colKey);
+      if (!col || col.computed) return;
+      actions.setEditingCell(rowId, colKey);
+    },
+    [columns, actions],
+  );
+
   return {
     table,
     processedRows,
@@ -645,6 +695,9 @@ export function useReaktiform<TData = Record<string, unknown>>(
     panelRowId,
     kbFocusRowId,
     kbFocusColIdx,
+    // Edit Lock — session-level "child lock", see canCreate/canEditRow/etc above
+    editLocked: editLockedStore,
+    toggleEditLocked,
     isLoading: isLoadingProp,
     isFetching: isFetchingProp,
     isFetchingMore: isFetchingMoreProp,
@@ -710,5 +763,10 @@ export function useReaktiform<TData = Record<string, unknown>>(
     updateCFRule: actions.updateCFRule,
     deleteCFRule: actions.deleteCFRule,
     setKbFocus: actions.setKbFocus,
+    // Editing — activateCell gates col.computed; setEditingCell is the raw
+    // store action (unwrapped, like setKbFocus above) — deactivation needs
+    // no gating, so Reaktiform.tsx calls setEditingCell(null, null) directly.
+    activateCell,
+    setEditingCell: actions.setEditingCell,
   };
 }

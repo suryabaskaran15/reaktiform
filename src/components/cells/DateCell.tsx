@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useLayoutEffect } from "react";
 import { cn } from "../../utils";
 import { formatDate } from "../../utils";
 
@@ -57,14 +57,16 @@ export function DateCellEdit({
   const ref = useRef<HTMLInputElement>(null);
   const committedRef = useRef(false); // guard against onChange + onBlur double-fire
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) for the focus() call only — fires before
+  // paint, avoiding a brief unfocused flash between mount and focus. The
+  // showPicker() call stays deferred via requestAnimationFrame exactly as
+  // before — it requires an active user-gesture context, unrelated to paint
+  // timing, and moving focus() earlier doesn't change that.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (autoFocus) {
       el.focus();
-      // showPicker() opens the native calendar popup.
-      // Must be inside requestAnimationFrame — browser requires a user-gesture
-      // context, and rAF fires after mount when that condition is met.
       requestAnimationFrame(() => {
         try {
           el.showPicker?.();
@@ -219,7 +221,8 @@ export function TimeCellEdit({
   const ref = useRef<HTMLInputElement>(null);
   const committedRef = useRef(false);
 
-  useEffect(() => {
+  // useLayoutEffect for the same reason as DateCellEdit above.
+  useLayoutEffect(() => {
     if (autoFocus && ref.current) {
       ref.current.focus();
       requestAnimationFrame(() => {

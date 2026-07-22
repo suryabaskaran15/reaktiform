@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useLayoutEffect } from 'react'
 import { cn } from '../../utils'
 
 // ── READ MODE
@@ -54,7 +54,10 @@ export function TextCellEdit({
 }: TextCellEditProps) {
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) — fires before the browser paints, so
+  // the input shows already-focused on its first frame instead of a brief
+  // unfocused flash between mount and the effect running.
+  useLayoutEffect(() => {
     if (autoFocus && ref.current) {
       ref.current.focus()
       ref.current.select()
