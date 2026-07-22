@@ -32,7 +32,7 @@ type CellRendererProps<TData> = {
 // Constraint functions like (row) => row.rfqDate must read the CURRENT
 // edited value, not the last-saved server value. _draft holds pending
 // changes — merging gives us the effective row the user sees.
-function mergedRow<TData>(row: Row<TData>): Row<TData> {
+export function mergedRow<TData>(row: Row<TData>): Row<TData> {
   const draft = row["_draft"] as Record<string, unknown> | null | undefined;
   if (!draft) return row;
   return { ...row, ...draft };

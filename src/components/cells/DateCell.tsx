@@ -1,6 +1,6 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useLayoutEffect } from "react";
 import { cn } from "../../utils";
-import { formatDate, getDaysFromToday } from "../../utils";
+import { formatDate } from "../../utils";
 
 // ── READ MODE
 type DateCellReadProps = {
@@ -23,15 +23,13 @@ export function DateCellRead({
     );
   }
 
-  const days = getDaysFromToday(value);
-  const colorClass =
-    days < 0 ? "text-rf-err" : days < 7 ? "text-rf-warn" : "text-rf-text-1";
+  // const days = getDaysFromToday(value);
+  // const colorClass =
+  //   days < 0 ? "text-rf-err" : days < 7 ? "text-rf-warn" : "text-rf-text-1";
 
   return (
     <div className={cn("flex items-center px-[10px] h-full", className)}>
-      <span className={cn("text-[12.5px] font-mono", colorClass)}>
-        {formatDate(value)}
-      </span>
+      <span className={cn("text-[12.5px] font-mono")}>{formatDate(value)}</span>
     </div>
   );
 }
@@ -59,14 +57,16 @@ export function DateCellEdit({
   const ref = useRef<HTMLInputElement>(null);
   const committedRef = useRef(false); // guard against onChange + onBlur double-fire
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) for the focus() call only — fires before
+  // paint, avoiding a brief unfocused flash between mount and focus. The
+  // showPicker() call stays deferred via requestAnimationFrame exactly as
+  // before — it requires an active user-gesture context, unrelated to paint
+  // timing, and moving focus() earlier doesn't change that.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (autoFocus) {
       el.focus();
-      // showPicker() opens the native calendar popup.
-      // Must be inside requestAnimationFrame — browser requires a user-gesture
-      // context, and rAF fires after mount when that condition is met.
       requestAnimationFrame(() => {
         try {
           el.showPicker?.();
@@ -221,7 +221,8 @@ export function TimeCellEdit({
   const ref = useRef<HTMLInputElement>(null);
   const committedRef = useRef(false);
 
-  useEffect(() => {
+  // useLayoutEffect for the same reason as DateCellEdit above.
+  useLayoutEffect(() => {
     if (autoFocus && ref.current) {
       ref.current.focus();
       requestAnimationFrame(() => {

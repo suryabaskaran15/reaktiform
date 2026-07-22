@@ -193,10 +193,23 @@ export type GridFeatures = {
    * @example features={{ showActiveFilterChips: false }}
    */
   showActiveFilterChips?: boolean;
+  /**
+   * Show the Add ("+") button in the table footer instead of the toolbar.
+   * Useful when the toolbar is hidden or when you want add actions closer to
+   * the data rows. Default: `false`
+   * @example showAddButtonAtFooter={true}
+   */
+  showAddButtonAtFooter?: boolean;
   /** Row drag-to-reorder. Coming in v2. */
   rowDrag?: boolean;
   /** Import from CSV/XLSX. Coming in v2. */
   import?: boolean;
+  /**
+   * Show the Edit Lock toggle in the toolbar. Default: `true`.
+   * Set to `false` to hide the toggle entirely (e.g. if you drive
+   * `editLocked` yourself from outside the grid).
+   */
+  editLock?: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -626,6 +639,45 @@ export type GridConfig<TData = Record<string, unknown>> = {
    * }}
    */
   permissions?: GridPermissions;
+
+  // ── Edit Lock (session-level "child lock") ────────────────────
+
+  /**
+   * Controlled Edit Lock state. When `true`, the grid behaves as if you
+   * passed `permissions={{ canCreate: false, canEdit: false, canDelete:
+   * false, canDuplicate: false, canSave: false }}`, regardless of what
+   * `permissions` actually allows — a session-level safety toggle for
+   * users who already have edit rights but want to browse without risking
+   * an accidental edit (think Excel's "Mark as Final" or Notion/Airtable's
+   * "Lock database/view", but self-imposed and reversible by the same
+   * user). Navigation, selection, filtering, sorting, export, comments,
+   * and file uploads remain fully usable while locked.
+   *
+   * This is a UX affordance, not an access-control mechanism — it can
+   * only ever narrow what `permissions` already allows, never widen it.
+   * `permissions` remains the real authorization boundary.
+   *
+   * Pass this + `onEditLockedChange` for controlled usage (e.g. defaulted
+   * from a "reviewer" role); omit both to let reaktiform manage the
+   * toggle itself — see `initialEditLocked`.
+   *
+   * @example
+   * // Controlled — default locked for a reviewer role
+   * editLocked={isReviewer}
+   * onEditLockedChange={setIsReviewer}
+   */
+  editLocked?: boolean;
+
+  /** Called when the user toggles Edit Lock via the toolbar. */
+  onEditLockedChange?: (locked: boolean) => void;
+
+  /**
+   * Initial Edit Lock state when uncontrolled (no `editLocked` prop
+   * passed). Ignored once a saved value exists under `storageKey`, since
+   * a user's lock preference is expected to persist across reloads.
+   * @default false
+   */
+  initialEditLocked?: boolean;
 
   // ── Panel tabs ────────────────────────────────────────────────
 

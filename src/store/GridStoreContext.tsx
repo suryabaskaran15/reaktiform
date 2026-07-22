@@ -112,10 +112,12 @@ export function useGridActions() {
   const clearFuture = useGridStore((s) => s.clearFuture);
   const setPanelRowId = useGridStore((s) => s.setPanelRowId);
   const setKbFocus = useGridStore((s) => s.setKbFocus);
+  const setEditingCell = useGridStore((s) => s.setEditingCell);
   const setLoading = useGridStore((s) => s.setLoading);
   const setFetching = useGridStore((s) => s.setFetching);
   const setSaving = useGridStore((s) => s.setSaving);
   const setSortingMode = useGridStore((s) => s.setSortingMode);
+  const setEditLocked = useGridStore((s) => s.setEditLocked);
   const reset = useGridStore((s) => s.reset);
 
   return useMemo(
@@ -157,10 +159,12 @@ export function useGridActions() {
       clearFuture,
       setPanelRowId,
       setKbFocus,
+      setEditingCell,
       setLoading,
       setFetching,
       setSaving,
       setSortingMode,
+      setEditLocked,
       reset,
     }),
     [
@@ -201,10 +205,12 @@ export function useGridActions() {
       clearFuture,
       setPanelRowId,
       setKbFocus,
+      setEditingCell,
       setLoading,
       setFetching,
       setSaving,
       setSortingMode,
+      setEditLocked,
       reset,
     ],
   );

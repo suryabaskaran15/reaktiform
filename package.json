@@ -1,6 +1,6 @@
 {
   "name": "reaktiform",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "High-performance inline-editable data grid for React — table + form unified. Full UI or headless, server-side or client-side.",
   "author": "Surya Baskaran",
   "license": "MIT",
@@ -97,7 +97,17 @@
     "build:storybook": "storybook build",
     "prepublishOnly": "pnpm build && pnpm type-check",
     "release": "pnpm build && npm publish --access public",
-    "size": "size-limit"
+    "size": "size-limit",
+    "benchmark": "tsx bench/runner/cli.ts",
+    "benchmark:all": "tsx bench/runner/cli.ts --all",
+    "benchmark:initial-render": "tsx bench/runner/cli.ts --scenario=initial-render",
+    "benchmark:scroll": "tsx bench/runner/cli.ts --scenario=scroll",
+    "benchmark:edit": "tsx bench/runner/cli.ts --scenario=edit",
+    "benchmark:selection": "tsx bench/runner/cli.ts --scenario=selection",
+    "benchmark:filter": "tsx bench/runner/cli.ts --scenario=filter",
+    "benchmark:sort": "tsx bench/runner/cli.ts --scenario=sort",
+    "benchmark:keyboard": "tsx bench/runner/cli.ts --scenario=keyboard",
+    "bench:dev": "vite --config bench/app/vite.config.ts"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
@@ -143,9 +153,11 @@
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.2.0",
     "jsdom": "^26.0.0",
+    "playwright": "^1.61.1",
     "prettier": "^3.5.3",
     "storybook": "^8.6.9",
     "tsup": "^8.4.0",
+    "tsx": "^4.23.1",
     "typescript": "^5.8.2",
     "vite": "^6.2.3",
     "vitest": "^3.1.1",

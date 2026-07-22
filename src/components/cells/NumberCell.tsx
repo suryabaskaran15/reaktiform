@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useLayoutEffect } from "react";
 import { cn } from "../../utils";
 import { ProgressBar } from "../primitives/ProgressBar";
 
@@ -79,7 +79,11 @@ export function NumberCellEdit({
 }: NumberCellEditProps) {
   const ref = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) — fires before paint, avoiding a brief
+  // unfocused flash between mount and focus. The min/max sync effects below
+  // stay useEffect — they're DOM-attribute writes, not part of the mount
+  // flash, and don't need to run before paint.
+  useLayoutEffect(() => {
     if (autoFocus && ref.current) {
       ref.current.focus();
       ref.current.select();

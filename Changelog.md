@@ -2,6 +2,85 @@
 
 All notable changes to reaktiform will be documented here.
 
+## [1.2.9] — 2026-07-22
+
+### Added
+
+- **Edit Lock** — a session-level "child lock" toggle (`GridConfig.editLocked`,
+  `onEditLockedChange`, `initialEditLocked`, `features.editLock`, exposed at
+  runtime as `grid.editLocked`/`grid.toggleEditLocked()`). When engaged, the
+  grid behaves as if `permissions={{ canCreate: false, canEdit: false,
+  canDelete: false, canDuplicate: false, canSave: false }}` regardless of
+  what `permissions` actually allows — a self-imposed, reversible safety
+  toggle (à la Excel's "Mark as Final" or Notion/Airtable's "Lock
+  database/view") for users who already have edit rights but want to browse
+  without risking an accidental edit. Navigation, selection, filtering,
+  sorting, export, comments, and file uploads remain fully usable while
+  locked. It only ever narrows what `permissions` allows, never widens it —
+  `permissions` remains the real authorization boundary. A toolbar toggle is
+  shown by default (hide via `features={{ editLock: false }}`); state
+  persists across reloads via `storageKey`, same as column widths/filters.
+
+### Fixed
+
+- Pressing `Enter` on a keyboard-focused cell bypassed `readOnly` /
+  `GridPermissions` entirely and opened the editor anyway — the click path
+  checked `canEditCell` before activating a cell, but the keyboard path
+  (`useKeyboardNav`'s `Enter` handler) called `activateCell` directly with
+  no such check. Both paths now go through one shared gate
+  (`activateCellIfAllowed` in `Reaktiform.tsx`), so keyboard-triggered
+  editing respects read-only columns, row/column permissions, and Edit
+  Lock exactly like a mouse click does.
+
+### Performance
+
+- **Row rendering is now `React.memo`'d.** Extracted into a new `GridRow`
+  component (previously inline in `Reaktiform.tsx`'s virtualizer loop) so
+  that scrolling, selecting, editing, or locking one row no longer
+  re-renders every visible row. Measured on a 5,000-row / 20-column dataset:
+  scroll frame rate roughly doubled (continuous scroll ~28→37fps, fast
+  scroll ~16→38fps). No behavior change — same z-index/pinned-column
+  stacking, same click/keyboard/expand/selection semantics, purely a
+  render-scope fix. See `CLAUDE.md`'s "GridRow extraction overrides a prior
+  decision" note and rule 10 if you're adding new props to `GridRow`.
+- Cell editors (`TextCellEdit`, `NumberCellEdit`, `DateCellEdit`,
+  `TimeCellEdit`) now focus/select synchronously before paint
+  (`useLayoutEffect` instead of `useEffect`), removing a brief
+  unfocused-input flash on every click-to-edit.
+- The virtualizer's `estimateSize` callback no longer depends on the full
+  `displayRows` array reference (which changes on every edit) — it reads
+  the current rows through a ref instead, so editing a cell doesn't force
+  `@tanstack/react-virtual` to treat the sizing function as changed and
+  recompute cached offsets for the whole dataset.
+- **Known remaining issue, not yet resolved:** a single cell edit still
+  produces 3 separate React commits (~225-350ms each per React Profiler
+  data) instead of one batched commit, despite the three underlying store
+  updates firing synchronously in one handler. Root cause not yet
+  identified — see `CLAUDE.md`'s Performance section before investigating
+  further.
+
+## [1.2.8] — 2026-07-09
+
+### Fixed
+
+- Infinite-scroll (`onFetchMore`) could get permanently stuck showing
+  skeleton/loading rows after the first page or two, even though more
+  data existed (`hasMore` still `true`). The internal
+  `isFetchingMoreRef` guard that prevents double-fetching during a
+  scroll burst had exactly one reset path — the `.finally()` on the
+  promise returned by the consumer's `onFetchMore`. If that promise's
+  settlement was ever lost (e.g. a query-key change cancels/replaces
+  the in-flight request before it settles), the guard stayed `true`
+  forever and silently blocked every future fetch for the life of the
+  component — only a full unmount/remount (e.g. navigating to another
+  tab and back) cleared it, and only temporarily. The guard is now
+  self-healing: it resets the instant the loaded row count actually
+  grows (proof a pending fetch settled), and — as a backstop for a
+  fetch that never settles at all — force-resets after a bounded
+  10-second stall timeout so the next scroll can retry. No behavior
+  change for the normal/working case; the in-flight de-dupe guarantee
+  is unaffected.
+
 ## [1.2.5] — 2026-07-03
 
 ### Added

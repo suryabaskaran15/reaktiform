@@ -2,7 +2,7 @@ import { useRef } from "react";
 import type { SelectOption } from "../../types";
 import { SelectOverlay } from "./SelectCell";
 import { OptionBadge } from "../primitives/Badge";
-import { cn } from "@/utils";
+import { cn } from "../../utils/index";
 
 // ─────────────────────────────────────────────────────────────
 //  TAG PILL — read mode display for each selected value

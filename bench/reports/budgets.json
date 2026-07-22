@@ -1,0 +1,12 @@
+{
+  "initialRenderMs": { "target": 100, "warn": 120, "fail": 200, "source": "user-stated goal" },
+  "scrollFpsAvg": { "target": 60, "warn": 55, "fail": 45, "direction": "higher-is-better", "source": "user-stated goal" },
+  "cellUpdateMs": { "target": 16, "warn": 20, "fail": 33, "source": "user-stated goal" },
+  "filterMs": { "target": 100, "warn": 120, "fail": 200, "source": "user-stated goal" },
+  "sortMs": { "target": 150, "warn": 180, "fail": 300, "source": "user-stated goal" },
+  "keyboardLatencyMs": { "target": 16, "warn": 20, "fail": 33, "source": "user-stated goal" },
+  "longTaskCount": { "target": 0, "warn": 2, "fail": 3, "source": "extrapolated - no number given" },
+  "longestTaskMs": { "target": 50, "warn": 80, "fail": 100, "source": "extrapolated - no number given" },
+  "heapGrowthPct": { "target": 0, "warn": 5, "fail": 20, "source": "extrapolated - no number given" },
+  "scriptingSharePct": { "target": 20, "warn": 40, "fail": 60, "source": "extrapolated - no number given" }
+}
