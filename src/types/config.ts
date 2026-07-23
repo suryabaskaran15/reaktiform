@@ -200,6 +200,12 @@ export type GridFeatures = {
    * @example showAddButtonAtFooter={true}
    */
   showAddButtonAtFooter?: boolean;
+  /**
+   * Show the hint float bar below the table. Useful when you want to provide
+   * inline tips or guidance to the user. Default: `false`
+   * @example showHintFloatBar={true}
+   */
+  showHintFloatBar?: boolean;
   /** Row drag-to-reorder. Coming in v2. */
   rowDrag?: boolean;
   /** Import from CSV/XLSX. Coming in v2. */

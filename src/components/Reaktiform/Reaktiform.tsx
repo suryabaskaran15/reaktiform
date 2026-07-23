@@ -145,10 +145,10 @@ function ReaktiformInner<TData = Record<string, unknown>>(
       (typeof col.readOnly === "function" && col.readOnly(merged));
     return Boolean(
       !isReadOnly &&
-        grid.permissions.canEditRow(row as Record<string, unknown>) &&
-        grid.permissions.canEditCol(colKey) &&
-        col.type !== "checkbox" &&
-        (!col.computed || col.editableWhenComputed),
+      grid.permissions.canEditRow(row as Record<string, unknown>) &&
+      grid.permissions.canEditCol(colKey) &&
+      col.type !== "checkbox" &&
+      (!col.computed || col.editableWhenComputed),
     );
   }
 
@@ -246,7 +246,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
     [],
   );
   const canEditCellStable = useCallback(
-    (row: Row<TData>, col: ColumnDef<TData>) => canEditCellRef.current(row, col),
+    (row: Row<TData>, col: ColumnDef<TData>) =>
+      canEditCellRef.current(row, col),
     [],
   );
   const canDuplicateRowStable = useCallback(
@@ -293,7 +294,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
   // where the underlying column set hasn't actually changed, or it defeats
   // GridRow's React.memo on every render regardless of everything else.
   const visibleDataCols = useMemo(
-    () => orderedColumns.filter((c) => !grid.hiddenColumns.has(c.key as string)),
+    () =>
+      orderedColumns.filter((c) => !grid.hiddenColumns.has(c.key as string)),
     [orderedColumns, grid.hiddenColumns],
   );
 
@@ -1509,7 +1511,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
       </div>
 
       {/* ── KB HINT ─────────────────────────────────────── */}
-      {kb.kbFocusRowId && (
+      {kb.kbFocusRowId && props.features?.showHintFloatBar && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#0F172A] text-[#F1F5F9] rounded-rf-xl px-4 py-2.5 rf-flex rf-items-center rf-gap-3 shadow-rf-lg z-[800] text-[11.5px] rf-font-medium rf-pointer-events-none">
           <kbd className="bg-white/15 rounded px-1.5 py-0.5 rf-font-mono text-[10.5px] rf-font-semibold">
             ↑↓←→
@@ -1559,6 +1561,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                 // marks the field dirty so the table reflects changes live
                 grid.markDirty(rowId, field, value);
               }}
+              getComputedValue={getComputedValueStable}
               onSave={(rowId, _data) => {
                 // All fields are already dirty from onFieldChange above.
                 // Just call saveRow — it reads from the existing _draft.

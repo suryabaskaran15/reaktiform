@@ -17,6 +17,12 @@ export type DateFilterValue = {
   to?: string     // ISO date string
 }
 
+export type TimeFilterValue = {
+  type: 'time'
+  from?: string   // "HH:MM"
+  to?: string     // "HH:MM"
+}
+
 export type SelectFilterValue = {
   type: 'select'
   values: string[]  // array of option.value
@@ -31,6 +37,7 @@ export type FilterValue =
   | TextFilterValue
   | NumberFilterValue
   | DateFilterValue
+  | TimeFilterValue
   | SelectFilterValue
   | CheckboxFilterValue
 

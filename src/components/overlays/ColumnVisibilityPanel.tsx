@@ -32,7 +32,13 @@ export function ColumnVisibilityPanel({
 
   const PANEL_W = 280;
   const PANEL_H = Math.min(480, window.innerHeight * 0.7);
-  const panelPos = useAnchoredPosition(anchor ?? null, PANEL_W, PANEL_H);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const panelPos = useAnchoredPosition(
+    anchor ?? null,
+    panelRef,
+    PANEL_W,
+    PANEL_H,
+  );
 
   // Local order state — initialised from props, dragging updates locally,
   // committed to parent (and localStorage via useGridPersistence) on drop.
@@ -83,6 +89,7 @@ export function ColumnVisibilityPanel({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         style={{
           ...panelPos,
           width: PANEL_W,

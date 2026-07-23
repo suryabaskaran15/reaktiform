@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "../../utils";
@@ -41,6 +41,12 @@ export function FilterPanel({
   );
   const [dateTo, setDateTo] = useState(
     current?.type === "date" ? (current.to ?? "") : "",
+  );
+  const [timeFrom, setTimeFrom] = useState(
+    current?.type === "time" ? (current.from ?? "") : "",
+  );
+  const [timeTo, setTimeTo] = useState(
+    current?.type === "time" ? (current.to ?? "") : "",
   );
   const [selVals, setSelVals] = useState<string[]>(
     current?.type === "select" ? current.values : [],
@@ -90,6 +96,14 @@ export function FilterPanel({
         ...(dateTo && { to: dateTo }),
       });
 
+      // ── time
+    } else if (col.type === "time") {
+      onApply({
+        type: "time",
+        ...(timeFrom && { from: timeFrom }),
+        ...(timeTo && { to: timeTo }),
+      });
+
       // ── select / multiselect / badge: pill toggles
     } else if (
       col.type === "select" ||
@@ -118,7 +132,13 @@ export function FilterPanel({
 
   const PANEL_WIDTH = 288;
   const PANEL_HEIGHT = 420;
-  const panelPos = useAnchoredPosition(anchor, PANEL_WIDTH, PANEL_HEIGHT);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelPos = useAnchoredPosition(
+    anchor,
+    panelRef,
+    PANEL_WIDTH,
+    PANEL_HEIGHT,
+  );
 
   // Themed tokens — scoped via data-reaktiform on the portal root below,
   // so these resolve to the correct light/dark CSS variable value.
@@ -167,6 +187,7 @@ export function FilterPanel({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         style={{
           ...panelPos,
           width: PANEL_WIDTH,
@@ -285,7 +306,7 @@ export function FilterPanel({
                 gap: 8,
               }}
             >
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label style={fLabel}>
                   {col.type === "percentage" || col.type === "progress"
                     ? "Min %"
@@ -299,7 +320,7 @@ export function FilterPanel({
                   onChange={(e) => setNumMin(e.target.value)}
                 />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label style={fLabel}>
                   {col.type === "percentage" || col.type === "progress"
                     ? "Max %"
@@ -409,7 +430,7 @@ export function FilterPanel({
                 gap: 8,
               }}
             >
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label style={fLabel}>From</label>
                 <input
                   style={{ ...fInp, fontFamily: "monospace" }}
@@ -418,13 +439,43 @@ export function FilterPanel({
                   onChange={(e) => setDateFrom(e.target.value)}
                 />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label style={fLabel}>To</label>
                 <input
                   style={{ ...fInp, fontFamily: "monospace" }}
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Time range */}
+          {col.type === "time" && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 8,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <label style={fLabel}>From</label>
+                <input
+                  style={{ ...fInp, fontFamily: "monospace" }}
+                  type="time"
+                  value={timeFrom}
+                  onChange={(e) => setTimeFrom(e.target.value)}
+                />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <label style={fLabel}>To</label>
+                <input
+                  style={{ ...fInp, fontFamily: "monospace" }}
+                  type="time"
+                  value={timeTo}
+                  onChange={(e) => setTimeTo(e.target.value)}
                 />
               </div>
             </div>

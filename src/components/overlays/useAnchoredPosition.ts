@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 
 // ─────────────────────────────────────────────────────────────
 //  SMART POPUP POSITION
@@ -15,26 +15,46 @@ import type { CSSProperties } from "react";
  *  2. If panel would overflow the right edge, align left edge instead
  *  3. If panel would overflow bottom, flip ABOVE the button
  *  4. Always clamp to viewport bounds with 8px margin
+ *
+ * `panelHeight` is only a same-frame fallback for the very first layout
+ * pass — the real rendered height (via `panelRef`) is measured in a
+ * `useLayoutEffect` and used to correct the flip/clamp decision before
+ * the browser paints, so a short panel (e.g. a one-input text filter)
+ * never flips away from the anchor just because a taller panel's height
+ * was assumed for it.
  */
 export function useAnchoredPosition(
   anchor: DOMRect | null,
+  panelRef: RefObject<HTMLElement | null>,
   panelWidth: number,
   panelHeight: number,
   gap = 6,
 ): CSSProperties {
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
+
+  // Re-measures after every commit (no dep array) so it also tracks
+  // content that changes height in place (e.g. wrapping option pills).
+  // Only updates state when the value actually changed, so this
+  // converges in one extra pass instead of looping.
+  useLayoutEffect(() => {
+    const h = panelRef.current?.getBoundingClientRect().height;
+    if (h && h !== measuredHeight) setMeasuredHeight(h);
+  });
+
   if (!anchor) {
     // Should not happen — both panels only render when anchor is set.
     // Fallback: below toolbar, right-aligned
     return { position: "fixed", top: 56 + gap, right: 8 };
   }
 
+  const effectiveHeight = measuredHeight ?? panelHeight;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
   // ── Vertical: prefer below, flip above if no space
   let top = anchor.bottom + gap;
-  if (top + panelHeight > vh - 8) {
-    top = anchor.top - panelHeight - gap;
+  if (top + effectiveHeight > vh - 8) {
+    top = anchor.top - effectiveHeight - gap;
   }
   top = Math.max(8, top);
 

@@ -11,6 +11,7 @@ export type {
   TextFilterValue,
   NumberFilterValue,
   DateFilterValue,
+  TimeFilterValue,
   SelectFilterValue,
   CheckboxFilterValue,
   ActiveFilters,

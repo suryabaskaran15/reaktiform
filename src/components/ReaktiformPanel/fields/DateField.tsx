@@ -37,7 +37,7 @@ export function DateField<TData>({
         })}
         className={cn(inputBase, "font-mono", err && inputError)}
         onChange={(e) => {
-          onFieldChange(k, e.target.value || null);
+          onFieldChange(k, e.target.value ?? "");
         }}
       />
     </FormField>

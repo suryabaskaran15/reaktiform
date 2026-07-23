@@ -25,6 +25,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
   onFieldChange,
   resetKey,
   editLocked = false,
+  getComputedValue,
 }: {
   row: Row<TData>;
   rowId: string;
@@ -34,6 +35,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
   resetKey: number; // increment to force form reset (Discard)
   /** Edit Lock — see GridConfig.editLocked. Forces every field read-only. */
   editLocked?: boolean;
+  /** Live formula evaluator for `computed: true` columns — see ReaktiformPanelProps. */
+  getComputedValue: (row: Row<TData>, colKey: string) => unknown;
 }) {
   const nonComputedCols = columns.filter((c) => !c.computed);
   const computedCols = columns.filter((c) => c.computed);
@@ -245,7 +248,11 @@ export function DetailsTab<TData = Record<string, unknown>>({
           <div className="rf-grid-cols-2 gap-x-3">
             {computedCols.map((col) => {
               const k = col.key as string;
-              const val = (row as Record<string, unknown>)[k];
+              // getComputedValue merges row._draft over row internally
+              // (buildRowData in useComputedColumns.ts) — pass plain `row`,
+              // matching GridRow.tsx/useDraft.ts's existing call sites,
+              // so panel edits recalculate instantly like inline edits do.
+              const val = getComputedValue(row, k);
               return (
                 <FormField key={k} label={col.label} className="rf-col-span-1">
                   <div
