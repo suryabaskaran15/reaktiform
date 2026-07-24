@@ -73,6 +73,7 @@
   --rf-accent-hover: #2f4ac4;
   --rf-accent-bg: #eef2ff;
   --rf-accent-br: #c7d2fe;
+  --rf-accent-glow: rgba(59, 91, 219, 0.28);
 
   /* Status */
   --rf-ok: #16a34a;
@@ -97,7 +98,7 @@
   --rf-row-dirty: #fffdf0;
   --rf-row-dirty-border: #f59e0b;
   --rf-row-error-border: #dc2626;
-  --rf-cell-focus: #3b5bdb;
+  --rf-cell-focus: #3b5bdb; /* border color for a kb-focused cell/row that isn't being edited */
 
   /* Shadows */
   --rf-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -159,6 +160,8 @@
   --rf-accent-hover: #8aa3f5;
   --rf-accent-bg: #1e2a4a;
   --rf-accent-br: #2d3f6e;
+  --rf-accent-glow: rgba(107, 142, 240, 0.32);
+  --rf-cell-focus: #6b8ef0;
   --rf-ok: #4ade80;
   --rf-ok-bg: #052e16;
   --rf-ok-br: #166534;
@@ -1475,6 +1478,29 @@ Generic names like .flex and .hidden ONLY apply inside
 /* Actions cell — min-width so buttons don't get squished */
 [data-reaktiform] .rf-actions-cell {
   min-width: 72px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ROW BACKGROUND HOVER — pure CSS, no JS onMouseEnter/Leave.
+   Mirrors the fix above for .rf-row-actions: an inline
+   style.background (set via React's style prop in rowStyle)
+   always wins over this rule regardless of specificity, so this
+   only visually applies to "plain" rows — i.e. rows with no
+   dirty/selected/new/cf background already set inline. No
+   !important needed, no flicker risk.
+
+   Disabled rows get pointer-events:none on the <tr> itself,
+   which blocks :hover from firing at all — no extra guard needed.
+
+   Note: unlike the old JS handler, this can't override a
+   conditional-formatting row's background on hover (CSS can't
+   beat an inline style) — a CF row's semantic color now stays
+   visible while hovered instead of flickering away, which is the
+   more correct behavior for a color meant to convey persistent
+   meaning (e.g. "overdue").
+   ───────────────────────────────────────────────────────────── */
+[data-reaktiform] tr[data-row-id]:hover {
+  background: var(--rf-row-hover);
 }
 [data-reaktiform] .group {
 }

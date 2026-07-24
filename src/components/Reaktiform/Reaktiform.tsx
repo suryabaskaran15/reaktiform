@@ -181,15 +181,6 @@ function ReaktiformInner<TData = Record<string, unknown>>(
     [props.columns, grid.activateCell],
   );
 
-  const kb = useKeyboardNav<TData>({
-    columns: props.columns,
-    visibleRows,
-    hiddenColumns: grid.hiddenColumns,
-    enabled: props.features?.keyboardNav !== false,
-    onActivateCell: activateCellIfAllowed,
-    onOpenPanel: grid.openPanel,
-  });
-
   // ── Stable wrappers around per-keystroke-unstable grid functions, passed
   // down to GridRow. markDirty/discardRow/duplicateRow/saveRow/deleteRow
   // (useDraft.ts) all have `rows` in their useCallback deps — a genuinely
@@ -271,6 +262,12 @@ function ReaktiformInner<TData = Record<string, unknown>>(
   // (e.g. repositioning the text cursor) apart from a genuine click-away.
   const activeCellRef = useRef<HTMLTableCellElement | null>(null);
 
+  // ── Measured (not hardcoded) sticky thead/tfoot heights, fed to the
+  // virtualizer as scrollPaddingStart/End so keyboard-nav auto-scroll
+  // knows not to land a focused row underneath either sticky element.
+  const theadRef = useRef<HTMLTableSectionElement>(null);
+  const tfootRef = useRef<HTMLTableSectionElement>(null);
+
   // ── Column drag-reorder state
   const dragColRef = useRef<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -340,6 +337,61 @@ function ReaktiformInner<TData = Record<string, unknown>>(
     orderedColumns,
     grid.pinnedColumns,
     grid.hiddenColumns,
+    grid.columnWidths,
+    showSelectColumn,
+    showRowNumbers,
+    showExpanderColumn,
+  ]);
+
+  // Total width of the pinned-column region (leading system columns +
+  // user-pinned data columns) — the left "safe zone" keyboard-nav
+  // auto-scroll must keep a focused non-pinned cell clear of. Kept as a
+  // sibling memo rather than folded into pinOffsets' return shape, since
+  // pinOffsets[key] is bracket-indexed at multiple call sites in this file
+  // and GridRow.tsx.
+  const totalPinnedWidth = useMemo(() => {
+    const leadingWidth =
+      (showSelectColumn ? COL_WIDTHS.cb : 0) +
+      (showRowNumbers ? COL_WIDTHS.rn : 0) +
+      (showExpanderColumn ? COL_WIDTHS.exp : 0);
+    return orderedColumns
+      .filter(
+        (c) =>
+          grid.pinnedColumns.has(c.key as string) &&
+          !grid.hiddenColumns.has(c.key as string),
+      )
+      .reduce(
+        (sum, c) => sum + (grid.columnWidths[c.key as string] ?? c.width ?? 150),
+        leadingWidth,
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    orderedColumns,
+    grid.pinnedColumns,
+    grid.hiddenColumns,
+    grid.columnWidths,
+    showSelectColumn,
+    showRowNumbers,
+    showExpanderColumn,
+  ]);
+
+  // Prefix-summed left edge (content-space px) of each visible data column,
+  // indexed identically to visibleDataCols/colIdx — lets keyboard-nav
+  // compute horizontal scroll purely arithmetically, no DOM reads.
+  const colLeftOffsets = useMemo(() => {
+    const leadingWidth =
+      (showSelectColumn ? COL_WIDTHS.cb : 0) +
+      (showRowNumbers ? COL_WIDTHS.rn : 0) +
+      (showExpanderColumn ? COL_WIDTHS.exp : 0);
+    const offsets: number[] = [];
+    let left = leadingWidth;
+    visibleDataCols.forEach((c) => {
+      offsets.push(left);
+      left += grid.columnWidths[c.key as string] ?? c.width ?? 150;
+    });
+    return offsets;
+  }, [
+    visibleDataCols,
     grid.columnWidths,
     showSelectColumn,
     showRowNumbers,
@@ -459,6 +511,16 @@ function ReaktiformInner<TData = Record<string, unknown>>(
   const displayRowsRef = useRef(displayRows);
   displayRowsRef.current = displayRows;
 
+  // Resolves against displayRows (the virtualizer's real index space, which
+  // respects showErrorsOnly) rather than visibleRows, since the two diverge
+  // when that filter is active. Returns -1 when the row isn't in the
+  // virtualizer's current index space — callers must skip vertical scroll.
+  const getRowIndex = useCallback(
+    (rowId: string) =>
+      displayRowsRef.current.findIndex((r) => r.original?._id === rowId),
+    [],
+  );
+
   const estimateSize = useCallback(
     (index: number): number => {
       if (!props.renderExpandedRow) return ROW_HEIGHT;
@@ -489,9 +551,38 @@ function ReaktiformInner<TData = Record<string, unknown>>(
     // measureElement is intentionally omitted — we use estimateSize for predictable
     // layout (no layout shift). If consumers need dynamic heights they can set
     // expandedRowHeight to match their content.
+    // Sticky thead/tfoot safe zones — measured, not hardcoded, so keyboard-
+    // nav's scrollToIndex('auto') never lands a focused row underneath
+    // either. setOptions runs every render, so these self-update the
+    // moment thead height or tfoot presence changes. 64 is only a
+    // pre-mount fallback matching the thead's current fixed h-[64px].
+    scrollPaddingStart: theadRef.current?.getBoundingClientRect().height ?? 64,
+    scrollPaddingEnd: tfootRef.current?.getBoundingClientRect().height ?? 0,
   });
   const virtualItems = virtualizer.getVirtualItems();
   const totalTableSize = virtualizer.getTotalSize();
+
+  // Single fix point for all keyboard nav (arrows/Tab/Enter/Space/Escape) —
+  // called here (rather than near the top of the component) because it
+  // needs scrollRef/pinOffsets/totalPinnedWidth/colLeftOffsets/
+  // visibleDataCols/virtualizer/getRowIndex, all declared above. Its
+  // returned `kb` is only consumed later (setFocus passed to GridRow,
+  // kb.kbFocusRowId read further down) — nothing between here and there
+  // depends on it.
+  const kb = useKeyboardNav<TData>({
+    visCols: visibleDataCols,
+    visibleRows,
+    enabled: props.features?.keyboardNav !== false,
+    onActivateCell: activateCellIfAllowed,
+    onOpenPanel: grid.openPanel,
+    scrollRef,
+    virtualizer,
+    getRowIndex,
+    colLeftOffsets,
+    columnWidths: grid.columnWidths,
+    pinOffsets,
+    totalPinnedWidth,
+  });
 
   // ── Infinite scroll fetch trigger
   // Watch the last visible virtual item. When it's within fetchThreshold rows
@@ -710,7 +801,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                 the public rowStyle prop) creates its own stacking context
                 and, without this, ties with <thead> at the z-index:auto
                 tier — DOM order then puts tbody above thead. */}
-            <thead className="sticky top-0 z-[45]">
+            <thead className="sticky top-0 z-[45]" ref={theadRef}>
               <tr>
                 {/* Checkbox — optional */}
                 {showSelectColumn && (
@@ -1418,7 +1509,7 @@ function ReaktiformInner<TData = Record<string, unknown>>(
                 grid.aggregations[c.key as string] &&
                 grid.aggregations[c.key as string] !== "none",
             ) && (
-              <tfoot className="sticky bottom-0 z-40">
+              <tfoot className="sticky bottom-0 z-40" ref={tfootRef}>
                 <tr
                   style={{
                     background: "var(--rf-header)",

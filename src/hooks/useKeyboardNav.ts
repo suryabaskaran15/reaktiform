@@ -1,43 +1,98 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
+import type { Virtualizer } from '@tanstack/react-virtual'
 import { useGridStore, useGridActions } from '../store'
+import { getNearestScrollLeft } from '../utils'
 import type { ColumnDef, Row } from '../types'
 
 type UseKeyboardNavOptions<TData> = {
-  columns: ColumnDef<TData>[]
+  visCols: ColumnDef<TData>[]
   visibleRows: Row<TData>[]
-  hiddenColumns: Set<string>
   enabled?: boolean
   onActivateCell: (rowId: string, colKey: string) => void
   onOpenPanel: (rowId: string) => void
+
+  // ── Auto-scroll inputs ──────────────────────────────────────
+  scrollRef: React.RefObject<HTMLDivElement>
+  virtualizer: Virtualizer<HTMLDivElement, Element>
+  getRowIndex: (rowId: string) => number
+  colLeftOffsets: number[]
+  columnWidths: Record<string, number>
+  pinOffsets: Record<string, number>
+  totalPinnedWidth: number
 }
 
 export function useKeyboardNav<TData = Record<string, unknown>>({
-  columns,
+  visCols,
   visibleRows,
-  hiddenColumns,
   enabled = true,
   onActivateCell,
   onOpenPanel,
+  scrollRef,
+  virtualizer,
+  getRowIndex,
+  colLeftOffsets,
+  columnWidths,
+  pinOffsets,
+  totalPinnedWidth,
 }: UseKeyboardNavOptions<TData>) {
   const kbFocusRowId  = useGridStore((s) => s.kbFocusRowId)
   const kbFocusColIdx = useGridStore((s) => s.kbFocusColIdx)
   const actions       = useGridActions()
 
-  // Visible columns only
-  const visCols = columns.filter((c) => !hiddenColumns.has(c.key as string))
+  // Ref-mirrors so setFocus stays referentially stable across
+  // resize/pin/reorder churn — it's passed straight through as a prop into
+  // React.memo(GridRow), and an unstable identity would defeat that memo
+  // for every row on every keystroke.
+  const visColsRef = useRef(visCols)
+  visColsRef.current = visCols
+  const colLeftOffsetsRef = useRef(colLeftOffsets)
+  colLeftOffsetsRef.current = colLeftOffsets
+  const columnWidthsRef = useRef(columnWidths)
+  columnWidthsRef.current = columnWidths
+  const pinOffsetsRef = useRef(pinOffsets)
+  pinOffsetsRef.current = pinOffsets
+  const totalPinnedWidthRef = useRef(totalPinnedWidth)
+  totalPinnedWidthRef.current = totalPinnedWidth
+  const virtualizerRef = useRef(virtualizer)
+  virtualizerRef.current = virtualizer
+  const getRowIndexRef = useRef(getRowIndex)
+  getRowIndexRef.current = getRowIndex
 
   const setFocus = useCallback(
     (rowId: string | null, colIdx: number | null) => {
       actions.setKbFocus(rowId, colIdx)
-      if (rowId !== null) {
-        // Scroll focused row into view
-        requestAnimationFrame(() => {
-          const tr = document.querySelector(`tr[data-row-id="${rowId}"]`)
-          tr?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-        })
+      if (rowId === null) return
+
+      // ── Horizontal — pure arithmetic, no DOM reads/writes on a no-op.
+      const scrollEl = scrollRef.current
+      if (scrollEl && colIdx !== null) {
+        const col = visColsRef.current[colIdx]
+        const colKey = col?.key as string | undefined
+        if (col && colKey) {
+          const nextScrollLeft = getNearestScrollLeft({
+            scrollLeft: scrollEl.scrollLeft,
+            clientWidth: scrollEl.clientWidth,
+            colLeft: colLeftOffsetsRef.current[colIdx] ?? 0,
+            colWidth: columnWidthsRef.current[colKey] ?? col.width ?? 150,
+            totalPinnedWidth: totalPinnedWidthRef.current,
+            isPinned: pinOffsetsRef.current[colKey] !== undefined,
+          })
+          if (nextScrollLeft !== null) {
+            scrollEl.scrollTo({ left: nextScrollLeft, behavior: 'auto' })
+          }
+        }
+      }
+
+      // ── Vertical — delegate to the row virtualizer's own "nearest" API.
+      // scrollPaddingStart/End (thead/tfoot heights) are already baked
+      // into its options, so this accounts for the sticky header/footer
+      // safe zones and no-ops when already fully visible.
+      const rowIndex = getRowIndexRef.current(rowId)
+      if (rowIndex !== -1) {
+        virtualizerRef.current.scrollToIndex(rowIndex, { align: 'auto', behavior: 'auto' })
       }
     },
-    [actions]
+    [actions, scrollRef]
   )
 
   const clearFocus = useCallback(() => {

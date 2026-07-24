@@ -17,6 +17,8 @@ export {
   highlight,
 } from "./formatters";
 
+export { getNearestScrollLeft } from "./scrollCellIntoView";
+
 /**
  * Merge Tailwind classes safely — resolves conflicts.
  * @example cn('px-2 px-4') → 'px-4'
