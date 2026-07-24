@@ -242,6 +242,7 @@ function ServerGrid() {
 | `rating`      | Star rating                              | `number \| null`                                | Click stars          |
 | `badge`       | Read-only colored label                  | `string`                                        | —                    |
 | `progress`    | 0–100 progress bar                       | `number`                                        | —                    |
+| `richtext`    | Formatted text (bold/lists/headings/etc.)| `string` (HTML)                                 | Anchored popover editor (Tiptap) |
 
 ---
 

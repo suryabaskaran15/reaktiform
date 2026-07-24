@@ -2,6 +2,50 @@
 
 All notable changes to reaktiform will be documented here.
 
+## [1.2.10] — 2026-07-23
+
+### Added
+
+- **`richtext` column type** — a new `ColumnDef.type: 'richtext'` for HTML
+  content (bold, italic, headings, bullet/numbered lists, blockquotes),
+  powered by Tiptap (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`,
+  new runtime dependencies). New optional `ColumnDef` props: `placeholder`,
+  `minHeight`, `previewLength`.
+  - **Grid:** clicking the cell opens an **anchored popover**
+    (`RichTextPopover`) with the full WYSIWYG toolbar — a table cell has no
+    room for a toolbar + multi-paragraph editor, so editing does not happen
+    inline in the `<td>` the way other column types do. Edits are buffered
+    locally and only committed via an explicit Save button (Cancel/Escape/
+    backdrop-click discards). The closed cell shows a cheap, stripped
+    plain-text preview (no HTML formatting, no per-row Tiptap mount — safe
+    for virtualized scroll).
+  - **Panel:** the editor is embedded directly in the form (no popover, no
+    buffering — same live-typing-updates-grid wiring every other field
+    uses). Read-only/Edit-Locked richtext fields render via `RichTextViewer`
+    instead of the generic `String(value)` fallback, so formatting still
+    displays correctly.
+  - **Filtering:** richtext columns get the same "contains" text filter as
+    `text`/`email`/`url` (matches against the raw HTML string — a search
+    phrase split across a formatting-tag boundary won't match; accepted
+    trade-off, not a bug).
+  - **Security:** richtext content is never rendered via raw
+    `dangerouslySetInnerHTML` anywhere in reaktiform — always through
+    Tiptap's own schema-constrained HTML parsing, or through plain-text
+    extraction for previews. `StarterKit`'s `link` extension is explicitly
+    disabled (`link: false`) since the toolbar never offers a way to insert
+    one — see `CLAUDE.md`'s richtext decision for the full reasoning.
+
+### Fixed
+
+- The grid's outside-click cancel handler (`Reaktiform.tsx`) and
+  `useKeyboardNav`'s input-skip check both assumed every cell editor rendered
+  inline inside its own `<td>`. Neither held for a `document.body`-portaled
+  editor: the first click inside such a popover would immediately cancel
+  the edit, and its `contentEditable` surface never matched the
+  `INPUT`/`TEXTAREA`/`SELECT` tag check, so the grid's global keyboard nav
+  fought the editor's own cursor movement. Both fixed as part of landing
+  the richtext popover — see `CLAUDE.md`'s "Common Bugs to Avoid" #10/#11.
+
 ## [1.2.9] — 2026-07-22
 
 ### Added

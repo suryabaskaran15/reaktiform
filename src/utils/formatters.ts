@@ -176,6 +176,31 @@ export function truncate(value: string | null | undefined, maxLength: number): s
 }
 
 /**
+ * Strip HTML tags from a richtext value and decode common entities, for
+ * cheap plain-text previews (e.g. the grid's collapsed richtext cell).
+ * Pure regex-based — no DOM dependency, safe for SSR/non-browser bundles.
+ * Never re-injected as HTML by callers — always rendered as a plain React
+ * text child, so this never needs its own sanitization.
+ *
+ * @example
+ * stripRichTextToPlainText('<p><strong>Hello</strong> world</p>') → 'Hello world'
+ */
+export function stripRichTextToPlainText(value: string | null | undefined): string {
+  if (!value) return ''
+  const withoutTags = value
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, '') // strip tags + their content
+    .replace(/<[^>]+>/g, ' ')                              // strip remaining tags
+  const decoded = withoutTags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+  return decoded.replace(/\s+/g, ' ').trim()
+}
+
+/**
  * Highlight search term occurrences in a string.
  * Returns array of { text, match } segments for rendering.
  *

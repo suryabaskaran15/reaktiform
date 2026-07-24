@@ -48,6 +48,15 @@ export type ReaktiformPanelProps<TData = Record<string, unknown>> = {
    * The grid wires this to grid.markDirty internally.
    */
   onFieldChange?: (rowId: string, field: string, value: unknown) => void;
+  /**
+   * Live formula evaluator for `computed: true` columns — the same
+   * `grid.getComputedValue` function passed to GridRow for inline editing.
+   * Threaded to DetailsTab's "Computed Values" section so panel edits
+   * recalculate instantly, same as inline. If omitted (standalone
+   * ReaktiformPanel usage without a computed-columns engine), falls back
+   * to reading the field directly off `row`.
+   */
+  getComputedValue?: (row: Row<TData>, colKey: string) => unknown;
   onAddComment?: (rowId: string, text: string) => void;
   /** Load file attachments for a row when its detail panel opens. */
   onLoadAttachments?: (rowId: string) => Promise<RowAttachment[]>;
@@ -105,6 +114,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
   onSave,
   onDiscard,
   onFieldChange,
+  getComputedValue = (r, k) => (r as Record<string, unknown>)[k],
   onAddComment,
   onLoadAttachments,
   onUploadFile,
@@ -299,6 +309,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
               columns={columns}
               editLocked={editLocked}
               resetKey={resetKey}
+              getComputedValue={getComputedValue}
               onFieldChange={(field, value) => {
                 // Call parent's onFieldChange so the table reflects changes immediately
                 // This calls grid.markDirty on every keystroke → table updates live

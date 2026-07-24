@@ -38,6 +38,7 @@ export { DateCellRead, DateCellEdit } from "./components/cells/DateCell";
 
 // ── Checkbox / boolean
 export { CheckboxCell } from "./components/cells/CheckboxCell";
+export { RichTextCellRead, RichTextCellEdit } from "./components/cells/RichTextCell";
 
 // ── Computed / read-only formula cell
 export { ComputedCell } from "./components/cells/ComputedCell";

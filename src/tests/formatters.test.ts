@@ -14,6 +14,7 @@ import {
   formatFileSize,
   truncate,
   highlight,
+  stripRichTextToPlainText,
 } from '../utils/formatters'
 
 // ─────────────────────────────────────────────────────────────
@@ -218,6 +219,42 @@ describe('truncate', () => {
 
   it('handles exact length', () => {
     expect(truncate('Hello', 5)).toBe('Hello')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+//  stripRichTextToPlainText
+// ─────────────────────────────────────────────────────────────
+describe('stripRichTextToPlainText', () => {
+  it('strips tags and joins block content with spaces', () => {
+    expect(stripRichTextToPlainText('<p><strong>Hello</strong> world</p>')).toBe('Hello world')
+  })
+
+  it('strips headings and lists', () => {
+    const html = '<h2>Title</h2><ul><li>One</li><li>Two</li></ul>'
+    expect(stripRichTextToPlainText(html)).toBe('Title One Two')
+  })
+
+  it('decodes common HTML entities', () => {
+    expect(stripRichTextToPlainText('<p>Tom &amp; Jerry &lt;3&gt;</p>')).toBe('Tom & Jerry <3>')
+  })
+
+  it('strips script/style tags along with their content', () => {
+    expect(stripRichTextToPlainText('<p>Hi</p><script>alert(1)</script>')).toBe('Hi')
+  })
+
+  it('collapses repeated whitespace', () => {
+    expect(stripRichTextToPlainText('<p>Hello</p>\n\n<p>World</p>')).toBe('Hello World')
+  })
+
+  it('returns empty string for null/undefined/empty', () => {
+    expect(stripRichTextToPlainText(null)).toBe('')
+    expect(stripRichTextToPlainText(undefined)).toBe('')
+    expect(stripRichTextToPlainText('')).toBe('')
+  })
+
+  it('returns plain text unchanged when there are no tags', () => {
+    expect(stripRichTextToPlainText('just plain text')).toBe('just plain text')
   })
 })
 

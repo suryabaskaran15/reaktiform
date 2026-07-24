@@ -154,32 +154,43 @@ function GridRowImpl<TData>({
   const hasErrors = Object.keys(row._errors ?? {}).length > 0;
   const cfResult = evalCF(row);
 
+  // Same precedence as rowStyle's background/border chain below. Applied to
+  // the <tr> AND (redundantly, on purpose) to whichever leading pinned
+  // cell — checkbox, else row-number, else expander — actually sits at the
+  // row's left edge: a pinned cell's own background always paints over the
+  // <tr>'s own border-left (positioned descendants paint above a static
+  // parent's box decoration), so without this the accent bar is invisible
+  // whenever any leading column is pinned, which is the common case.
+  const edgeAccentColor = isDirty
+    ? "var(--rf-row-dirty-border)"
+    : hasErrors
+      ? "var(--rf-err)"
+      : row._new
+        ? "var(--rf-ok)"
+        : isSelected
+          ? "var(--rf-accent)"
+          : undefined;
+  const edgeBorder = edgeAccentColor
+    ? `3px solid ${edgeAccentColor}`
+    : undefined;
+
   const rowStyle: React.CSSProperties = {
     height: ROW_HEIGHT,
     borderBottom: "1px solid var(--rf-border)",
     ...(isDirty
-      ? {
-          background: "var(--rf-row-dirty)",
-          borderLeft: "3px solid var(--rf-row-dirty-border)",
-        }
+      ? { background: "var(--rf-row-dirty)", borderLeft: edgeBorder }
       : hasErrors
-        ? { borderLeft: "3px solid var(--rf-err)" }
+        ? { borderLeft: edgeBorder }
         : row._new
-          ? { borderLeft: "3px solid var(--rf-ok)" }
+          ? { borderLeft: edgeBorder }
           : isSelected
-            ? { background: "var(--rf-row-selected)" }
+            ? { background: "var(--rf-row-selected)", borderLeft: edgeBorder }
             : cfResult && !isDirty && !hasErrors
               ? {
                   background: cfResult.backgroundColor,
                   color: cfResult.textColor,
                 }
               : {}),
-    ...(isKbFocused
-      ? {
-          outline: "2px solid var(--rf-accent)",
-          outlineOffset: "-2px",
-        }
-      : {}),
   };
 
   // Consumer row props
@@ -202,21 +213,6 @@ function GridRowImpl<TData>({
           : {}),
       }}
       className={extraClass}
-      onMouseEnter={(e) => {
-        if (!isDirty && !isSelected && !isDisabled)
-          (e.currentTarget as HTMLElement).style.background =
-            "var(--rf-row-hover)";
-      }}
-      onMouseLeave={(e) => {
-        const base = isDirty
-          ? "var(--rf-row-dirty)"
-          : isSelected
-            ? "var(--rf-row-selected)"
-            : cfResult && !isDirty && !hasErrors
-              ? cfResult.backgroundColor
-              : "";
-        (e.currentTarget as HTMLElement).style.background = base;
-      }}
       onClick={(e) => {
         if (isDisabled) return;
         setFocus(rowId, storeInstance.getState().kbFocusColIdx ?? 0);
@@ -238,12 +234,20 @@ function GridRowImpl<TData>({
             width: COL_WIDTHS.cb,
             padding: 0,
             borderRight: "1px solid var(--rf-border)",
-            background: isDirty ? "var(--rf-row-dirty)" : "var(--rf-surface)",
+            background: isDirty
+              ? "var(--rf-row-dirty)"
+              : isSelected
+                ? "var(--rf-row-selected)"
+                : "var(--rf-surface)",
             position: "sticky",
             left: pinOffsets["_cb"] ?? 0,
             zIndex: 20,
             textAlign: "center",
             verticalAlign: "middle",
+            // Checkbox column is always the row's leftmost cell when shown —
+            // carries the row-state accent bar since it would otherwise be
+            // painted over (and hidden) by this cell's own background.
+            borderLeft: edgeBorder,
           }}
         >
           <input
@@ -309,6 +313,12 @@ function GridRowImpl<TData>({
             left: pinOffsets["_rn"] ?? 40,
             zIndex: 20,
             verticalAlign: "middle",
+            boxShadow: isKbFocused
+              ? "inset 0 0 0 2px var(--rf-cell-focus)"
+              : undefined,
+            // Becomes the row's leftmost cell only when the checkbox
+            // column isn't shown — see the checkbox <td>'s comment above.
+            borderLeft: !showSelectColumn ? edgeBorder : undefined,
           }}
         >
           <div
@@ -366,8 +376,9 @@ function GridRowImpl<TData>({
             <span
               style={{
                 fontSize: 11,
-                color: "var(--rf-text-3)",
+                color: isKbFocused ? "var(--rf-cell-focus)" : "var(--rf-text-3)",
                 fontFamily: "var(--rf-font-mono)",
+                fontWeight: isKbFocused ? 700 : undefined,
               }}
             >
               {rowIndex + 1}
@@ -410,6 +421,11 @@ function GridRowImpl<TData>({
             boxShadow: !lastPinKey
               ? "4px 0 10px rgba(15,23,42,.08)"
               : undefined,
+            // Becomes the row's leftmost cell only when neither the
+            // checkbox nor row-number column is shown — see the checkbox
+            // <td>'s comment above.
+            borderLeft:
+              !showSelectColumn && !showRowNumbers ? edgeBorder : undefined,
           }}
         >
           {hasRenderExpandedRow ? (
@@ -546,14 +562,15 @@ function GridRowImpl<TData>({
               background: cellBg,
               outline: isEditing
                 ? "2px solid var(--rf-accent)"
-                : isKbCell && !isEditing
-                  ? "2px solid var(--rf-accent-br)"
+                : isKbCell
+                  ? "2px solid var(--rf-cell-focus)"
                   : undefined,
               outlineOffset: isEditing || isKbCell ? "-2px" : undefined,
               // Subtle visual cue: read-only cells are slightly dimmed
               opacity: isReadOnly ? 0.72 : undefined,
-              boxShadow:
-                hasErr && !isEditing
+              boxShadow: isEditing
+                ? "inset 0 0 0 3px var(--rf-accent-glow)"
+                : hasErr
                   ? "inset 0 0 0 2px var(--rf-err)"
                   : isLastPinCol
                     ? "4px 0 10px rgba(15,23,42,.08)"
@@ -582,6 +599,7 @@ function GridRowImpl<TData>({
               value={fieldValue}
               isEditing={isEditing}
               isError={hasErr}
+              isDark={isDark}
               onCommit={(val) => {
                 markDirty(rowId, colKey, val);
                 deactivateCell();

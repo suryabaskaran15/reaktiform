@@ -30,6 +30,7 @@ export {
 export { DateCellRead, DateCellEdit } from "./components/cells/DateCell";
 export { CheckboxCell } from "./components/cells/CheckboxCell";
 export { ComputedCell } from "./components/cells/ComputedCell";
+export { RichTextCellRead, RichTextCellEdit } from "./components/cells/RichTextCell";
 export { CellRenderer } from "./components/cells/CellRenderer";
 export { FieldWrapper } from "./components/cells/FieldWrapper";
 
@@ -62,6 +63,7 @@ export {
   formatFileSize,
   truncate,
   highlight,
+  stripRichTextToPlainText,
 } from "./utils/formatters";
 
 // ── Validation

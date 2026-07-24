@@ -13,6 +13,7 @@ import {
 } from "./DateCell";
 import { CheckboxCell } from "./CheckboxCell";
 import { ComputedCell } from "./ComputedCell";
+import { RichTextCellRead, RichTextCellEdit } from "./RichTextCell";
 import type { ColumnDef, Row } from "../../types";
 
 type CellRendererProps<TData> = {
@@ -23,6 +24,7 @@ type CellRendererProps<TData> = {
   isEditing: boolean;
   isError: boolean;
   errorMessage?: string | undefined;
+  isDark: boolean;
   onCommit: (value: unknown) => void;
   onCancel: () => void;
   className?: string | undefined;
@@ -112,6 +114,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
   isEditing,
   isError,
   errorMessage,
+  isDark,
   onCommit,
   onCancel,
   className,
@@ -185,6 +188,36 @@ export function CellRenderer<TData = Record<string, unknown>>({
         <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
           <TextCellRead
             value={value != null ? String(value) : null}
+            {...(className !== undefined && { className })}
+          />
+        </WithErrorTooltip>
+      );
+
+    case "richtext":
+      return isEditing ? (
+        <RichTextCellEdit
+          value={typeof value === "string" ? value : ""}
+          onCommit={(v) => onCommit(v)}
+          onCancel={onCancel}
+          isDark={isDark}
+          {...(colDef.minHeight !== undefined && {
+            minHeight: colDef.minHeight,
+          })}
+          {...(colDef.placeholder !== undefined && {
+            placeholder: colDef.placeholder,
+          })}
+          {...(colDef.previewLength !== undefined && {
+            previewLength: colDef.previewLength,
+          })}
+          {...(className !== undefined && { className })}
+        />
+      ) : (
+        <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+          <RichTextCellRead
+            value={typeof value === "string" ? value : null}
+            {...(colDef.previewLength !== undefined && {
+              previewLength: colDef.previewLength,
+            })}
             {...(className !== undefined && { className })}
           />
         </WithErrorTooltip>

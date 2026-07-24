@@ -49,6 +49,20 @@ export function buildZodSchema<TData = Record<string, unknown>>(
         break;
       }
 
+      // ── Richtext — stored as an HTML string. "Required" means the
+      // empty sentinel ("") must not be the value, same as text — not
+      // the nullable/superRefine pattern below, which exists only so
+      // 0 passes for numeric fields. minLength/maxLength intentionally
+      // not wired here — they'd validate raw HTML-markup length, not
+      // visible text length.
+      case "richtext": {
+        const s = z.string();
+        fieldSchema = col.required
+          ? s.min(1, { message: `${col.label} is required` })
+          : s.optional();
+        break;
+      }
+
       // ── Number ────────────────────────────────────────────
       case "number": {
         let s = z.number({

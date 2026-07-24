@@ -12,6 +12,8 @@ import { SelectField } from "./fields/SelectField";
 import { MultiSelectField } from "./fields/MultiSelectField";
 import { DateField } from "./fields/DateField";
 import { CheckboxField } from "./fields/CheckboxField";
+import { RichTextField } from "./fields/RichTextField";
+import { RichTextViewer } from "../richtext/RichTextViewer";
 import type { ColumnDef, Row } from "../../types";
 
 // ─────────────────────────────────────────────────────────────
@@ -25,6 +27,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
   onFieldChange,
   resetKey,
   editLocked = false,
+  getComputedValue,
 }: {
   row: Row<TData>;
   rowId: string;
@@ -34,6 +37,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
   resetKey: number; // increment to force form reset (Discard)
   /** Edit Lock — see GridConfig.editLocked. Forces every field read-only. */
   editLocked?: boolean;
+  /** Live formula evaluator for `computed: true` columns — see ReaktiformPanelProps. */
+  getComputedValue: (row: Row<TData>, colKey: string) => unknown;
 }) {
   const nonComputedCols = columns.filter((c) => !c.computed);
   const computedCols = columns.filter((c) => c.computed);
@@ -114,6 +119,39 @@ export function DetailsTab<TData = Record<string, unknown>>({
     // ── Read-only guard — applies to ALL field types.
     // When isFieldReadOnly, show a static display instead of an editable input.
     if (isFieldReadOnly) {
+      // Richtext gets its own branch: the generic String(currentVal)
+      // fallback below would print raw HTML tags as literal text — safe
+      // (still just a text node) but poor UX. RichTextViewer renders the
+      // same schema-constrained Tiptap parse used everywhere else richtext
+      // is displayed, so formatting shows correctly. See CLAUDE.md's
+      // richtext security decision — this is not the only reason to avoid
+      // a raw dangerouslySetInnerHTML here, but it's a reminder never to
+      // add one to this branch either.
+      if (col.type === "richtext") {
+        return (
+          <FormField
+            key={k}
+            label={col.label}
+            required={false}
+            error={undefined}
+            className="rf-col-span-2"
+          >
+            <div
+              style={{
+                border: "1px solid var(--rf-border)",
+                borderRadius: 9,
+                background: "var(--rf-header)",
+                opacity: 0.72,
+              }}
+            >
+              <RichTextViewer
+                value={typeof currentVal === "string" ? currentVal : ""}
+              />
+            </div>
+          </FormField>
+        );
+      }
+
       const displayVal = currentVal != null ? String(currentVal) : "—";
       return (
         <FormField
@@ -223,6 +261,18 @@ export function DetailsTab<TData = Record<string, unknown>>({
           />
         );
 
+      case "richtext":
+        return (
+          <RichTextField<TData>
+            key={k}
+            col={col}
+            k={k}
+            err={err}
+            control={control}
+            onFieldChange={onFieldChange}
+          />
+        );
+
       default:
         return null;
     }
@@ -245,7 +295,11 @@ export function DetailsTab<TData = Record<string, unknown>>({
           <div className="rf-grid-cols-2 gap-x-3">
             {computedCols.map((col) => {
               const k = col.key as string;
-              const val = (row as Record<string, unknown>)[k];
+              // getComputedValue merges row._draft over row internally
+              // (buildRowData in useComputedColumns.ts) — pass plain `row`,
+              // matching GridRow.tsx/useDraft.ts's existing call sites,
+              // so panel edits recalculate instantly like inline edits do.
+              const val = getComputedValue(row, k);
               return (
                 <FormField key={k} label={col.label} className="rf-col-span-1">
                   <div

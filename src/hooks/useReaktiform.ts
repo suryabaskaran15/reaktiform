@@ -475,6 +475,10 @@ export function useReaktiform<TData = Record<string, unknown>>(
           const dateV = String(rawVal ?? "");
           if (filter.from && dateV < filter.from) return false;
           if (filter.to && dateV > filter.to) return false;
+        } else if (filter.type === "time") {
+          const timeV = String(rawVal ?? "");
+          if (filter.from && timeV < filter.from) return false;
+          if (filter.to && timeV > filter.to) return false;
         } else if (filter.type === "select") {
           if (!filter.values.length) continue;
           const strV = Array.isArray(rawVal)

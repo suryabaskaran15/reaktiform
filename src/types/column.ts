@@ -62,7 +62,8 @@ export type ColumnType =
   | "percentage" // number displayed as N% with optional bar
   | "rating" // 1–5 star rating
   | "badge" // read-only enum badge (like select but not editable)
-  | "progress"; // 0–100 progress bar (read-only visual)
+  | "progress" // 0–100 progress bar (read-only visual)
+  | "richtext"; // rich text — HTML string — RichTextCellRead / RichTextCellEdit (Tiptap popover editor)
 
 // ── Aggregation modes for number columns
 export type AggregationMode = "none" | "sum" | "avg" | "min" | "max" | "count";
@@ -296,6 +297,20 @@ export type ColumnDef<TData = Record<string, unknown>> = {
   // ── Email / URL specific ─────────────────────────────────────
   /** Open email/URL links in new tab. Default: true */
   openInNewTab?: boolean;
+
+  // ── Richtext specific ────────────────────────────────────────
+  /** Placeholder text shown in the empty editor. Default: `${label}…` */
+  placeholder?: string;
+  /**
+   * Minimum height (px) of the editor's content area, in both the grid
+   * popover and the side panel. Default: 160
+   */
+  minHeight?: number;
+  /**
+   * Max characters shown in the grid's stripped-plain-text preview
+   * before truncating with '…'. Default: 60
+   */
+  previewLength?: number;
 
   // ── Value transform (advanced) ───────────────────────────────
   /**

@@ -16,6 +16,7 @@ export {
   formatPercentage,
   formatDuration,
   truncate,
+  stripRichTextToPlainText,
 } from './utils/formatters'
 
 // ── Value helpers

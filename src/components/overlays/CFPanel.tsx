@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Palette, X } from "lucide-react";
 import { cn } from "../../utils";
@@ -36,7 +36,13 @@ export function CFPanel({
 
   const CF_PANEL_W = 520;
   const CF_PANEL_H = Math.min(560, window.innerHeight * 0.82);
-  const panelPos = useAnchoredPosition(anchor ?? null, CF_PANEL_W, CF_PANEL_H);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelPos = useAnchoredPosition(
+    anchor ?? null,
+    panelRef,
+    CF_PANEL_W,
+    CF_PANEL_H,
+  );
 
   const updateCond = (
     rule: CFRule,
@@ -88,6 +94,7 @@ export function CFPanel({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         style={{
           ...panelPos,
           width: CF_PANEL_W,

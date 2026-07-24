@@ -1,6 +1,6 @@
 {
   "name": "reaktiform",
-  "version": "1.2.9",
+  "version": "1.2.10",
   "description": "High-performance inline-editable data grid for React — table + form unified. Full UI or headless, server-side or client-side.",
   "author": "Surya Baskaran",
   "license": "MIT",
@@ -124,6 +124,9 @@
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.5",
+    "@tiptap/pm": "^3.28.0",
+    "@tiptap/react": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0",
     "immer": "^10.1.1",
     "lucide-react": "^0.483.0",
     "react-hook-form": "^7.55.0",
