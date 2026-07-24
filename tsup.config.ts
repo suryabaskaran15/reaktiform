@@ -23,6 +23,9 @@ const EXTERNAL = [
   "tailwind-merge",
   "@tanstack/react-table",
   "@tanstack/react-virtual",
+  "@tiptap/react",
+  "@tiptap/pm",
+  "@tiptap/starter-kit",
 ];
 
 export default defineConfig([

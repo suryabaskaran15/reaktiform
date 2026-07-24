@@ -67,6 +67,37 @@ describe("text column", () => {
 });
 
 // ─────────────────────────────────────────────────────────────
+//  RICHTEXT
+// ─────────────────────────────────────────────────────────────
+describe("richtext column", () => {
+  it("accepts any HTML string when not required", () => {
+    const r = validate([col({ type: "richtext" })], {
+      field: "<p><strong>Hello</strong> world</p>",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts empty string when not required", () => {
+    const r = validate([col({ type: "richtext" })], { field: "" });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects empty when required", () => {
+    const r = validate([col({ type: "richtext", required: true })], {
+      field: "",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts non-empty HTML when required", () => {
+    const r = validate([col({ type: "richtext", required: true })], {
+      field: "<p>Hi</p>",
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
 //  NUMBER
 // ─────────────────────────────────────────────────────────────
 describe("number column", () => {

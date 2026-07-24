@@ -582,6 +582,7 @@ function GridRowImpl<TData>({
               value={fieldValue}
               isEditing={isEditing}
               isError={hasErr}
+              isDark={isDark}
               onCommit={(val) => {
                 markDirty(rowId, colKey, val);
                 deactivateCell();

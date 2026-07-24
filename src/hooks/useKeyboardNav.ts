@@ -48,9 +48,12 @@ export function useKeyboardNav<TData = Record<string, unknown>>({
     if (!enabled) return
 
     const handler = (e: KeyboardEvent) => {
-      // Skip when typing in inputs
-      const tag = (e.target as HTMLElement)?.tagName
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return
+      // Skip when typing in inputs — includes contentEditable surfaces
+      // (e.g. the richtext popover's Tiptap/ProseMirror editor), which
+      // never match a plain tagName check since they're a <div>.
+      const target = e.target as HTMLElement
+      const tag = target?.tagName
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || target?.isContentEditable) return
 
       // Skip when no focus — initialise on first arrow press
       if (!kbFocusRowId && !['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) return

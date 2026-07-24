@@ -64,7 +64,15 @@ export function FilterPanel({
 
   const handleApply = () => {
     // ── text-like types: contains search
-    if (col.type === "text" || col.type === "email" || col.type === "url") {
+    // richtext matches against the raw HTML string (cheap, no per-row
+    // stripping) — a phrase split across a formatting tag boundary won't
+    // match, which is an accepted trade-off, not a bug.
+    if (
+      col.type === "text" ||
+      col.type === "email" ||
+      col.type === "url" ||
+      col.type === "richtext"
+    ) {
       onApply({ type: "text", value: textVal });
 
       // ── number-like types: min/max range
@@ -263,10 +271,11 @@ export function FilterPanel({
             gap: 12,
           }}
         >
-          {/* Text / Email / URL */}
+          {/* Text / Email / URL / Richtext */}
           {(col.type === "text" ||
             col.type === "email" ||
-            col.type === "url") && (
+            col.type === "url" ||
+            col.type === "richtext") && (
             <div>
               <label style={fLabel}>
                 {col.type === "email"

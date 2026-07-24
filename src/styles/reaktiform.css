@@ -1690,6 +1690,91 @@ Generic names like .flex and .hidden ONLY apply inside
    of a separate portal-specific scope — see Reaktiform.tsx. */
 
 /* ─────────────────────────────────────────────────────────────
+   RICHTEXT EDITOR — used by RichTextEditor.tsx / RichTextViewer.tsx.
+   Styles Tiptap/ProseMirror's own internal DOM (which we don't control
+   the markup of), so this lives here as scoped CSS rather than inline
+   styles. Used both inline in the side panel and inside RichTextPopover
+   (a document.body portal that carries `data-reaktiform` on its root,
+   same convention as the other portal elements above).
+   ───────────────────────────────────────────────────────────── */
+
+[data-reaktiform] .rf-richtext-editor .ProseMirror {
+  min-height: var(--rf-richtext-min-h, 160px);
+  /* Fills the scroll container built in RichTextEditor.tsx when its parent
+     chain has a definite height (the popover); computes to auto (no-op)
+     when it doesn't (the panel), where min-height above still governs. */
+  height: 100%;
+  padding: 12px 14px;
+  outline: none;
+  font-size: 12.5px;
+  font-family: var(--rf-font-sans);
+  line-height: 1.7;
+  color: var(--rf-text-1);
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror p {
+  margin: 0 0 0.5em;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.75em 0 0.35em;
+  color: var(--rf-text-1);
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror h3 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin: 0.6em 0 0.3em;
+  color: var(--rf-text-2);
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror ul,
+[data-reaktiform] .rf-richtext-editor .ProseMirror ol {
+  padding-left: 1.4em;
+  margin: 0.4em 0;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror ul {
+  list-style: disc;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror ol {
+  list-style: decimal;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror li {
+  margin: 0.2em 0;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror blockquote {
+  border-left: 3px solid var(--rf-accent);
+  margin: 0.5em 0;
+  padding: 4px 12px;
+  color: var(--rf-text-2);
+  background: var(--rf-accent-bg);
+  border-radius: 0 6px 6px 0;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror strong {
+  font-weight: 700;
+  color: var(--rf-text-1);
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror em {
+  font-style: italic;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror.ProseMirror-focused {
+  outline: none;
+}
+[data-reaktiform] .rf-richtext-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--rf-text-3);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+/* Viewer (read-only) instance: no min-height reservation, no placeholder. */
+[data-reaktiform] .rf-richtext-viewer .ProseMirror {
+  min-height: 0;
+  padding: 8px 10px;
+}
+
+/* ─────────────────────────────────────────────────────────────
    NEW CELL TYPES — email, url, currency, percentage, rating,
    badge, progress
    All scoped under [data-reaktiform] for zero pollution.

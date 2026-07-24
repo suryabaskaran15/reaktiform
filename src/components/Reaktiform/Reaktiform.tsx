@@ -657,9 +657,20 @@ function ReaktiformInner<TData = Record<string, unknown>>(
             position: "relative", // establishes stacking context for sticky thead only
           }}
           onClick={(e) => {
+            const target = e.target as HTMLElement;
+            // Portaled floating editors (e.g. RichTextPopover) are never a
+            // DOM descendant of activeCellRef's <td> even though they're
+            // logically "inside" the active cell — the primary guard against
+            // this is the popover's own stopPropagation(), this check is
+            // defense-in-depth for any future portaled cell editor that
+            // forgets it.
+            const insidePopover = target?.closest?.(
+              "[data-rf-richtext-popover]",
+            );
             if (
               editingCell &&
-              !activeCellRef.current?.contains(e.target as Node)
+              !activeCellRef.current?.contains(target) &&
+              !insidePopover
             ) {
               deactivateCell();
             }
