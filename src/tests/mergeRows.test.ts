@@ -217,6 +217,63 @@ describe('mergeRows — meta field handling', () => {
 })
 
 // ─────────────────────────────────────────────────────────────
+//  ROW ORDER — regression for the "frozen order on same-id resort" bug
+// ─────────────────────────────────────────────────────────────
+describe('mergeRows — row order', () => {
+  it('reorders existing rows to match incoming order when the same id set is resorted', () => {
+    // This is the exact react-query cache-hit scenario: a sort change
+    // returns the same ids, just reordered. mergeRows must adopt the new
+    // order, not just patch values at the rows' old indices.
+    const incoming = [
+      makeRow('3', { value: 30 }),
+      makeRow('1', { value: 10 }),
+      makeRow('2', { value: 20 }),
+    ]
+    store.getState().mergeRows(incoming, 'id', new Set())
+    expect(store.getState().rows.map(r => r['id'])).toEqual(['3', '1', '2'])
+  })
+
+  it('adopts incoming order across repeated resorts (simulating cache hits)', () => {
+    store.getState().mergeRows([
+      makeRow('1', { value: 10 }),
+      makeRow('2', { value: 20 }),
+      makeRow('3', { value: 30 }),
+    ], 'id', new Set())
+    expect(store.getState().rows.map(r => r['id'])).toEqual(['1', '2', '3'])
+
+    // Back to a previously-seen order — must not stay frozen from the call above
+    store.getState().mergeRows([
+      makeRow('2', { value: 20 }),
+      makeRow('3', { value: 30 }),
+      makeRow('1', { value: 10 }),
+    ], 'id', new Set())
+    expect(store.getState().rows.map(r => r['id'])).toEqual(['2', '3', '1'])
+  })
+
+  it('keeps a leftover new (unsaved) row pinned to the front after a resort', () => {
+    store.getState().addRowToStore({
+      id: 'new-temp',
+      name: 'New Row',
+      value: 0,
+      _id: '_new-temp',
+      _saved: false,
+      _new: true,
+      _draft: { name: 'New Row' },
+      _errors: {},
+    })
+    // Server-driven resort — doesn't know about the new row yet
+    const incoming = [
+      makeRow('3', { value: 30 }),
+      makeRow('1', { value: 10 }),
+      makeRow('2', { value: 20 }),
+    ]
+    store.getState().mergeRows(incoming, 'id', new Set())
+    const ids = store.getState().rows.map(r => r['id'])
+    expect(ids).toEqual(['new-temp', '3', '1', '2'])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
 //  EMPTY CASES
 // ─────────────────────────────────────────────────────────────
 describe('mergeRows — edge cases', () => {

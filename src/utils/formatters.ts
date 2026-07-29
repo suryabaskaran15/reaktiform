@@ -48,6 +48,22 @@ export function formatDateLocale(
 }
 
 /**
+ * Format a "HH:MM" (24-hour) time string for display.
+ * Returns '' for null/undefined/empty.
+ *
+ * @example
+ * formatTime('14:30') → '02:30 PM'
+ * formatTime('09:15') → '09:15 AM'
+ */
+export function formatTime(value: string | null | undefined): string {
+  if (!value) return ''
+  const [h, m] = value.split(':').map(Number)
+  const ampm = (h ?? 0) >= 12 ? 'PM' : 'AM'
+  const hour = (h ?? 0) % 12 || 12
+  return `${String(hour).padStart(2, '0')}:${String(m ?? 0).padStart(2, '0')} ${ampm}`
+}
+
+/**
  * Get signed day difference from today.
  * Negative = past, positive = future, 0 = today.
  *

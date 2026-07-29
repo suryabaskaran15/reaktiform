@@ -292,14 +292,14 @@ export function useReaktiform<TData = Record<string, unknown>>(
       skipFirstSort.current = false;
       return;
     }
-    if (sortModel.length === 0 && !sortState) return;
+    // if (sortModel.length === 0 && !sortState) return;
     // Always pass sortBy/sortDir for backward compat (first sort entry)
     // Also pass sortModel array for consumers that support multi-sort
     const primary = sortModel[0] ?? sortState;
-    if (!primary) return;
+    // if (!primary) return;
     onSortChangeRef.current?.({
-      sortBy: primary.colKey,
-      sortDir: primary.direction,
+      sortBy: primary?.colKey,
+      sortDir: primary?.direction,
       // Filter nulls before passing — SortState is nullable
       sortModel:
         sortModel.length > 1

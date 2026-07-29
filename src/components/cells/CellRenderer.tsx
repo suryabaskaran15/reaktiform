@@ -169,6 +169,24 @@ export function CellRenderer<TData = Record<string, unknown>>({
     );
   }
 
+  // ── Custom display formatter — read mode only. Computed columns keep their
+  // own ComputedCell formatting (checked above) and are unaffected.
+  if (!isEditing && colDef.format) {
+    const formatted = colDef.format(value, mergedRow(row));
+    return (
+      <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
+        <div
+          className="rf-flex rf-items-center px-[10px] rf-h-full rf-min-w-0"
+          title={formatted}
+        >
+          <span className="text-[12.5px] text-rf-text-1 rf-truncate">
+            {formatted}
+          </span>
+        </div>
+      </WithErrorTooltip>
+    );
+  }
+
   // ── Cell by type — all non-editing variants wrapped in WithErrorTooltip
   switch (colDef.type) {
     case "text":

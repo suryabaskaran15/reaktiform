@@ -148,7 +148,10 @@ export type GridActions = {
   setAggregation: (colKey: string, mode: string) => void;
 
   // History
-  pushHistory: (entry: HistoryEntry) => void;
+  pushHistory: (
+    entry: HistoryEntry,
+    opts?: { preserveFuture?: boolean },
+  ) => void;
   popHistory: () => HistoryEntry | undefined;
   pushFuture: (entry: HistoryEntry) => void;
   popFuture: () => HistoryEntry | undefined;
@@ -230,65 +233,90 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
               state.rows = rows;
             }),
 
-          // Patch-only merge — O(changed rows) not O(all rows).
-          // Immer's structural sharing means untouched rows keep the same
-          // reference, so React.memo components don't re-render for them.
+          // Order-preserving merge — O(changed rows) for row *content*, still
+          // O(all rows) to rebuild the array shell (unavoidable — that's the
+          // whole point of adopting the new order). Immer's structural sharing
+          // means untouched row objects keep the same reference, so
+          // React.memo components don't re-render for them.
+          //
+          // Rebuilds `state.rows` in `incoming`'s order on every call, rather
+          // than patching values at each row's old index. A same-id-set
+          // resort (e.g. re-visiting a react-query cache hit) used to be a
+          // no-op for order — every row already existed, so it only got its
+          // fields patched in place, leaving the render frozen at whatever
+          // order the store started with.
           mergeRows: (incoming, rowIdKey, skipDraftIds) =>
             set((state) => {
-              // Build index map for O(1) position lookup
-              const idxMap = new Map<string, number>();
-              for (let i = 0; i < state.rows.length; i++) {
+              // Snapshot of the store's current rows, by id, for O(1) lookup
+              const existingById = new Map<string, Record<string, unknown>>();
+              for (const row of state.rows) {
                 const id = String(
-                  (state.rows[i] as Record<string, unknown>)[rowIdKey] ?? "",
+                  (row as Record<string, unknown>)[rowIdKey] ?? "",
                 );
-                idxMap.set(id, i);
+                existingById.set(id, row as Record<string, unknown>);
               }
 
-              const incomingIds = new Set(
-                incoming.map((r) =>
-                  String((r as Record<string, unknown>)[rowIdKey] ?? ""),
-                ),
-              );
+              const consumedIds = new Set<string>();
+              const merged: Record<string, unknown>[] = [];
 
-              // Update existing rows — skip draft rows (mid-edit)
               for (const item of incoming) {
                 const id = String(
                   (item as Record<string, unknown>)[rowIdKey] ?? "",
                 );
-                if (skipDraftIds.has(id)) continue;
+                consumedIds.add(id);
 
-                const idx = idxMap.get(id);
-                if (idx !== undefined) {
-                  // Patch field by field — Immer only marks changed fields dirty
-                  const existing = state.rows[idx] as Record<string, unknown>;
-                  for (const key of Object.keys(item as object)) {
-                    if (key.startsWith("_")) continue; // preserve meta fields
-                    const newVal = (item as Record<string, unknown>)[key];
-                    if (existing[key] !== newVal) {
-                      existing[key] = newVal;
-                    }
+                const existing = existingById.get(id);
+                if (existing === undefined) {
+                  // New row — insert at its incoming position
+                  merged.push(item as Record<string, unknown>);
+                  continue;
+                }
+
+                if (skipDraftIds.has(id)) {
+                  // Mid-edit / mid-save — keep content, adopt new position
+                  merged.push(existing);
+                  continue;
+                }
+
+                // Patch field by field — Immer only marks changed fields dirty
+                for (const key of Object.keys(item as object)) {
+                  if (key.startsWith("_")) continue; // preserve meta fields
+                  const newVal = (item as Record<string, unknown>)[key];
+                  if (existing[key] !== newVal) {
+                    existing[key] = newVal;
                   }
-                  // Reset transient save state
-                  existing["_saved"] = true;
-                  existing["_draft"] = null;
-                  existing["_new"] = false;
-                  existing["_errors"] = {};
-                } else {
-                  // New row — append
-                  state.rows.push(item as Record<string, unknown>);
+                }
+                // Reset transient save state
+                existing["_saved"] = true;
+                existing["_draft"] = null;
+                existing["_new"] = false;
+                existing["_errors"] = {};
+                merged.push(existing);
+              }
+
+              // Rows the server doesn't know about (unsaved `_new` rows) or
+              // that are protected but briefly missing from incoming (active
+              // draft, or mid-save id dropped from this page) — preserve
+              // them. New rows are pinned to the front, matching
+              // addRowToStore's unshift convention, so an in-progress "add
+              // row" doesn't jump to the bottom on a resort. Clean rows no
+              // longer in incoming (deleted server-side) are dropped.
+              const leadingNewRows: Record<string, unknown>[] = [];
+              const trailingProtected: Record<string, unknown>[] = [];
+              for (const row of state.rows as Record<string, unknown>[]) {
+                const id = String(row[rowIdKey] ?? "");
+                if (consumedIds.has(id)) continue;
+
+                const hasDraft =
+                  row["_draft"] !== null && row["_draft"] !== undefined;
+                if (row["_new"]) {
+                  leadingNewRows.push(row);
+                } else if (hasDraft || skipDraftIds.has(id)) {
+                  trailingProtected.push(row);
                 }
               }
 
-              // Remove rows that are no longer in incoming (deleted server-side)
-              // Only remove clean rows — never remove dirty/new rows
-              state.rows = state.rows.filter((r) => {
-                const row = r as Record<string, unknown>;
-                const id = String(row[rowIdKey] ?? "");
-                if (row["_draft"] !== null && row["_draft"] !== undefined)
-                  return true; // keep dirty
-                if (row["_new"]) return true; // keep new
-                return incomingIds.has(id) || skipDraftIds.has(id);
-              });
+              state.rows = [...leadingNewRows, ...merged, ...trailingProtected];
             }),
 
           addRowToStore: (row) =>
@@ -522,11 +550,18 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
             }),
 
           // ── History ───────────────────────────────────────
-          pushHistory: (entry) =>
+          // A genuine new edit invalidates the redo stack (standard undo/redo
+          // semantics). `redo()` also appends to history to move an entry
+          // back from `future`, but must NOT clear the remaining future
+          // entries — pass `preserveFuture: true` for that path.
+          pushHistory: (entry, opts) =>
             set((state) => {
               state.history.push(entry);
               if (state.history.length > MAX_HISTORY) {
                 state.history.shift();
+              }
+              if (!opts?.preserveFuture) {
+                state.future = [];
               }
             }),
 

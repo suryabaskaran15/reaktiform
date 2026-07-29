@@ -284,6 +284,20 @@ describe('history store actions', () => {
     store.getState().pushHistory(entry)
     expect(store.getState().future).toHaveLength(0)
   })
+
+  it('preserves future when pushHistory is called with preserveFuture (redo path)', () => {
+    // Simulates useUndo's redo(): popFuture() removes one entry, then
+    // pushHistory(entry, { preserveFuture: true }) must not wipe out any
+    // remaining redo entries.
+    store.getState().pushFuture(entry)
+    store.getState().pushFuture(entry)
+    expect(store.getState().future).toHaveLength(2)
+
+    store.getState().popFuture()
+    store.getState().pushHistory(entry, { preserveFuture: true })
+
+    expect(store.getState().future).toHaveLength(1)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────
