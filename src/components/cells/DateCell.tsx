@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect } from "react";
 import { cn } from "../../utils";
-import { formatDate } from "../../utils";
+import { formatDate, formatTime } from "../../utils";
 
 // ── READ MODE
 type DateCellReadProps = {
@@ -179,11 +179,7 @@ export function TimeCellRead({
     );
   }
 
-  // Format "HH:MM" → "HH:MM AM/PM" for display
-  const [h, m] = value.split(":").map(Number);
-  const ampm = (h ?? 0) >= 12 ? "PM" : "AM";
-  const hour = (h ?? 0) % 12 || 12;
-  const formatted = `${String(hour).padStart(2, "0")}:${String(m ?? 0).padStart(2, "0")} ${ampm}`;
+  const formatted = formatTime(value);
 
   return (
     <div

@@ -7,6 +7,7 @@ import { twMerge } from "tailwind-merge";
 export {
   formatDate,
   formatDateLocale,
+  formatTime,
   getDaysFromToday,
   formatNumber,
   formatCurrency,

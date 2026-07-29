@@ -129,7 +129,9 @@ export function useUndo<TData = Record<string, unknown>>({
     if (!canRedo) return;
     const entry = actions.popFuture();
     if (!entry) return;
-    actions.pushHistory(entry);
+    // preserveFuture: true — this only moves one entry back from future to
+    // history, it must not wipe out any remaining redo entries.
+    actions.pushHistory(entry, { preserveFuture: true });
     applyEntry(entry, "redo");
   }, [canRedo, actions, applyEntry]);
 

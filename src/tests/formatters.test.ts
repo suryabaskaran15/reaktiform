@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest'
 import {
   formatDate,
   formatDateLocale,
+  formatTime,
   getDaysFromToday,
   formatNumber,
   formatCurrency,
@@ -47,6 +48,30 @@ describe('formatDateLocale', () => {
 
   it('returns empty for null', () => {
     expect(formatDateLocale(null)).toBe('')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+//  formatTime
+// ─────────────────────────────────────────────────────────────
+describe('formatTime', () => {
+  it('formats afternoon "HH:MM" to 12-hour with PM', () => {
+    expect(formatTime('14:30')).toBe('02:30 PM')
+  })
+
+  it('formats morning "HH:MM" to 12-hour with AM', () => {
+    expect(formatTime('09:15')).toBe('09:15 AM')
+  })
+
+  it('formats midnight and noon correctly', () => {
+    expect(formatTime('00:00')).toBe('12:00 AM')
+    expect(formatTime('12:00')).toBe('12:00 PM')
+  })
+
+  it('returns empty string for null/undefined/empty', () => {
+    expect(formatTime(null)).toBe('')
+    expect(formatTime(undefined)).toBe('')
+    expect(formatTime('')).toBe('')
   })
 })
 

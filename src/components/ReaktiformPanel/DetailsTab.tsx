@@ -2,7 +2,7 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Lock } from "lucide-react";
-import { cn, getDraftValue } from "../../utils";
+import { cn, getDraftValue, formatTime } from "../../utils";
 import { mergedRow } from "../cells/CellRenderer";
 import { buildZodSchema } from "../../validation/buildZodSchema";
 import { FormField, inputBase } from "./FormField";
@@ -11,9 +11,12 @@ import { NumberField } from "./fields/NumberField";
 import { SelectField } from "./fields/SelectField";
 import { MultiSelectField } from "./fields/MultiSelectField";
 import { DateField } from "./fields/DateField";
+import { TimeField } from "./fields/TimeField";
+import { RatingField } from "./fields/RatingField";
 import { CheckboxField } from "./fields/CheckboxField";
 import { RichTextField } from "./fields/RichTextField";
 import { RichTextViewer } from "../richtext/RichTextViewer";
+import { OptionBadge } from "../primitives/Badge";
 import type { ColumnDef, Row } from "../../types";
 
 // ─────────────────────────────────────────────────────────────
@@ -116,6 +119,98 @@ export function DetailsTab<TData = Record<string, unknown>>({
       );
     }
 
+    // ── Badge / Progress — always-read-only types, never editable even in
+    // the grid itself (see ColumnType comments in column.ts). Shown as a
+    // static display regardless of isFieldReadOnly/editLocked.
+    if (col.type === "badge") {
+      const opt = col.options?.find((o) => o.value === String(currentVal ?? ""));
+      const label = opt?.label ?? (currentVal != null ? String(currentVal) : null);
+      return (
+        <FormField key={k} label={col.label} className="rf-col-span-1">
+          <div
+            style={{
+              padding: "6px 10px",
+              background: "var(--rf-header)",
+              borderRadius: 7,
+              border: "1px solid var(--rf-border)",
+              minHeight: 34,
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            {label ? (
+              opt ? (
+                <OptionBadge option={opt} />
+              ) : (
+                <span style={{ fontSize: 12.5, color: "var(--rf-text-1)" }}>
+                  {label}
+                </span>
+              )
+            ) : (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: "var(--rf-text-3)",
+                  fontStyle: "italic",
+                }}
+              >
+                —
+              </span>
+            )}
+          </div>
+        </FormField>
+      );
+    }
+
+    if (col.type === "progress") {
+      const pct = Math.min(100, Math.max(0, Number(currentVal ?? 0)));
+      return (
+        <FormField key={k} label={col.label} className="rf-col-span-1">
+          <div
+            style={{
+              padding: "6px 10px",
+              background: "var(--rf-header)",
+              borderRadius: 7,
+              border: "1px solid var(--rf-border)",
+              minHeight: 34,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                height: 6,
+                borderRadius: 3,
+                background: "var(--rf-border)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  borderRadius: 3,
+                  background: "var(--rf-accent)",
+                  width: `${pct}%`,
+                }}
+              />
+            </div>
+            <span
+              style={{
+                fontSize: 11,
+                fontFamily: "monospace",
+                color: "var(--rf-text-2)",
+                flexShrink: 0,
+              }}
+            >
+              {pct.toFixed(0)}%
+            </span>
+          </div>
+        </FormField>
+      );
+    }
+
     // ── Read-only guard — applies to ALL field types.
     // When isFieldReadOnly, show a static display instead of an editable input.
     if (isFieldReadOnly) {
@@ -147,6 +242,96 @@ export function DetailsTab<TData = Record<string, unknown>>({
               <RichTextViewer
                 value={typeof currentVal === "string" ? currentVal : ""}
               />
+            </div>
+          </FormField>
+        );
+      }
+
+      // Time gets its own branch so locked/read-only display matches the
+      // grid's "HH:MM AM/PM" formatting instead of the raw stored "HH:MM".
+      if (col.type === "time") {
+        const timeDisplay =
+          typeof currentVal === "string" && currentVal
+            ? formatTime(currentVal)
+            : "—";
+        return (
+          <FormField
+            key={k}
+            label={col.label}
+            required={false}
+            error={undefined}
+            className="rf-col-span-1"
+          >
+            <div
+              style={{
+                padding: "6px 10px",
+                fontSize: 12.5,
+                fontFamily: "monospace",
+                color: "var(--rf-text-2)",
+                background: "var(--rf-header)",
+                borderRadius: 7,
+                border: "1px solid var(--rf-border)",
+                opacity: 0.72,
+                minHeight: 34,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              {timeDisplay}
+            </div>
+          </FormField>
+        );
+      }
+
+      // Rating gets its own branch so locked/read-only display shows stars,
+      // matching CellRenderer's non-editing rating display in the grid,
+      // instead of the raw stored number.
+      if (col.type === "rating") {
+        const maxStars = col.ratingMax ?? 5;
+        const rating = Math.round(Number(currentVal ?? 0));
+        return (
+          <FormField
+            key={k}
+            label={col.label}
+            required={false}
+            error={undefined}
+            className="rf-col-span-1"
+          >
+            <div
+              style={{
+                padding: "6px 10px",
+                background: "var(--rf-header)",
+                borderRadius: 7,
+                border: "1px solid var(--rf-border)",
+                opacity: 0.72,
+                minHeight: 34,
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              {Array.from({ length: maxStars }, (_, i) => (
+                <span
+                  key={i}
+                  style={{
+                    fontSize: 14,
+                    color: i < rating ? "#F59E0B" : "var(--rf-border)",
+                  }}
+                >
+                  ★
+                </span>
+              ))}
+              {rating > 0 && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "var(--rf-text-3)",
+                    marginLeft: 4,
+                  }}
+                >
+                  {rating}/{maxStars}
+                </span>
+              )}
             </div>
           </FormField>
         );
@@ -246,6 +431,30 @@ export function DetailsTab<TData = Record<string, unknown>>({
             err={err}
             register={register}
             rowForConstraint={rowForConstraint}
+            onFieldChange={onFieldChange}
+          />
+        );
+
+      case "time":
+        return (
+          <TimeField<TData>
+            key={k}
+            col={col}
+            k={k}
+            err={err}
+            register={register}
+            onFieldChange={onFieldChange}
+          />
+        );
+
+      case "rating":
+        return (
+          <RatingField<TData>
+            key={k}
+            col={col}
+            k={k}
+            err={err}
+            control={control}
             onFieldChange={onFieldChange}
           />
         );

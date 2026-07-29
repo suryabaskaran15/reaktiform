@@ -246,9 +246,9 @@ export type SortingMode = "client" | "server";
 /** Parameters passed to `onSortChange`. */
 export type SortChangeParams = {
   /** Primary sort column key (first entry in sortModel). */
-  sortBy: string;
+  sortBy?: string | undefined;
   /** Primary sort direction. */
-  sortDir: "asc" | "desc";
+  sortDir?: "asc" | "desc" | undefined;
   /**
    * Full multi-sort model — only present when >1 column is sorted (shift+click).
    * Undefined for single-column sort (backward compatible).

@@ -329,10 +329,10 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
           {row &&
             activeTab === "attachments" &&
             (row?._new ? (
-              <div className="rf-flex-col rf-items-center rf-justify-center rf-h-full text-rf-text-3 rf-gap-3">
+              <div className="rf-flex rf-flex-col rf-items-center text-rf-text-3 rf-gap-3 pt-10">
                 <FileCheck className="w-10 h-10 opacity-30" />
                 <span className="text-[13px]">
-                  Save the records to upload the files
+                  Save the record to upload files
                 </span>
               </div>
             ) : (
@@ -355,7 +355,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
               />
             ))}
           {!row && (
-            <div className="rf-flex-col rf-items-center rf-justify-center rf-h-full text-rf-text-3 rf-gap-3">
+            <div className="rf-flex rf-flex-col rf-items-center text-rf-text-3 rf-gap-3 pt-10">
               <FileCheck className="w-10 h-10 opacity-30" />
               <span className="text-[13px]">Select a row to view details</span>
             </div>
