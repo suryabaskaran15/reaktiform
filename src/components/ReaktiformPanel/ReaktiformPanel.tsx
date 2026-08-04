@@ -308,6 +308,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
               rowId={rowId}
               columns={columns}
               editLocked={editLocked}
+              canEdit={canEdit}
               resetKey={resetKey}
               getComputedValue={getComputedValue}
               onFieldChange={(field, value) => {

@@ -30,6 +30,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
   onFieldChange,
   resetKey,
   editLocked = false,
+  canEdit = true,
   getComputedValue,
 }: {
   row: Row<TData>;
@@ -40,6 +41,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
   resetKey: number; // increment to force form reset (Discard)
   /** Edit Lock — see GridConfig.editLocked. Forces every field read-only. */
   editLocked?: boolean;
+  /** Resolved GridPermissions.canEdit for this row. Forces every field read-only when false. */
+  canEdit?: boolean;
   /** Live formula evaluator for `computed: true` columns — see ReaktiformPanelProps. */
   getComputedValue: (row: Row<TData>, colKey: string) => unknown;
 }) {
@@ -93,6 +96,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
     const rowForConstraint = mergedRow<TData>(row);
     const isFieldReadOnly =
       editLocked ||
+      !canEdit ||
       col.readOnly === true ||
       (typeof col.readOnly === "function" &&
         col.readOnly(rowForConstraint as TData));
