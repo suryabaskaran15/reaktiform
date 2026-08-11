@@ -137,12 +137,12 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
   const rowId = row
     ? String((row as Record<string, unknown>)[rowIdKey] ?? row._id)
     : "";
-  const description = row
-    ? String((row as Record<string, unknown>)["description"] ?? "")
-    : "";
-  const rowLabel = row
-    ? String((row as Record<string, unknown>)[rowIdKey] ?? row._id)
-    : "";
+  // const description = row
+  //   ? String((row as Record<string, unknown>)["description"] ?? "")
+  //   : "";
+  // const rowLabel = row
+  //   ? String((row as Record<string, unknown>)[rowIdKey] ?? row._id)
+  //   : "";
   const isDirty = !!row?._draft;
   const hasErrors = Object.keys(row?._errors ?? {}).length > 0;
 
@@ -231,9 +231,13 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
         <div className="rf-flex rf-items-center rf-gap-2 px-4 py-3 border-b border-rf-border bg-rf-header rf-flex-shrink-0">
           <div className="rf-flex-1 rf-min-w-0">
             <div className="rf-flex rf-items-center rf-gap-2 mb-0.5">
-              <span className="text-[10.5px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em]">
+              {/* <span className="text-[10.5px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em]">
                 {rowLabel}
-              </span>
+              </span> */}
+              <div className="text-[14px] rf-font-semibold text-rf-text-1 rf-truncate">
+                {/* {description || "Record Details"} */}
+                {"Record Details"}
+              </div>
               {isDirty && !hasErrors && (
                 <span className="text-[10px] rf-font-bold bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-1.5 py-0.5">
                   Unsaved
@@ -244,9 +248,6 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                   Errors
                 </span>
               )}
-            </div>
-            <div className="text-[14px] rf-font-semibold text-rf-text-1 rf-truncate">
-              {description || "Record Details"}
             </div>
           </div>
           <div className="rf-flex rf-gap-1 rf-flex-shrink-0">

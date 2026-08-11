@@ -223,7 +223,7 @@ export function Toolbar<TData>({
           );
         })()}
         <span className="text-[12px] text-rf-text-3">
-          {grid.processedRows.length} / {visibleRowsCount} rows
+          {grid.processedRows.length} / {config?.totalRows ?? 0} Records
         </span>
         {/* Conditional Format button */}
         {config.features?.conditionalFormat !== false && (
