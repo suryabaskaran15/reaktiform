@@ -23,7 +23,6 @@ import type { ColumnDef, GridConfig } from "../../types";
 export function Toolbar<TData>({
   grid,
   config,
-  visibleRowsCount,
   visibleDataCols,
   dirtyCount,
   showErrorsOnly,

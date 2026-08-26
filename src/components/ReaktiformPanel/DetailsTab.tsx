@@ -2,7 +2,7 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Lock } from "lucide-react";
-import { cn, getDraftValue, formatTime } from "../../utils";
+import { cn, resolveFieldValue, formatTime } from "../../utils";
 import { mergedRow } from "../cells/CellRenderer";
 import { buildZodSchema } from "../../validation/buildZodSchema";
 import { FormField, inputBase } from "./FormField";
@@ -54,7 +54,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
     const vals: Record<string, unknown> = {};
     nonComputedCols.forEach((col) => {
       const k = col.key as string;
-      vals[k] = getDraftValue(row, k);
+      vals[k] = resolveFieldValue(row, col);
     });
     return vals;
   };
@@ -89,7 +89,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
   const renderField = (col: ColumnDef<TData>) => {
     const k = col.key as string;
     const err = getFieldError(k);
-    const currentVal = getDraftValue(row, k);
+    const currentVal = resolveFieldValue(row, col);
     // Resolve readOnly — boolean or (row) => boolean. Also used for
     // resolveConstraint below so dynamic min/max/minDate/maxDate see
     // in-session edits, not just the last-saved row.

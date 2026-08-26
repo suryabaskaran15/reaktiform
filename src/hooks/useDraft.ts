@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import { produce } from "immer";
 import { useGridStore, useGridActions } from "../store";
 import { validateRow, buildZodSchema } from "../validation/buildZodSchema";
-import { generateId, deepClone } from "../utils";
+import { generateId, deepClone, resolveFieldValue } from "../utils";
 import type { ColumnDef, Row, SelectOption } from "../types";
 import type { HistoryEntry } from "../store/gridStore";
 import type { useComputedColumns } from "./useComputedColumns";
@@ -74,26 +74,16 @@ export function useDraft<TData = Record<string, unknown>>({
   // treat already-transformed data as if it were still raw wire data.
   const getVal = useCallback(
     (row: Row<TData>, key: string): unknown => {
-      const isDraftValue = row._draft !== null && key in row._draft;
-      const raw = isDraftValue
-        ? row._draft![key]
-        : (row as Record<string, unknown>)[key];
-
-      // Apply read transform only to values coming straight from the committed row
       const col = columns.find((c) => c.key === key);
-      if (
-        !isDraftValue &&
-        col?.valueTransform?.read &&
-        raw !== undefined &&
-        raw !== null
-      ) {
-        try {
-          return col.valueTransform.read(raw);
-        } catch {
-          return raw;
-        }
+      if (!col) {
+        // No column definition for this key — fall back to a plain
+        // draft-first lookup (no valueTransform to apply anyway).
+        const isDraftValue = row._draft !== null && key in row._draft;
+        return isDraftValue
+          ? row._draft![key]
+          : (row as Record<string, unknown>)[key];
       }
-      return raw;
+      return resolveFieldValue(row, col);
     },
     [columns],
   );

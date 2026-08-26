@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Trash2, Save, X } from "lucide-react";
+import { Spinner } from "../primitives/Spinner";
 import type { GridApi } from "../Reaktiform/types";
 import type { GridConfig } from "../../types";
 
@@ -9,7 +11,31 @@ export function BulkActionsBar<TData>({
   grid: GridApi<TData>;
   config: GridConfig<TData>;
 }) {
-  if (grid.selectedIds.size === 0) return null;
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  if (grid.selectedIds.size === 0 && !isBulkDeleting) return null;
+
+  const handleBulkDelete = async () => {
+    if (isBulkDeleting) return;
+    const ids = [...grid.selectedIds];
+    setIsBulkDeleting(true);
+    try {
+      if (config.onBulkDelete) {
+        // Preferred: single API call for all selected rows.
+        // bulkDeleteRows calls onBulkDelete exactly once and
+        // never onDelete — see useDraft.ts.
+        await grid.bulkDeleteRows(ids);
+      } else {
+        // Fallback: sequential — each fires onDelete separately
+        for (const id of ids) {
+          await grid.deleteRow(id);
+        }
+      }
+      grid.clearSelection();
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   return (
     <div className="rf-flex rf-items-center rf-gap-3 px-4 py-2 bg-rf-accent text-white border border-rf-accent border-b-0 rounded-t-rf-lg text-[12.5px] rf-font-medium rf-flex-shrink-0">
@@ -28,27 +54,22 @@ export function BulkActionsBar<TData>({
           );
         }) && (
           <button
-            onClick={async () => {
-              const ids = [...grid.selectedIds];
-              if (config.onBulkDelete) {
-                // Preferred: single API call for all selected rows.
-                // bulkDeleteRows calls onBulkDelete exactly once and
-                // never onDelete — see useDraft.ts.
-                await grid.bulkDeleteRows(ids);
-              } else {
-                // Fallback: sequential — each fires onDelete separately
-                for (const id of ids) {
-                  await grid.deleteRow(id);
-                }
-              }
-              grid.clearSelection();
-            }}
-            className="rf-inline-flex rf-items-center rf-gap-1.5 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors"
+            onClick={() => void handleBulkDelete()}
+            disabled={isBulkDeleting}
+            className="rf-inline-flex rf-items-center rf-gap-1.5 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors disabled:rf-opacity-60 disabled:rf-cursor-not-allowed"
           >
-            <Trash2 className="rf-icon-sm" /> Delete{" "}
-            {grid.selectedIds.size > 1
-              ? `${grid.selectedIds.size} rows`
-              : "selected"}
+            {isBulkDeleting ? (
+              <>
+                <Spinner size={13} /> Deleting…
+              </>
+            ) : (
+              <>
+                <Trash2 className="rf-icon-sm" /> Delete{" "}
+                {grid.selectedIds.size > 1
+                  ? `${grid.selectedIds.size} rows`
+                  : "selected"}
+              </>
+            )}
           </button>
         )}
       {/* Bulk save (only dirty rows) — gated by canSave */}
@@ -59,7 +80,8 @@ export function BulkActionsBar<TData>({
         }) && (
           <button
             onClick={() => void grid.saveAll()}
-            className="rf-inline-flex rf-items-center rf-gap-1.5 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors"
+            disabled={isBulkDeleting}
+            className="rf-inline-flex rf-items-center rf-gap-1.5 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors disabled:rf-opacity-60 disabled:rf-cursor-not-allowed"
           >
             <Save className="rf-icon-sm" /> Save selected
           </button>
@@ -67,7 +89,8 @@ export function BulkActionsBar<TData>({
       <div className="rf-ml-auto" />
       <button
         onClick={grid.clearSelection}
-        className="rf-inline-flex rf-items-center rf-gap-1 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors"
+        disabled={isBulkDeleting}
+        className="rf-inline-flex rf-items-center rf-gap-1 px-2.5 py-1 rounded-rf-md bg-white/10 hover:bg-white/20 rf-transition-colors disabled:rf-opacity-60 disabled:rf-cursor-not-allowed"
       >
         <X className="rf-icon-sm" /> Deselect all
       </button>

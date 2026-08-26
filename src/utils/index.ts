@@ -1,4 +1,4 @@
-import { Row } from "@/types";
+import { Row, type ColumnDef } from "@/types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -36,6 +36,39 @@ export function getDraftValue<T extends Record<string, unknown>>(
   key: string,
 ): unknown {
   return row._draft && key in row._draft ? row._draft[key] : row[key];
+}
+
+/**
+ * Get a row's value for a column — draft-first, applying valueTransform.read
+ * to committed (non-draft) values. This is the single source of truth for
+ * resolving a column's draft-aware display/edit value: the grid cell
+ * (useDraft's getVal) and the details panel (DetailsTab) both delegate here,
+ * so an async select/multiselect field always resolves to the same
+ * { value, label } shape in both places, not just in the grid.
+ */
+export function resolveFieldValue<TData>(
+  row: Row<TData>,
+  col: ColumnDef<TData>,
+): unknown {
+  const key = col.key as string;
+  const isDraftValue = row._draft !== null && key in row._draft;
+  const raw = isDraftValue
+    ? row._draft![key]
+    : (row as Record<string, unknown>)[key];
+
+  if (
+    !isDraftValue &&
+    col.valueTransform?.read &&
+    raw !== undefined &&
+    raw !== null
+  ) {
+    try {
+      return col.valueTransform.read(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
 }
 
 /**
