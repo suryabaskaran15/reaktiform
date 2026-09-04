@@ -17,6 +17,7 @@ import { ReaktiformPanel } from "../ReaktiformPanel/ReaktiformPanel";
 import { ColumnHeaderMemo } from "./ColumnHeader";
 import { GridRow } from "./GridRow";
 import { ColumnVisibilityPanel } from "../overlays/ColumnVisibilityPanel";
+import { PanelModePanel } from "../overlays/PanelModePanel";
 import { CFPanel } from "../overlays/CFPanel";
 import { FilterPanel } from "../filters/FilterPanel";
 import { Toolbar } from "../toolbar/Toolbar";
@@ -81,6 +82,38 @@ function ReaktiformInner<TData = Record<string, unknown>>(
     };
   }, [grid.onRowSaveErrorRef]);
 
+  // ── Detail panel open/close notifications.
+  // Callbacks live in a ref so a consumer's inline arrow function doesn't make
+  // this effect re-run (and re-fire) on every render — only an actual change of
+  // the open row does. Page mode leans on these for URL sync, since reaktiform
+  // deliberately never touches browser history itself.
+  const onPanelOpenRef = useRef(props.onPanelOpen);
+  const onPanelCloseRef = useRef(props.onPanelClose);
+  onPanelOpenRef.current = props.onPanelOpen;
+  onPanelCloseRef.current = props.onPanelClose;
+
+  const panelRowIdForEvents = grid.panelRowId;
+  const prevPanelRowId = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevPanelRowId.current;
+    prevPanelRowId.current = panelRowIdForEvents;
+
+    if (panelRowIdForEvents) {
+      // Fires again when prev/next moves to another record — the panel is now
+      // open on a different row, which is what a URL sync needs to hear.
+      const opened = grid.rows.find((r) => r._id === panelRowIdForEvents);
+      if (opened) onPanelOpenRef.current?.(opened as TData);
+    } else if (prev) {
+      // `prev` guard: don't fire a spurious close on mount, when the panel was
+      // never open in the first place.
+      onPanelCloseRef.current?.();
+    }
+    // grid.rows is deliberately not a dep — this fires on OPEN/CLOSE, not on
+    // every edit to the open row. The closure is from the render in which
+    // panelRowId changed, so the rows it reads are current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelRowIdForEvents]);
+
   // ── Expanded rows state — tracks which row IDs are expanded inline
   const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
   // useCallback with an empty dep array — safe since it only uses the
@@ -128,6 +161,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
 
   // ── Column visibility panel open
   const [colVisPanelOpen, setColVisPanelOpen] = useState(false);
+  const [panelModeAnchor, setPanelModeAnchor] = useState<DOMRect | null>(null);
+  const [panelModePanelOpen, setPanelModePanelOpen] = useState(false);
 
   const deactivateCell = useCallback(
     () => grid.setEditingCell(null, null),
@@ -668,9 +703,68 @@ function ReaktiformInner<TData = Record<string, unknown>>(
     props.maxHeight === undefined &&
     props.minHeight === undefined;
 
+  // ── PAGE MODE ────────────────────────────────────────────────
+  // In page mode an open panel takes over the grid's own box: the grid's
+  // chrome hides, the panel renders in its place. See the chrome wrapper below.
+  const pageActive = grid.panelMode === "page" && !!grid.panelRowId;
+
+  // The grid's maxHeight bounds only the SCROLL CONTAINER — toolbar, filter and
+  // bulk bars, and the footer stats bar all sit outside that budget. The page
+  // panel's maxHeight bounds its WHOLE shell (its header, tabs and footer are
+  // inside it), so handing it the raw value leaves the record page short by
+  // exactly the height of the grid chrome.
+  //
+  // Measure that difference and add it back. The delta — not the total height —
+  // because a total would go stale the moment the window is resized while a
+  // record is open (the table is hidden, so it can't be re-measured), whereas
+  // the delta is a constant that `calc()` re-evaluates against 100vh for free.
+  //
+  // This is only a valid measurement because nothing else in the root
+  // contributes height: FilterPanel/CFPanel/ColumnVisibilityPanel all
+  // createPortal to document.body and the keyboard hint is position:fixed.
+  // Adding an in-flow child to the root would silently skew it.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [chromeDelta, setChromeDelta] = useState(0);
+  useEffect(() => {
+    // Never measure while the page panel is showing: the root's height IS the
+    // panel's height then, which would be a feedback loop. autoHeight needs no
+    // measurement at all — the shell's flex:1 already fills its ancestor.
+    if (pageActive || useAutoHeight) return;
+    const root = rootRef.current;
+    const scroller = scrollRef.current;
+    if (!root || !scroller || typeof ResizeObserver === "undefined") return;
+
+    const measure = () => {
+      const delta =
+        root.getBoundingClientRect().height -
+        scroller.getBoundingClientRect().height;
+      if (delta <= 0) return; // mid-layout / hidden — ignore
+      setChromeDelta((prev) => (Math.abs(prev - delta) < 1 ? prev : delta));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(root);
+    ro.observe(scroller);
+    return () => ro.disconnect();
+  }, [pageActive, useAutoHeight]);
+
+  // The grid's own ceiling and floor, shifted by the chrome the panel has to
+  // absorb — so table and record page end at the same edge.
+  const gridMaxHeight = props.maxHeight ?? "calc(100vh - 300px)";
+  const pageMaxHeight =
+    typeof gridMaxHeight === "number"
+      ? gridMaxHeight + chromeDelta
+      : `calc(${gridMaxHeight} + ${chromeDelta}px)`;
+  const gridMinHeight = props.minHeight ?? 380;
+  const pageMinHeight =
+    typeof gridMinHeight === "number"
+      ? gridMinHeight + chromeDelta
+      : `calc(${gridMinHeight} + ${chromeDelta}px)`;
+
   return (
     <div
       data-reaktiform
+      ref={rootRef}
       // When darkMode prop or auto-detection says dark, add the .dark class
       // so all [data-reaktiform] CSS var overrides take effect automatically.
       className={cn(
@@ -681,8 +775,23 @@ function ReaktiformInner<TData = Record<string, unknown>>(
       )}
       style={props.style}
     >
-      {/* ── TOOLBAR ───────────────────────────────────────── */}
-      <Toolbar<TData>
+      {/* ── GRID CHROME ─────────────────────────────────────
+          Everything the page-mode panel replaces: toolbar, filter/bulk bars,
+          the scroll container and the keyboard hint.
+
+          This wrapper is ALWAYS rendered and only its `display` changes.
+          Wrapping conditionally would change the tree shape and remount the
+          whole grid — destroying the scroll position, virtualizer state and
+          in-progress filters that hiding (rather than unmounting) exists to
+          preserve.
+
+          `display: contents` makes it vanish from layout, so its children keep
+          participating in the root's flex column exactly as before — no new
+          flex context, no risk to the autoHeight path. Safe here precisely
+          because this wrapper has no background or border of its own. */}
+      <div style={{ display: pageActive ? "none" : "contents" }}>
+        {/* ── TOOLBAR ───────────────────────────────────────── */}
+        <Toolbar<TData>
         grid={grid}
         config={props}
         visibleRowsCount={visibleRows.length}
@@ -696,6 +805,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
         setCfPanelOpen={setCfPanelOpen}
         setColVisAnchor={setColVisAnchor}
         setColVisPanelOpen={setColVisPanelOpen}
+        setPanelModeAnchor={setPanelModeAnchor}
+        setPanelModePanelOpen={setPanelModePanelOpen}
       />
 
       {/* ── ACTIVE FILTERS BAR ────────────────────────────── */}
@@ -1633,6 +1744,8 @@ function ReaktiformInner<TData = Record<string, unknown>>(
           Exit
         </div>
       )}
+      </div>
+      {/* end grid chrome */}
 
       {/* ── DETAIL PANEL (ReaktiformPanel) ───────────────────────── */}
       {props.features?.sidePanel !== false &&
@@ -1671,6 +1784,20 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               }}
               onDiscard={(rowId) => grid.discardRow(rowId)}
               panelTabs={grid.panelTabs ?? undefined}
+              mode={grid.panelMode}
+              {...(grid.panelWidth !== undefined && {
+                width: grid.panelWidth,
+              })}
+              {...(grid.panelBackLabel !== undefined && {
+                backLabel: grid.panelBackLabel,
+              })}
+              // Page mode replaces the grid's whole box, so it gets the grid's
+              // own ceiling and floor PLUS the chrome the grid keeps outside
+              // its maxHeight (toolbar, bars, footer) — see chromeDelta above.
+              // Computed here rather than in the panel so the two can't drift.
+              autoHeight={useAutoHeight}
+              maxHeight={pageMaxHeight}
+              minHeight={pageMinHeight}
               canSave={grid.permissions.canSave}
               canEdit={grid.permissions.canEditRow(
                 (panelRow as Record<string, unknown>) ?? {},
@@ -1755,6 +1882,17 @@ function ReaktiformInner<TData = Record<string, unknown>>(
           }}
           onReorder={(newOrder) => grid.setColumnOrder(newOrder)}
           onClose={() => setColVisPanelOpen(false)}
+          isDark={isDark}
+        />
+      )}
+
+      {panelModePanelOpen && (
+        <PanelModePanel
+          value={grid.panelMode}
+          modes={grid.panelModes}
+          anchor={panelModeAnchor}
+          onSelect={(mode) => grid.setPanelMode(mode)}
+          onClose={() => setPanelModePanelOpen(false)}
           isDark={isDark}
         />
       )}

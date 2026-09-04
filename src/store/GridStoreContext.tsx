@@ -118,6 +118,7 @@ export function useGridActions() {
   const setSaving = useGridStore((s) => s.setSaving);
   const setSortingMode = useGridStore((s) => s.setSortingMode);
   const setEditLocked = useGridStore((s) => s.setEditLocked);
+  const setPanelMode = useGridStore((s) => s.setPanelMode);
   const reset = useGridStore((s) => s.reset);
 
   return useMemo(
@@ -165,6 +166,7 @@ export function useGridActions() {
       setSaving,
       setSortingMode,
       setEditLocked,
+      setPanelMode,
       reset,
     }),
     [
@@ -211,6 +213,7 @@ export function useGridActions() {
       setSaving,
       setSortingMode,
       setEditLocked,
+      setPanelMode,
       reset,
     ],
   );

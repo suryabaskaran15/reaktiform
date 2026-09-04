@@ -269,6 +269,21 @@ export type ColumnDef<TData = Record<string, unknown>> = {
   /** Show character count indicator. */
   showCharCount?: boolean;
 
+  /**
+   * Give this field a whole row in the detail panel, instead of the single
+   * column it would normally occupy in the panel's responsive field grid.
+   *
+   * `richtext` and multiline `text` fields are **always** full-row regardless
+   * of this flag — a WYSIWYG toolbar or a multi-line editor squeezed into a
+   * third of a row is unusable. So this is an opt-in for the other types, not
+   * an opt-out for those two.
+   *
+   * @default false
+   * @example
+   * { key: 'justification', type: 'text', label: 'Justification', isFullRow: true }
+   */
+  isFullRow?: boolean;
+
   // ── Date specific ────────────────────────────────────────────
   /**
    * Minimum selectable date (ISO date string).

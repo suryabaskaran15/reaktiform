@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { GridStoreInstance } from "../store/gridStore";
-import type { ActiveFilters, CFRule } from "../types";
+import type { ActiveFilters, CFRule, PanelMode } from "../types";
 
 // ─────────────────────────────────────────────────────────────
 //  PERSISTED STATE SHAPE
@@ -20,11 +20,21 @@ type PersistedState = {
   // editLocked IS persisted (unlike sort/groupBy) — resetting it to
   // "unlocked" on every reload would defeat its purpose as a safety toggle.
   editLocked: boolean;
+  // Optional so it can be added WITHOUT a version bump — see STORAGE_VERSION.
+  panelMode?: PanelMode;
 };
 
 // ─────────────────────────────────────────────────────────────
-//  VERSION — bump this whenever the persisted shape changes.
-//  Old data is automatically cleared on version mismatch.
+//  VERSION — bump this ONLY for changes old data cannot survive, e.g. a
+//  field changing type or meaning. A version mismatch DELETES the whole
+//  payload, costing every user their column widths, hidden/pinned columns,
+//  order, filters, aggregations and CF rules.
+//
+//  Adding a NEW field never needs a bump: make it optional and guard the
+//  restore with `if (saved.x !== undefined)`, exactly like the reads below.
+//  (v2 → v3 bumped for `editLocked`, which was additive — it wiped everyone's
+//  layout for no reason. `panelMode` was added later without a bump.)
+//
 //  v1 → v2: added sortModel to store state
 //  v2 → v3: added editLocked
 // ─────────────────────────────────────────────────────────────
@@ -106,6 +116,9 @@ export function loadPersistedState(
   if (saved.editLocked !== undefined) {
     state.setEditLocked(saved.editLocked);
   }
+  if (saved.panelMode !== undefined) {
+    state.setPanelMode(saved.panelMode);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -143,6 +156,7 @@ export function useGridPersistence(
           aggregations: state.aggregations,
           cfRules: state.cfRules,
           editLocked: state.editLocked,
+          panelMode: state.panelMode,
           // sortState and groupByCol intentionally excluded
         };
         writeStorage(storageKey, persisted);

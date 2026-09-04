@@ -13,6 +13,9 @@ import {
   FileSpreadsheet,
   Plus,
   Lock,
+  PanelRight,
+  Square,
+  Maximize2,
   Unlock,
 } from "lucide-react";
 import { cn } from "../../utils";
@@ -33,6 +36,8 @@ export function Toolbar<TData>({
   setCfPanelOpen,
   setColVisAnchor,
   setColVisPanelOpen,
+  setPanelModeAnchor,
+  setPanelModePanelOpen,
 }: {
   grid: GridApi<TData>;
   config: GridConfig<TData>;
@@ -47,6 +52,8 @@ export function Toolbar<TData>({
   setCfPanelOpen: Dispatch<SetStateAction<boolean>>;
   setColVisAnchor: Dispatch<SetStateAction<DOMRect | null>>;
   setColVisPanelOpen: Dispatch<SetStateAction<boolean>>;
+  setPanelModeAnchor: Dispatch<SetStateAction<DOMRect | null>>;
+  setPanelModePanelOpen: Dispatch<SetStateAction<boolean>>;
 }) {
   return (
     <div className="bg-rf-surface border border-rf-border border-b-0 rounded-t-rf-lg px-3 py-2 rf-flex rf-items-center rf-gap-2 rf-flex-wrap">
@@ -270,6 +277,39 @@ export function Toolbar<TData>({
             )}
           </button>
         )}
+        {/* Panel mode switcher — grouped with the other display-config
+            buttons. Hidden when there is no panel to configure, or when the
+            consumer passed `panelMode` (they've already decided).
+
+            Note this is inherently a panel-CLOSED control: the drawer/modal
+            backdrop is `inset: 0` with pointerEvents while open, so the whole
+            toolbar is unclickable then, and page mode hides the toolbar
+            outright. Moving the button doesn't change that. */}
+        {config.features?.sidePanel !== false &&
+          config.features?.panelModeSwitcher !== false &&
+          !grid.panelModeLocked && (
+            <button
+              onClick={(e) => {
+                setPanelModeAnchor(
+                  (
+                    e.currentTarget as HTMLButtonElement
+                  ).getBoundingClientRect(),
+                );
+                setPanelModePanelOpen((v) => !v);
+              }}
+              className="inline-flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 rounded-rf-md border transition-colors bg-rf-surface text-rf-text-2 border-rf-border hover:bg-rf-header"
+              title="Record view — drawer, modal or full page"
+            >
+              {grid.panelMode === "page" ? (
+                <Maximize2 className="rf-icon-sm" />
+              ) : grid.panelMode === "modal" ? (
+                <Square className="rf-icon-sm" />
+              ) : (
+                <PanelRight className="rf-icon-sm" />
+              )}
+            </button>
+          )}
+
         {/* Sync / Refresh button */}
         {config.onRefresh && (
           <button

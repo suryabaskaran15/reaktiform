@@ -2040,6 +2040,20 @@ Generic names like .flex and .hidden ONLY apply inside
   height: 12px;
   flex-shrink: 0;
 }
+
+/* Detail panel tab strip — hides the native scrollbar in favour of the chevron
+   buttons flanking the strip (TabScrollArrow in ReaktiformPanel.tsx).
+
+   This pseudo-element rule is the ONLY part of the strip's styling that lives
+   here: it cannot be expressed as an inline style. Everything functional —
+   `overflow-x: auto` above all, which is what makes the element scrollable at
+   all — is set inline on the element, because a consumer app loading a stale
+   built stylesheet would otherwise get a strip that isn't a scroll container,
+   with arrows that render but silently do nothing. Missing THIS rule only
+   means a visible scrollbar. Do not move overflow back up here. */
+[data-reaktiform] .rf-tabstrip::-webkit-scrollbar {
+  display: none; /* Chrome / Safari */
+}
 [data-reaktiform] .rf-icon-md {
   width: 14px;
   height: 14px;

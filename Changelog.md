@@ -2,6 +2,117 @@
 
 All notable changes to reaktiform will be documented here.
 
+## [Unreleased]
+
+### Added
+
+- **Panel mode switcher.** A toolbar popover lets the user pick how records
+  display — side drawer, center modal, or full page — persisted to
+  localStorage alongside column widths, filters and CF rules.
+  - New `initialPanelMode` (uncontrolled seed), `onPanelModeChange`, and
+    `panelModes` (restrict which options the popover offers). `panelMode`
+    keeps its name and becomes the **controlled** value: passing it hides the
+    switcher, exactly as `editLocked` relates to `initialEditLocked`.
+  - `features.panelModeSwitcher: false` hides the button; it is also hidden
+    automatically when `features.sidePanel` is off.
+  - Switching with a record open re-shells live — the panel stays open and any
+    unsaved draft survives. Note the switcher is inherently a *panel-closed*
+    control: the drawer/modal backdrop covers the toolbar while open, and page
+    mode hides the toolbar outright.
+  - **The persisted shape gained `panelMode` WITHOUT a `STORAGE_VERSION` bump.**
+    A version mismatch deletes the whole payload, which would have cost every
+    user their column widths, hidden/pinned columns, order, filters,
+    aggregations and CF rules to add one optional field. Additive fields are
+    now documented at the version constant as never needing a bump.
+
+- **Responsive panel field grid.** Detail panel fields flow into 1, 2 or 3
+  columns based on the width of the form itself (measured, so a 440px drawer
+  stays single-column on any monitor while a full-page record gets three).
+  - New `ColumnDef.isFullRow` opts a field into a whole row. `richtext` and
+    multiline `text` are always full-row regardless — a WYSIWYG toolbar in a
+    third of a row is unusable.
+  - **This is a visible change wherever the panel is wider than 560px**
+    (modal and page). The panel form had effectively been single-column for
+    every consumer because the grid container was missing `display: grid`
+    entirely, which made every per-field span class dead code. Drawer mode is
+    unaffected.
+
+- **Custom panel tabs.** `panelTabs` now accepts full tab definitions alongside
+  the built-in `'details'`/`'activity'`/`'files'` names, so a consumer can add
+  their own record-scoped tabs (audit trail, linked records, approvals) without
+  forking the panel. Entries render in the order listed. New exported types
+  `PanelTabDef`, `CustomPanelTab`, `PanelTabContext`.
+  ```tsx
+  panelTabs={[
+    'details',
+    { id: 'history', label: 'History', icon: Clock, badge: 4,
+      render: ({ row, values }) => <AuditTrail recordId={row.id} /> },
+    'files',
+  ]}
+  ```
+  - A tab supplies its body via `render: (ctx) => ReactNode` rather than a
+    component reference — a `component:` defined inline gets a new identity on
+    every render, which would remount the tab and wipe its local state on every
+    keystroke elsewhere in the panel.
+  - The render context carries `row`, `rowId`, `values` (the row **merged with
+    its pending draft**), `columns`, `isDirty`, `isSaving`, `canEdit`,
+    `editLocked`, and `setValue`/`save`/`discard`/`close`. `setValue` and `save`
+    route through the same draft pipeline the Details tab uses, so a custom
+    tab's edits show live in the grid and run through validation.
+  - **`setValue`/`save` are hard no-ops under Edit Lock or `canEdit: false`**
+    (dev-mode warning), so a custom tab can never widen what permissions already
+    allow — the same "narrow, never widen" guarantee as every other mutation path.
+  - Optional per-tab `icon`, `badge`, `visible` (`boolean` or per-row function),
+    and `showFooter` to opt into the Save/Discard footer.
+  - Reserved ids: a custom tab using `details`/`activity`/`files` is skipped with
+    a dev-mode warning; the built-in wins.
+  - The tab strip now scrolls horizontally instead of crushing labels once there
+    are more tabs than fit, with chevron buttons at either edge as the scroll
+    affordance (the native scrollbar is hidden — it ate a row of vertical space
+    under the tabs and read as a rendering glitch). Each arrow appears only when
+    there is content to reveal that way. With the three built-ins nothing
+    overflows, so no arrows show and the layout is unchanged.
+
+- **`panelMode` — detail panel as a drawer or a modal.** New `GridConfig`
+  prop `panelMode?: 'drawer' | 'modal'` (default `'drawer'`, so existing
+  consumers are unaffected), plus `panelWidth?: number` to size it. The
+  same `mode` prop is available on `<ReaktiformPanel>` for standalone use.
+  Only the panel's *shell* changes — the tabs, form, footer, prev/next
+  navigation, and every permission/`editLocked` gate are shared verbatim
+  between the two modes.
+  - **`'modal'`** centers the panel over a darker scrim, capped at
+    `min(panelWidth, 92vw)` × `85vh` with the tab body scrolling inside and
+    the footer pinned. It carries real dialog semantics: `role="dialog"`,
+    `aria-modal`, `aria-labelledby` on the header title, focus moved into
+    the shell on open and restored to the previously-focused element on
+    close, Esc-to-close, and a Tab focus trap. The trap wraps on Tab only
+    and never steals focus back on `focusin`, so React Select's
+    `document.body`-portaled menus keep working inside the modal.
+  - **`'drawer'`** is byte-for-byte the previous behaviour: right-anchored,
+    full height, slide-in transition, non-modal (Esc does not close it and
+    focus is never stolen).
+- New exported type `PanelMode`.
+
+### Fixed
+
+- **Detail panel shell no longer depends on the consumer shipping Tailwind.**
+  The shell's geometry came from utility classes (`fixed`, `inset-y-0`,
+  `right-0`, `z-[150]`, `bg-rf-surface`, …), but `inset-y-0` and `z-[150]`
+  are not defined in `reaktiform.css` at all, and the ones that *are*
+  defined are scoped as `[data-reaktiform]` **descendants** — so they never
+  matched the panel root, which carries `data-reaktiform` itself. In a
+  Tailwind app the consumer's own utilities silently filled both gaps; a
+  non-Tailwind consumer got an unpositioned panel, and standalone
+  `<ReaktiformPanel>` usage (outside a grid) got no shell styling at all.
+  Shell geometry and surface are now inline styles reading the
+  `--rf-*` CSS vars, which resolve on the element in every case.
+
+- **Panel tab strip no longer renders an empty body when Details is excluded.**
+  `panelTabs={['files']}` showed a Files tab over blank space: the active tab
+  both initialised to and fell back to a hardcoded `'details'`, an id that
+  wasn't in the list, so no tab body matched. The active tab now resolves to
+  the first available tab.
+
 ## [1.2.10] — 2026-07-23
 
 ### Added

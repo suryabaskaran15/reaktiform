@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Lock } from "lucide-react";
 import { cn, resolveFieldValue, formatTime } from "../../utils";
 import { mergedRow } from "../cells/CellRenderer";
 import { buildZodSchema } from "../../validation/buildZodSchema";
-import { FormField, inputBase } from "./FormField";
+import { FormField, inputBase, isPanelFieldFullRow } from "./FormField";
 import { TextField } from "./fields/TextField";
 import { NumberField } from "./fields/NumberField";
 import { SelectField } from "./fields/SelectField";
@@ -49,6 +49,44 @@ export function DetailsTab<TData = Record<string, unknown>>({
   const nonComputedCols = columns.filter((c) => !c.computed);
   const computedCols = columns.filter((c) => c.computed);
   const schema = buildZodSchema(nonComputedCols);
+
+  // ── RESPONSIVE FIELD GRID ────────────────────────────────────
+  // Column count comes from the FORM's own width, not the viewport: the same
+  // DetailsTab renders at 440px (drawer), 720px (modal) and full width (page),
+  // so a viewport media query would put three columns inside a narrow drawer
+  // on a large monitor.
+  //
+  // Measured in JS and applied as inline styles rather than via a CSS class +
+  // @container, for two reasons learned the hard way in this codebase:
+  //   1. Layout is FUNCTIONAL. A consumer on a stale built reaktiform.css gets
+  //      no rule at all, and the form silently collapses to one column — the
+  //      same failure mode as the tab strip's overflow (see CLAUDE.md).
+  //   2. `container-type: inline-size` implies `contain: layout`, making the
+  //      element a containing block for position:fixed descendants — the trap
+  //      that got `contain: strict` removed from the grid's scroll container.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [cols, setCols] = useState(1); // 1 until measured — safe everywhere
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const w = el.getBoundingClientRect().width;
+      if (w <= 0) return; // hidden / mid-layout
+      setCols(w >= 960 ? 3 : w >= 560 ? 2 : 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Both grids (fields and Computed Values) are siblings of identical width,
+  // so one measurement drives both.
+  const fieldGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+    columnGap: 12,
+  };
 
   const buildDefaults = () => {
     const vals: Record<string, unknown> = {};
@@ -109,7 +147,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
           label={col.label}
           required={col.required}
           error={err}
-          className="rf-col-span-2"
+          fullRow={isPanelFieldFullRow(col)}
         >
           {col.renderEditCell(
             currentVal,
@@ -130,7 +168,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
       const opt = col.options?.find((o) => o.value === String(currentVal ?? ""));
       const label = opt?.label ?? (currentVal != null ? String(currentVal) : null);
       return (
-        <FormField key={k} label={col.label} className="rf-col-span-1">
+        <FormField key={k} label={col.label} fullRow={isPanelFieldFullRow(col)}>
           <div
             style={{
               padding: "6px 10px",
@@ -169,7 +207,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
     if (col.type === "progress") {
       const pct = Math.min(100, Math.max(0, Number(currentVal ?? 0)));
       return (
-        <FormField key={k} label={col.label} className="rf-col-span-1">
+        <FormField key={k} label={col.label} fullRow={isPanelFieldFullRow(col)}>
           <div
             style={{
               padding: "6px 10px",
@@ -233,7 +271,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
             label={col.label}
             required={false}
             error={undefined}
-            className="rf-col-span-2"
+            fullRow={isPanelFieldFullRow(col)}
           >
             <div
               style={{
@@ -264,7 +302,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
             label={col.label}
             required={false}
             error={undefined}
-            className="rf-col-span-1"
+            fullRow={isPanelFieldFullRow(col)}
           >
             <div
               style={{
@@ -299,7 +337,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
             label={col.label}
             required={false}
             error={undefined}
-            className="rf-col-span-1"
+            fullRow={isPanelFieldFullRow(col)}
           >
             <div
               style={{
@@ -348,7 +386,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
           label={col.label}
           required={false}
           error={undefined}
-          className="rf-col-span-2"
+          fullRow={isPanelFieldFullRow(col)}
         >
           <div
             style={{
@@ -496,7 +534,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
       id={`rf-details-form-${rowId}`}
       onSubmit={handleSubmit((data) => onSave(data as Record<string, unknown>))}
     >
-      <div className="rf-grid-cols-2 gap-x-3">
+      <div ref={gridRef} style={fieldGridStyle}>
         {nonComputedCols.map(renderField)}
       </div>
 
@@ -505,7 +543,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
           <div className="text-[11px] rf-font-bold text-rf-text-3 rf-uppercase tracking-[.06em] mt-4 mb-2.5 pb-1.5 border-b border-rf-border">
             Computed Values
           </div>
-          <div className="rf-grid-cols-2 gap-x-3">
+          <div style={fieldGridStyle}>
             {computedCols.map((col) => {
               const k = col.key as string;
               // getComputedValue merges row._draft over row internally
@@ -514,7 +552,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
               // so panel edits recalculate instantly like inline edits do.
               const val = getComputedValue(row, k);
               return (
-                <FormField key={k} label={col.label} className="rf-col-span-1">
+                <FormField key={k} label={col.label} fullRow={isPanelFieldFullRow(col)}>
                   <div
                     className={cn(
                       inputBase,

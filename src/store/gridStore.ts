@@ -8,6 +8,7 @@ import type {
   FilterValue,
   CFRule,
   ActiveFilters,
+  PanelMode,
 } from "../types";
 
 // ── Enable Immer's MapSet plugin — required for Set/Map in draft state.
@@ -87,6 +88,10 @@ export type GridState = {
 
   // ── Edit Lock — session-level "child lock", narrows permissions only
   editLocked: boolean;
+
+  // ── Detail panel presentation — user-switchable and persisted, so it lives
+  // in the store rather than being read straight off the config prop.
+  panelMode: PanelMode;
 };
 
 // ── Actions shape
@@ -174,6 +179,7 @@ export type GridActions = {
 
   // Edit Lock
   setEditLocked: (v: boolean) => void;
+  setPanelMode: (mode: PanelMode) => void;
 
   // Reset entire store
   reset: () => void;
@@ -215,6 +221,7 @@ const initialState = (): GridState => ({
   isFetching: false, // NEW
   isSaving: false,
   editLocked: false,
+  panelMode: "drawer",
 });
 
 // ── Create the store
@@ -640,6 +647,12 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
           setEditLocked: (v) =>
             set((state) => {
               state.editLocked = v;
+            }),
+
+          // ── Detail panel mode ─────────────────────────────
+          setPanelMode: (mode) =>
+            set((state) => {
+              state.panelMode = mode;
             }),
 
           // ── Reset ─────────────────────────────────────────

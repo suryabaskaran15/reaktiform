@@ -688,6 +688,12 @@ type ColumnDef<TData = Record<string, unknown>> = {
   rows?: number; // textarea row count
   showCharCount?: boolean; // show character count indicator
 
+  // ── Detail panel layout ───────────────────────────────────
+  // Panel fields flow into 1/2/3 columns based on the panel's own width.
+  // isFullRow gives a field the whole row instead of one column.
+  // richtext and multiline text are ALWAYS full-row regardless.
+  isFullRow?: boolean; // default: false
+
   // ── Computed / Formula ────────────────────────────────────
   computed?: boolean;
   formula?: (row: TData) => unknown;
@@ -772,6 +778,64 @@ type ColumnDef<TData = Record<string, unknown>> = {
 | `emptyState`   | `ReactNode`        | built-in                | Custom empty state component      |
 | `toolbarLeft`  | `ReactNode`        | —                       | Slot after search box             |
 | `toolbarRight` | `ReactNode`        | —                       | Slot before "+ New Record" button |
+| `panelMode`    | `'drawer' \| 'modal'` | `'drawer'`          | How the detail panel presents itself |
+| `panelWidth`   | `number`           | `440` / `720`           | Panel width (drawer / modal default) |
+
+#### Detail Panel — drawer, modal or page
+
+The detail panel ships as a right-side drawer. Set `panelMode="modal"` to show
+the exact same panel — same tabs, same form, same footer, same permission
+gating — as a centered dialog instead:
+
+```tsx
+<Reaktiform
+  columns={columns}
+  data={data}
+  panelMode="modal"   // 'drawer' (default) | 'modal'
+  panelWidth={720}    // optional; defaults to 440 (drawer) / 720 (modal)
+/>
+```
+
+| | `drawer` | `modal` |
+|---|---|---|
+| Position | Pinned to the right edge, full viewport height | Centered, `max-height: 85vh`, capped at `92vw` |
+| Animation | Slides in from the right | Fades and scales in |
+| Esc closes | No | Yes |
+| Focus | Never stolen — the grid stays keyboard-usable behind it | Moved into the dialog on open, trapped while open, restored on close |
+| Semantics | Plain container | `role="dialog"` + `aria-modal` + `aria-labelledby` |
+
+Drawer and modal close on backdrop click; all three keep the prev/next record
+navigation. The same `mode` prop exists on `<ReaktiformPanel>` for standalone use.
+
+**`panelMode="page"`** turns the panel into a full-page record view with a
+"← Back to table" button. The grid is hidden rather than unmounted, so scroll
+position, filters and unsaved drafts all survive the round trip, and your app's
+own layout (sidebar, nav) is untouched. It does **not** touch browser history —
+it has no URL, and Back leaves your app unless you wire `onPanelOpen` /
+`onPanelClose` to your router. For a genuinely addressable record page, use
+`onRowClick` with your own routing instead.
+
+#### Letting users choose — the panel mode switcher
+
+Omit `panelMode` and the toolbar shows a popover for picking the view. The choice
+persists under your `storageKey`, alongside column widths and filters:
+
+```tsx
+<Reaktiform
+  columns={columns}
+  data={data}
+  storageKey="procurement-grid"
+  initialPanelMode="drawer"        // seed; a saved choice wins
+  panelModes={['drawer', 'page']}  // optional: restrict the options
+  onPanelModeChange={(m) => console.log(m)}
+/>
+```
+
+Passing `panelMode` explicitly hides the switcher — that says the app has decided.
+`features={{ panelModeSwitcher: false }}` hides it too. Note it is a *panel-closed*
+control: while a drawer or modal is open its backdrop covers the toolbar, and page
+mode hides the toolbar entirely.
+
 
 ### Feature Flags
 
@@ -909,6 +973,76 @@ No extra props needed — this is built in.
   ),
 }
 ```
+
+---
+
+## Custom Panel Tabs
+
+The detail panel ships with three built-in tabs — `details`, `activity`, `files`.
+`panelTabs` controls which of them appear, **and lets you add your own** by passing a
+tab definition object instead of a built-in tab's name:
+
+```tsx
+import { Clock } from 'lucide-react'
+
+<Reaktiform
+  columns={columns}
+  data={data}
+  panelTabs={[
+    'details',
+    {
+      id: 'history',
+      label: 'History',
+      icon: Clock,
+      badge: 4,
+      render: ({ row, values }) => <AuditTrail recordId={row.id} />,
+    },
+    'files',
+  ]}
+/>
+```
+
+Entries render in the order you list them. **Passing `panelTabs` opts out of the
+"show all built-ins" default** — list every built-in you want to keep alongside your
+custom tabs.
+
+### Tab definition
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | **Required.** Unique id. `details`, `activity` and `files` are reserved — a custom tab using one is ignored (with a dev-mode warning) so it can't silently replace a built-in. |
+| `label` | `string` | **Required.** Tab strip label. |
+| `render` | `(ctx) => ReactNode` | **Required.** Renders the tab body. See the context below. |
+| `icon` | `React.ElementType` | Optional icon component (e.g. a `lucide-react` icon), styled like the built-in tab icons. |
+| `badge` | `string \| number` | Optional count pill shown after the label. |
+| `visible` | `boolean \| (row) => boolean` | Hide the tab entirely, statically or per record. Default: visible. |
+| `showFooter` | `boolean` | Show the panel's Save/Discard footer under this tab. Default: `false`. |
+
+### Render context
+
+`render` receives everything it needs to display *and* edit the record:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `row` | `Row<TData>` | The full row, including `_draft` / `_errors` / `_saving`. |
+| `rowId` | `string` | The row's id, read from your `rowIdKey`. |
+| `values` | `Row<TData>` | The row **merged with its pending draft** — read display values from here. |
+| `columns` | `ColumnDef<TData>[]` | The grid's column definitions. |
+| `isDirty` / `isSaving` | `boolean` | Unsaved edits present / save in flight. |
+| `canEdit` / `editLocked` | `boolean` | Whether editing is permitted / locked. |
+| `setValue` | `(field, value) => void` | Stage a field edit — same pipeline as the Details tab. |
+| `save` / `discard` | `() => void` | Save or discard the row's pending draft. |
+| `close` | `() => void` | Close the panel. |
+
+> **Read `values`, not `row`, for display.** `row` holds the last-saved server values;
+> the user's unsaved edits live in `row._draft`. `values` is the two merged.
+
+> **`setValue` and `save` are no-ops when `editLocked` is on or `canEdit` is false.**
+> A custom tab can never widen what permissions and Edit Lock already allow. Read those
+> two flags and render your tab read-only when either blocks editing.
+
+A custom tab mounts when it's selected and remounts when the record changes, so local
+state inside it starts fresh per record.
 
 ---
 

@@ -1,6 +1,6 @@
 import type { UseFormRegister } from "react-hook-form";
 import { cn } from "../../../utils";
-import { FormField, inputBase, inputError } from "../FormField";
+import { FormField, isPanelFieldFullRow, inputBase, inputError} from "../FormField";
 import type { ColumnDef } from "../../../types";
 
 export function TimeField<TData>({
@@ -22,7 +22,7 @@ export function TimeField<TData>({
       label={col.label}
       required={col.required}
       error={err}
-      className="rf-col-span-1"
+      fullRow={isPanelFieldFullRow(col)}
     >
       <input
         {...register(k)}

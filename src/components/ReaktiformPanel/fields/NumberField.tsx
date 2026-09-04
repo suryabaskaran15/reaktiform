@@ -1,6 +1,6 @@
 import type { UseFormRegister } from "react-hook-form";
 import { cn, resolveConstraint } from "../../../utils";
-import { FormField, inputBase, inputError } from "../FormField";
+import { FormField, isPanelFieldFullRow, inputBase, inputError} from "../FormField";
 import type { ColumnDef, Row } from "../../../types";
 
 export function NumberField<TData>({
@@ -24,7 +24,7 @@ export function NumberField<TData>({
       label={col.label}
       required={col.required}
       error={err}
-      className="rf-col-span-1"
+      fullRow={isPanelFieldFullRow(col)}
     >
       {/* Wrapper positions prefix/suffix absolutely inside the input box */}
       <div

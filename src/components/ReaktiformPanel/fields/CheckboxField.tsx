@@ -1,6 +1,6 @@
 import type { UseFormRegister } from "react-hook-form";
 import { cn } from "../../../utils";
-import { FormField, inputBase } from "../FormField";
+import { FormField, isPanelFieldFullRow, inputBase} from "../FormField";
 import type { ColumnDef } from "../../../types";
 
 export function CheckboxField<TData>({
@@ -15,7 +15,7 @@ export function CheckboxField<TData>({
   onFieldChange: (field: string, value: unknown) => void;
 }) {
   return (
-    <FormField key={k} label={col.label} className="rf-col-span-1">
+    <FormField key={k} label={col.label} fullRow={isPanelFieldFullRow(col)}>
       <div className={cn(inputBase, "flex items-center gap-2 cursor-pointer")}>
         <input
           {...register(k)}

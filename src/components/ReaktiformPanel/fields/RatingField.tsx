@@ -1,6 +1,6 @@
 import { Controller } from "react-hook-form";
 import type { Control } from "react-hook-form";
-import { FormField } from "../FormField";
+import { FormField, isPanelFieldFullRow} from "../FormField";
 import type { ColumnDef } from "../../../types";
 
 export function RatingField<TData>({
@@ -24,7 +24,7 @@ export function RatingField<TData>({
       label={col.label}
       required={col.required}
       error={err}
-      className="rf-col-span-1"
+      fullRow={isPanelFieldFullRow(col)}
     >
       <Controller
         name={k}

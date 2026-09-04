@@ -1,7 +1,7 @@
 import type React from "react";
 import type { ColumnDef, AggregationMode } from "./column";
 import type { CFRule, ActiveFilters } from "./filter";
-import type { RowAttachment, RowComment } from "./row";
+import type { Row, RowAttachment, RowComment } from "./row";
 
 /**
  * Reports upload progress for a single file back into reaktiform's built-in
@@ -124,6 +124,127 @@ export type GridPermissions = {
  */
 export type PanelTab = "details" | "activity" | "files";
 
+/**
+ * How the detail panel presents itself.
+ *
+ * - `'drawer'` — slides in from the right edge, full viewport height (default).
+ * - `'modal'`  — centered dialog over a scrim, with Esc-to-close and a focus trap.
+ * - `'page'`   — takes over the grid's own box as a full-page record view with a
+ *                "back to table" button. The grid is hidden, not unmounted, so
+ *                scroll position and filters survive the round trip. Your app's
+ *                surrounding layout (sidebar, nav) is untouched.
+ *
+ * The panel's contents (tabs, form, footer, prev/next nav, permission gating)
+ * are identical in every mode — only the shell changes.
+ *
+ * **`'page'` is a zero-config convenience, not a routed detail page.** It does
+ * not touch browser history, so it has no URL and the Back button will leave
+ * your app unless you wire it up via `onPanelOpen`/`onPanelClose`. For a truly
+ * addressable record page, use `onRowClick` with your own router instead.
+ *
+ * @example
+ * <Reaktiform panelMode="modal" panelWidth={720} />
+ *
+ * @example
+ * <Reaktiform
+ *   panelMode="page"
+ *   onPanelOpen={(row) => router.push(`?record=${row.id}`)}
+ *   onPanelClose={() => router.back()}
+ * />
+ */
+export type PanelMode = "drawer" | "modal" | "page";
+
+/**
+ * Everything a custom panel tab is handed when it renders.
+ *
+ * `values` is the row **merged with its pending draft** — read display values
+ * from here, not from `row`, or you'll show the last-saved server value and
+ * miss the user's unsaved edits.
+ *
+ * `setValue` / `save` go through the same draft pipeline the Details tab uses,
+ * so edits appear live in the grid and run through validation. Both are
+ * **no-ops when `editLocked` is on or `canEdit` is false** — a custom tab can
+ * never widen what permissions and Edit Lock already allow. Read those two
+ * flags and render yourself read-only when either says so.
+ */
+export type PanelTabContext<TData = Record<string, unknown>> = {
+  /** The full row, including `_draft` / `_errors` / `_saving` metadata. */
+  row: Row<TData>;
+  /** The row's id, read from your `rowIdKey`. */
+  rowId: string;
+  /** The row merged with its pending draft — what the user currently sees. */
+  values: Row<TData>;
+  /** The grid's column definitions. */
+  columns: ColumnDef<TData>[];
+  /** True when the row has unsaved edits. */
+  isDirty: boolean;
+  /** True while a save for this row is in flight. */
+  isSaving: boolean;
+  /** False when the viewer lacks edit permission for this row. */
+  canEdit: boolean;
+  /** True when the session-level Edit Lock ("child lock") is on. */
+  editLocked: boolean;
+  /** Stage a field edit — same pipeline as the Details tab. */
+  setValue: (field: string, value: unknown) => void;
+  /** Save the row's pending draft. */
+  save: () => void;
+  /** Discard the row's pending draft. */
+  discard: () => void;
+  /** Close the panel. */
+  close: () => void;
+};
+
+/**
+ * A consumer-defined tab in the detail panel, passed inline in `panelTabs`
+ * alongside the built-in `'details'` / `'activity'` / `'files'` strings.
+ *
+ * @example
+ * panelTabs={[
+ *   'details',
+ *   {
+ *     id: 'history',
+ *     label: 'History',
+ *     icon: Clock,
+ *     badge: 4,
+ *     visible: (row) => !row._new,
+ *     render: ({ row, values }) => <AuditTrail recordId={row.id} />,
+ *   },
+ *   'files',
+ * ]}
+ */
+export type CustomPanelTab<TData = Record<string, unknown>> = {
+  /**
+   * Unique tab id. `'details'`, `'activity'` and `'files'` are reserved for the
+   * built-in tabs — a custom tab using one of them is ignored (with a dev-mode
+   * warning) so it can't silently replace a built-in.
+   */
+  id: string;
+  /** Tab strip label. */
+  label: string;
+  /** Optional icon component (e.g. a `lucide-react` icon), matching built-ins. */
+  icon?: React.ElementType;
+  /** Optional count/label pill shown after the tab label. */
+  badge?: string | number;
+  /** Hide the tab entirely, statically or per row. Default: visible. */
+  visible?: boolean | ((row: Row<TData>) => boolean);
+  /**
+   * Show the panel's Save/Discard footer under this tab. Default: `false` —
+   * a custom tab can render its own actions using `save`/`discard` from the
+   * render context instead.
+   */
+  showFooter?: boolean;
+  /** Render the tab body. Called with the current record and helpers. */
+  render: (ctx: PanelTabContext<TData>) => React.ReactNode;
+};
+
+/**
+ * One entry in `panelTabs`: either a built-in tab's name or a full custom
+ * tab definition. Order in the array is the order in the tab strip.
+ */
+export type PanelTabDef<TData = Record<string, unknown>> =
+  | PanelTab
+  | CustomPanelTab<TData>;
+
 // ─────────────────────────────────────────────────────────────
 //  FEATURE FLAGS
 // ─────────────────────────────────────────────────────────────
@@ -216,6 +337,15 @@ export type GridFeatures = {
    * `editLocked` yourself from outside the grid).
    */
   editLock?: boolean;
+
+  /**
+   * Show the panel mode switcher in the toolbar — a popover letting the user
+   * choose drawer / modal / page. Default: `true`.
+   *
+   * Automatically hidden when the side panel is disabled, or when a
+   * `panelMode` prop is passed (that means the app has already decided).
+   */
+  panelModeSwitcher?: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -695,6 +825,11 @@ export type GridConfig<TData = Record<string, unknown>> = {
    * - 'activity' tab is hidden if onAddComment is not provided
    * - 'files' tab is hidden if onUploadFile is not provided
    *
+   * Entries render in the order given, and an entry can be a full
+   * {@link CustomPanelTab} definition instead of a built-in tab's name.
+   * Note that passing this array opts out of the "all built-ins" default —
+   * list every built-in you want to keep alongside your custom tabs.
+   *
    * @example
    * // Details only
    * panelTabs={['details']}
@@ -702,8 +837,93 @@ export type GridConfig<TData = Record<string, unknown>> = {
    * @example
    * // Details + activity, no files
    * panelTabs={['details', 'activity']}
+   *
+   * @example
+   * // A custom tab between the built-in ones
+   * panelTabs={[
+   *   'details',
+   *   { id: 'history', label: 'History', icon: Clock,
+   *     render: ({ row }) => <AuditTrail recordId={row.id} /> },
+   *   'files',
+   * ]}
    */
-  panelTabs?: PanelTab[];
+  panelTabs?: PanelTabDef<TData>[];
+
+  // ── Panel presentation ───────────────────────────────────────
+
+  /**
+   * How the detail panel presents itself: a right-side `'drawer'` (default)
+   * or a centered `'modal'` dialog. See {@link PanelMode}.
+   *
+   * @example
+   * panelMode="modal"
+   */
+  panelMode?: PanelMode;
+
+  /**
+   * Detail panel width in pixels.
+   * Defaults to `440` (drawer) and `720` (modal). **Page mode has no default —
+   * it uses the full width of the box the grid vacated.** Pass a width there
+   * to cap and centre the record instead.
+   *
+   * In modal mode the panel never exceeds `92vw`, so it is an upper bound
+   * rather than a fixed width.
+   *
+   * @example
+   * panelWidth={560}
+   *
+   * @example
+   * // page mode, capped and centred rather than full-bleed
+   * <Reaktiform panelMode="page" panelWidth={960} />
+   */
+  panelWidth?: number;
+
+  /**
+   * Label on the page-mode back button. Ignored in drawer/modal mode.
+   * @default "Back to table"
+   *
+   * @example
+   * panelBackLabel="Back to procurement register"
+   */
+  panelBackLabel?: string;
+
+  /**
+   * Initial panel mode when uncontrolled (no `panelMode` prop passed).
+   * Ignored once a saved value exists under `storageKey`, since a user's
+   * chosen mode is expected to persist across reloads.
+   * @default "drawer"
+   */
+  initialPanelMode?: PanelMode;
+
+  /**
+   * Called when the user picks a mode from the toolbar switcher.
+   * Pair with `panelMode` for fully controlled usage.
+   */
+  onPanelModeChange?: (mode: PanelMode) => void;
+
+  /**
+   * Which modes the toolbar switcher offers. Defaults to all three.
+   * If the current mode is not in this list it falls back to the first entry.
+   *
+   * @example
+   * panelModes={['drawer', 'page']}
+   */
+  panelModes?: PanelMode[];
+
+  /**
+   * Fired when the detail panel opens for a row, in every panel mode.
+   *
+   * Pair with `onPanelClose` to give `panelMode="page"` a URL — reaktiform
+   * never touches browser history itself, so without this the Back button
+   * leaves your app rather than returning to the table.
+   *
+   * @example
+   * onPanelOpen={(row) => router.push(`?record=${row.id}`)}
+   */
+  onPanelOpen?: (row: TData) => void;
+
+  /** Fired when the detail panel closes. See `onPanelOpen`. */
+  onPanelClose?: () => void;
 
   // ── Initial State ────────────────────────────────────────────
 

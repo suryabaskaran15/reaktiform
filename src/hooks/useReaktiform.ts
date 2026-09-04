@@ -15,7 +15,13 @@ import { useUndo } from "./useUndo";
 import { useConditionalFormat } from "./useConditionalFormat";
 import { useComputedColumns } from "./useComputedColumns";
 import { generateId } from "../utils";
-import type { GridConfig, Row, SortingMode, AggregationMode } from "../types";
+import type {
+  GridConfig,
+  Row,
+  SortingMode,
+  AggregationMode,
+  PanelMode,
+} from "../types";
 
 export function useReaktiform<TData = Record<string, unknown>>(
   config: GridConfig<TData>,
@@ -28,6 +34,12 @@ export function useReaktiform<TData = Record<string, unknown>>(
     features = {},
     permissions = {},
     panelTabs,
+    panelMode: panelModeProp,
+    initialPanelMode,
+    onPanelModeChange,
+    panelModes,
+    panelWidth,
+    panelBackLabel,
     // Edit Lock
     editLocked: editLockedProp,
     onEditLockedChange,
@@ -83,6 +95,7 @@ export function useReaktiform<TData = Record<string, unknown>>(
   // what `permissions` already allows, never widens it — see canCreate/
   // canEditRow/canDeleteRow/canDuplicateRow/canSave below.
   const editLockedStore = useGridStore((s) => s.editLocked);
+  const panelModeStore = useGridStore((s) => s.panelMode);
 
   const canCreate = permissions.canCreate !== false && !editLockedStore;
   const canExport = permissions.canExport !== false; // reading isn't a mutation — unaffected by lock
@@ -267,6 +280,43 @@ export function useReaktiform<TData = Record<string, unknown>>(
     actionsRef.current.setEditLocked(next);
     onEditLockedChangeRef.current?.(next);
   }, [editLockedStore]);
+
+  // ── Panel mode — same controlled/uncontrolled contract as editLocked above.
+  // Seeded once from initialPanelMode/panelMode; loadPersistedState overrides
+  // that on mount when a storageKey holds a saved choice.
+  const panelModeSeeded = useRef(false);
+  useEffect(() => {
+    if (panelModeSeeded.current) return;
+    panelModeSeeded.current = true;
+    const seed = initialPanelMode ?? panelModeProp;
+    if (seed && seed !== panelModeStore) actionsRef.current.setPanelMode(seed);
+    // Seed runs once — later changes go through the sync effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Controlled mode only — skipped when `panelMode` is omitted.
+  useEffect(() => {
+    if (!initialized.current) return;
+    if (panelModeProp === undefined) return;
+    if (panelModeProp === panelModeStore) return;
+    actionsRef.current.setPanelMode(panelModeProp);
+  }, [panelModeProp, panelModeStore]);
+
+  // A restricted `panelModes` list plus a stale persisted value would otherwise
+  // strand the user in a mode the switcher can't show — snap to the first
+  // allowed entry instead.
+  useEffect(() => {
+    if (!panelModes?.length) return;
+    if (panelModes.includes(panelModeStore)) return;
+    actionsRef.current.setPanelMode(panelModes[0]!);
+  }, [panelModes, panelModeStore]);
+
+  const onPanelModeChangeRef = useRef(onPanelModeChange);
+  onPanelModeChangeRef.current = onPanelModeChange;
+  const setPanelMode = useCallback((mode: PanelMode) => {
+    actionsRef.current.setPanelMode(mode);
+    onPanelModeChangeRef.current?.(mode);
+  }, []);
 
   // ── SERVER MODE: stable callback refs
   // Callbacks from consumer are often inline arrows that recreate every render.
@@ -729,6 +779,14 @@ export function useReaktiform<TData = Record<string, unknown>>(
     },
     // Panel tabs config
     panelTabs,
+    // Panel presentation config
+    panelMode: panelModeStore,
+    setPanelMode,
+    /** True when the consumer passed `panelMode` — the toolbar hides the switcher. */
+    panelModeLocked: panelModeProp !== undefined,
+    panelModes,
+    panelWidth,
+    panelBackLabel,
     onFetchMoreRef,
     isFetchingMoreRef,
     // Reaktiform.tsx sets this to auto-open the error popover on save failure

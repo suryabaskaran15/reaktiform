@@ -9,7 +9,7 @@ import {
   makeSelectStyles,
 } from "../../cells/SelectCell";
 import { OptionBadge } from "../../primitives/Badge";
-import { FormField, inputBase, inputError } from "../FormField";
+import { FormField, isPanelFieldFullRow, inputBase, inputError} from "../FormField";
 import type { ColumnDef } from "../../../types";
 
 export function SelectField<TData>({
@@ -35,7 +35,7 @@ export function SelectField<TData>({
       label={col.label}
       required={col.required}
       error={err}
-      className="rf-col-span-1"
+      fullRow={isPanelFieldFullRow(col)}
     >
       <Controller
         name={k}

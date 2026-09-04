@@ -8,7 +8,7 @@ import {
   invalidateLoadOptionsCache,
   makeSelectStyles,
 } from "../../cells/SelectCell";
-import { FormField } from "../FormField";
+import { FormField, isPanelFieldFullRow} from "../FormField";
 import type { ColumnDef } from "../../../types";
 
 export function MultiSelectField<TData>({
@@ -30,7 +30,7 @@ export function MultiSelectField<TData>({
       label={col.label}
       required={col.required}
       error={err}
-      className="rf-col-span-2"
+      fullRow={isPanelFieldFullRow(col)}
     >
       <Controller
         name={k}
