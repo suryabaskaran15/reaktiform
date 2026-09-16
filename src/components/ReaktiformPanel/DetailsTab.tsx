@@ -12,6 +12,8 @@ import { SelectField } from "./fields/SelectField";
 import { MultiSelectField } from "./fields/MultiSelectField";
 import { DateField } from "./fields/DateField";
 import { TimeField } from "./fields/TimeField";
+import { FormattedDateField } from "./fields/FormattedDateField";
+import { FormattedTimeField } from "./fields/FormattedTimeField";
 import { RatingField } from "./fields/RatingField";
 import { CheckboxField } from "./fields/CheckboxField";
 import { RichTextField } from "./fields/RichTextField";
@@ -157,6 +159,50 @@ export function DetailsTab<TData = Record<string, unknown>>({
             }, // onCommit
             () => {}, // onCancel (no-op in panel)
           )}
+        </FormField>
+      );
+    }
+
+    // ── Custom display formatter — mirrors CellRenderer's own
+    // `!isEditing && colDef.format` contract (CellRenderer.tsx), which runs
+    // before ITS type switch and so wins over every type-specific read
+    // renderer there (badge/progress/date/time/rating included). "Read mode"
+    // in the panel means isFieldReadOnly === true, OR the column type is
+    // unconditionally read-only regardless of isFieldReadOnly (badge/progress
+    // — see the comment on that block below). This MUST run before the
+    // badge/progress static displays and before the isFieldReadOnly block's
+    // richtext/time/rating bespoke displays, or those would keep winning over
+    // a consumer's format — the same bug class this closes for every type,
+    // not just the generic fallback below.
+    const isTypeAlwaysReadOnly = col.type === "badge" || col.type === "progress";
+    if ((isTypeAlwaysReadOnly || isFieldReadOnly) && col.format) {
+      const formatted = col.format(currentVal, rowForConstraint);
+      return (
+        <FormField
+          key={k}
+          label={col.label}
+          required={false}
+          error={undefined}
+          fullRow={isPanelFieldFullRow(col)}
+        >
+          <div
+            style={{
+              padding: "6px 10px",
+              fontSize: 12.5,
+              color: "var(--rf-text-2)",
+              background: "var(--rf-header)",
+              borderRadius: 7,
+              border: "1px solid var(--rf-border)",
+              opacity: 0.72,
+              minHeight: 34,
+              display: "flex",
+              alignItems: "center",
+              fontStyle: "italic",
+              userSelect: "none",
+            }}
+          >
+            {formatted}
+          </div>
         </FormField>
       );
     }
@@ -379,6 +425,9 @@ export function DetailsTab<TData = Record<string, unknown>>({
         );
       }
 
+      // col.format is handled by the unified check above, before this
+      // isFieldReadOnly block is even reached — this is the plain
+      // "no formatter set" fallback only.
       const displayVal = currentVal != null ? String(currentVal) : "—";
       return (
         <FormField
@@ -465,7 +514,23 @@ export function DetailsTab<TData = Record<string, unknown>>({
         );
 
       case "date":
-        return (
+        // A format function means "format is display, always" cannot be
+        // honored by a native <input type="date"> — its rendered text is
+        // 100% browser-controlled, editable or not. FormattedDateField
+        // keeps the field's own visible slot a formatted trigger at all
+        // times and moves the real native input into a picker popover.
+        return col.format ? (
+          <FormattedDateField<TData>
+            key={k}
+            col={col}
+            k={k}
+            err={err}
+            register={register}
+            rowForConstraint={rowForConstraint}
+            onFieldChange={onFieldChange}
+            currentVal={currentVal}
+          />
+        ) : (
           <DateField<TData>
             key={k}
             col={col}
@@ -478,7 +543,18 @@ export function DetailsTab<TData = Record<string, unknown>>({
         );
 
       case "time":
-        return (
+        return col.format ? (
+          <FormattedTimeField<TData>
+            key={k}
+            col={col}
+            k={k}
+            err={err}
+            register={register}
+            rowForConstraint={rowForConstraint}
+            onFieldChange={onFieldChange}
+            currentVal={currentVal}
+          />
+        ) : (
           <TimeField<TData>
             key={k}
             col={col}

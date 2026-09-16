@@ -1788,6 +1788,9 @@ function ReaktiformInner<TData = Record<string, unknown>>(
               {...(grid.panelWidth !== undefined && {
                 width: grid.panelWidth,
               })}
+              {...(grid.panelHeight !== undefined && {
+                height: grid.panelHeight,
+              })}
               {...(grid.panelBackLabel !== undefined && {
                 backLabel: grid.panelBackLabel,
               })}

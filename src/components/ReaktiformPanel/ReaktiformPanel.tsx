@@ -197,6 +197,15 @@ export type ReaktiformPanelProps<TData = Record<string, unknown>> = {
    */
   width?: number;
   /**
+   * Modal mode only — fixed panel height (both floor and ceiling, so the
+   * dialog never resizes when switching tabs; each tab's own content
+   * scrolls internally instead). Drawer is bounded by the full viewport
+   * height for free; page mode has its own `maxHeight`/`minHeight`/
+   * `autoHeight` instead.
+   * @default "85vh"
+   */
+  height?: string | number;
+  /**
    * Label on the page-mode back button. Ignored in drawer/modal mode.
    * @default "Back to table"
    */
@@ -272,6 +281,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
   renderAttachment,
   mode = "drawer",
   width,
+  height,
   backLabel = "Back to table",
   maxHeight,
   minHeight,
@@ -536,6 +546,7 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
   const isPage = mode === "page";
   // Page mode has no width default — it fills whatever box the grid vacated.
   const panelWidth = width ?? (isModal ? 720 : 440);
+  const panelHeight = height ?? "85vh";
 
   const titleId = useId();
   const shellRef = useRef<HTMLDivElement>(null);
@@ -666,7 +677,15 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
         left: "50%",
         top: "50%",
         width: `min(${panelWidth}px, 92vw)`,
-        maxHeight: "85vh",
+        // A fixed height (not just a ceiling) — same reasoning as page
+        // mode's maxHeight+minHeight pair above: the tab body's
+        // `flex-1 overflow-y-auto` only scrolls against a bounded parent.
+        // Without a floor here too, a short tab (e.g. Files with no
+        // attachments) shrinks the whole dialog instead of leaving the
+        // fixed box in place, which is what caused the height to visibly
+        // jump when switching tabs. Configurable via the `height` prop,
+        // same pattern as `width`/`panelWidth` above.
+        height: panelHeight,
         border: "1px solid var(--rf-border)",
         borderRadius: "var(--rf-radius-lg)",
         // The shell is a programmatic focus target (tabIndex={-1}), not a

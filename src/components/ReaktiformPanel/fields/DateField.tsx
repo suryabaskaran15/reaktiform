@@ -1,6 +1,11 @@
 import type { UseFormRegister } from "react-hook-form";
 import { cn, resolveConstraint } from "../../../utils";
-import { FormField, isPanelFieldFullRow, inputBase, inputError} from "../FormField";
+import {
+  FormField,
+  isPanelFieldFullRow,
+  inputBase,
+  inputError,
+} from "../FormField";
 import type { ColumnDef, Row } from "../../../types";
 
 export function DateField<TData>({
@@ -39,6 +44,7 @@ export function DateField<TData>({
         onChange={(e) => {
           onFieldChange(k, e.target.value ?? "");
         }}
+        placeholder="dd/mm/yyyy"
       />
     </FormField>
   );

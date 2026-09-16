@@ -879,6 +879,20 @@ export type GridConfig<TData = Record<string, unknown>> = {
   panelWidth?: number;
 
   /**
+   * Modal mode only — fixed detail panel height (both floor and ceiling,
+   * so the dialog never resizes when switching tabs; each tab's own
+   * content scrolls internally instead). Drawer is bounded by the full
+   * viewport height for free; page mode has its own `maxHeight`/
+   * `minHeight`/`autoHeight` instead.
+   *
+   * @default "85vh"
+   *
+   * @example
+   * <Reaktiform panelMode="modal" panelHeight="70vh" />
+   */
+  panelHeight?: string | number;
+
+  /**
    * Label on the page-mode back button. Ignored in drawer/modal mode.
    * @default "Back to table"
    *

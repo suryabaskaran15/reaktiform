@@ -4,6 +4,28 @@ All notable changes to reaktiform will be documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`colDef.format` is now honored in the side panel's read-only state for
+  every column type, matching the grid's `CellRenderer` precedence exactly.**
+  Previously `DetailsTab` only applied `format` as a generic fallback for
+  plain types (text, number, date, select, etc.) when a field was
+  read-only/locked — `badge` and `progress` columns rendered their static
+  badge/progress-bar display unconditionally with no format check at all,
+  and `richtext`/`time`/`rating` columns rendered their own bespoke
+  read-only display (`RichTextViewer` / `formatTime()` / stars) that also
+  never consulted `format`. A single format check now runs before all of
+  these, mirroring `CellRenderer.tsx`'s `!isEditing && colDef.format`
+  precedence, and receives the merged (draft-aware) row like every other
+  formatter/constraint call site in the codebase.
+  - **Note for consumers who already set `format` on a `badge`/`progress`
+    column**: that `format` was previously silently ignored in the panel; it
+    now takes effect there too, matching the grid (where it already worked).
+  - Editable-state rendering is unchanged — a live-editable field still
+    binds directly to the raw stored value (matching the grid, which also
+    skips `format` while `isEditing`); a native `<input type="date">` still
+    displays in the browser's own locale format while being edited.
+
 ### Added
 
 - **Panel mode switcher.** A toolbar popover lets the user pick how records

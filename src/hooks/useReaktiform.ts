@@ -39,6 +39,7 @@ export function useReaktiform<TData = Record<string, unknown>>(
     onPanelModeChange,
     panelModes,
     panelWidth,
+    panelHeight,
     panelBackLabel,
     // Edit Lock
     editLocked: editLockedProp,
@@ -786,6 +787,7 @@ export function useReaktiform<TData = Record<string, unknown>>(
     panelModeLocked: panelModeProp !== undefined,
     panelModes,
     panelWidth,
+    panelHeight,
     panelBackLabel,
     onFetchMoreRef,
     isFetchingMoreRef,
