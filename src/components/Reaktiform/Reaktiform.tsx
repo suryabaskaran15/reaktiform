@@ -1936,6 +1936,9 @@ export function Reaktiform<TData = Record<string, unknown>>(
   return (
     <GridStoreProvider
       {...(props.storageKey !== undefined && { storageKey: props.storageKey })}
+      {...(props.onStoragePersist !== undefined && {
+        onStoragePersist: props.onStoragePersist,
+      })}
       initialState={{
         editLocked: props.editLocked ?? props.initialEditLocked ?? false,
       }}

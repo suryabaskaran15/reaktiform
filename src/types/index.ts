@@ -37,4 +37,5 @@ export type {
   FetchParams,
   UseReaktiformReturn,
   UploadProgressReporter,
+  PersistedGridState,
 } from './config'

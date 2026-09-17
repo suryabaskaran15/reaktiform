@@ -121,6 +121,7 @@ export type {
   FetchMoreParams,
   FetchParams,
   UseReaktiformReturn,
+  PersistedGridState,
 } from "./types";
 
 // ── CSS — consumers import separately:

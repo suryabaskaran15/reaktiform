@@ -1,4 +1,5 @@
 import { useRef, useEffect, useLayoutEffect } from "react";
+import { Calendar, Clock } from "lucide-react";
 import { cn } from "../../utils";
 import { formatDate, formatTime } from "../../utils";
 
@@ -37,6 +38,13 @@ export function DateCellRead({
 // ── EDIT MODE
 type DateCellEditProps = {
   value: string | null | undefined;
+  /**
+   * Display text shown while editing — either `colDef.format`'s output or
+   * reaktiform's own default `formatDate()`, computed by CellRenderer.tsx.
+   * The real input is invisible (see the header comment below), so this is
+   * the only thing actually visible in the cell while it's being edited.
+   */
+  formatted: string;
   minDate?: string | undefined;
   maxDate?: string | undefined;
   autoFocus?: boolean | undefined;
@@ -45,8 +53,24 @@ type DateCellEditProps = {
   className?: string;
 };
 
+// The real native <input type="date"> is layered `opacity: 0` directly on
+// top of a decorative box showing `formatted` — the same "invisible native
+// control over a custom visual" technique used for the panel's
+// FormattedDateField (src/components/ReaktiformPanel/fields/). This is what
+// lets an editing cell show `colDef.format`'s output (or reaktiform's own
+// default) instead of the browser's raw mm/dd/yyyy: clicking anywhere in
+// the cell hits the real (invisible) input and calls showPicker() to open
+// the browser's own native calendar, which is entirely browser-managed.
+//
+// Deliberately picker-only, not typable — a native input can never show OUR
+// format while actively being typed into (100% browser-rendered), so making
+// it typable would mean showing raw mm/dd/yyyy the moment it's focused,
+// which is exactly what this component exists to prevent. (A reveal-on-
+// focus variant was tried and rejected for exactly that reason — see
+// session history / the plan file.)
 export function DateCellEdit({
   value,
+  formatted,
   minDate,
   maxDate,
   autoFocus = true,
@@ -99,49 +123,55 @@ export function DateCellEdit({
   }
 
   return (
-    <input
-      ref={ref}
-      type="date"
-      defaultValue={value ?? ""}
-      min={minDate}
-      max={maxDate}
-      className={cn(
-        "w-full h-full border-none outline-none bg-transparent",
-        "font-mono text-[12.5px] text-rf-text-1 px-[10px] cursor-pointer",
-        className,
-      )}
-      onClick={() => {
-        committedRef.current = false; // reset so next pick can commit
-        try {
-          ref.current?.showPicker?.();
-        } catch {}
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          onCancel();
-        }
-        if (e.key === "Enter" || e.key === "Tab") {
-          e.preventDefault();
-          commit(ref.current?.value ?? "");
-        }
-      }}
-      onChange={(e) => {
-        // Fires when user picks from the calendar popup — commit + blur to close picker
-        if (e.target.value) {
+    <div className={cn("relative w-full h-full", className)}>
+      <div
+        aria-hidden="true"
+        className="flex items-center gap-1.5 h-full px-[10px] pointer-events-none font-mono text-[12.5px] text-rf-text-1"
+      >
+        <span className="flex-1 truncate">{formatted}</span>
+        <Calendar className="rf-icon-sm text-rf-text-3 shrink-0" />
+      </div>
+      <input
+        ref={ref}
+        type="date"
+        defaultValue={value ?? ""}
+        min={minDate}
+        max={maxDate}
+        aria-label={formatted}
+        className="absolute inset-0 w-full h-full border-none outline-none opacity-0 cursor-pointer"
+        onClick={() => {
+          committedRef.current = false; // reset so next pick can commit
+          try {
+            ref.current?.showPicker?.();
+          } catch {}
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+          if (e.key === "Enter" || e.key === "Tab") {
+            e.preventDefault();
+            commit(ref.current?.value ?? "");
+          }
+        }}
+        onChange={(e) => {
+          // Fires when user picks from the calendar popup — commit + blur to close picker
+          if (e.target.value) {
+            commit(e.target.value);
+            // Blur the input to close the native date picker popup.
+            // Without this the popup stays open after the user selects a date.
+            requestAnimationFrame(() => {
+              ref.current?.blur();
+            });
+          }
+        }}
+        onBlur={(e) => {
+          // Fallback for keyboard entry — commit on blur if not already committed
           commit(e.target.value);
-          // Blur the input to close the native date picker popup.
-          // Without this the popup stays open after the user selects a date.
-          requestAnimationFrame(() => {
-            ref.current?.blur();
-          });
-        }
-      }}
-      onBlur={(e) => {
-        // Fallback for keyboard entry — commit on blur if not already committed
-        commit(e.target.value);
-      }}
-    />
+        }}
+      />
+    </div>
   );
 }
 
@@ -201,14 +231,18 @@ export function TimeCellRead({
 // ── EDIT MODE
 type TimeCellEditProps = {
   value: string | null | undefined;
+  /** See DateCellEdit's `formatted` prop comment — same contract. */
+  formatted: string;
   autoFocus?: boolean;
   onCommit: (value: string) => void;
   onCancel: () => void;
   className?: string;
 };
 
+// See DateCellEdit's header comment — same invisible-overlay technique.
 export function TimeCellEdit({
   value,
+  formatted,
   autoFocus = true,
   onCommit,
   onCancel,
@@ -236,42 +270,48 @@ export function TimeCellEdit({
   }
 
   return (
-    <input
-      ref={ref}
-      type="time"
-      defaultValue={value ?? ""}
-      className={cn(
-        "w-full h-full border-none outline-none bg-transparent",
-        "font-mono text-[12.5px] text-rf-text-1 px-[10px] cursor-pointer",
-        className,
-      )}
-      onClick={() => {
-        committedRef.current = false;
-        try {
-          ref.current?.showPicker?.();
-        } catch {}
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          onCancel();
-        }
-        if (e.key === "Enter" || e.key === "Tab") {
-          e.preventDefault();
-          commit(ref.current?.value ?? "");
-        }
-      }}
-      onChange={(e) => {
-        if (e.target.value) {
+    <div className={cn("relative w-full h-full", className)}>
+      <div
+        aria-hidden="true"
+        className="flex items-center gap-1.5 h-full px-[10px] pointer-events-none font-mono text-[12.5px] text-rf-text-1"
+      >
+        <span className="flex-1 truncate">{formatted}</span>
+        <Clock className="rf-icon-sm text-rf-text-3 shrink-0" />
+      </div>
+      <input
+        ref={ref}
+        type="time"
+        defaultValue={value ?? ""}
+        aria-label={formatted}
+        className="absolute inset-0 w-full h-full border-none outline-none opacity-0 cursor-pointer"
+        onClick={() => {
+          committedRef.current = false;
+          try {
+            ref.current?.showPicker?.();
+          } catch {}
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+          if (e.key === "Enter" || e.key === "Tab") {
+            e.preventDefault();
+            commit(ref.current?.value ?? "");
+          }
+        }}
+        onChange={(e) => {
+          if (e.target.value) {
+            commit(e.target.value);
+            requestAnimationFrame(() => {
+              ref.current?.blur();
+            });
+          }
+        }}
+        onBlur={(e) => {
           commit(e.target.value);
-          requestAnimationFrame(() => {
-            ref.current?.blur();
-          });
-        }
-      }}
-      onBlur={(e) => {
-        commit(e.target.value);
-      }}
-    />
+        }}
+      />
+    </div>
   );
 }

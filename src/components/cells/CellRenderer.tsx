@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { resolveConstraint } from "../../utils";
+import { resolveConstraint, formatDate, formatTime } from "../../utils";
 import { OptionBadge } from "../primitives/Badge";
 import { TextCellRead, TextCellEdit } from "./TextCell";
 import { NumberCellRead, NumberCellEdit } from "./NumberCell";
@@ -461,6 +461,13 @@ export function CellRenderer<TData = Record<string, unknown>>({
       return isEditing ? (
         <DateCellEdit
           value={value != null ? String(value) : null}
+          formatted={
+            value != null
+              ? colDef.format
+                ? colDef.format(value, mergedRow(row))
+                : formatDate(String(value))
+              : "Pick date…" // matches DateCellRead's own placeholder default
+          }
           onCommit={(v) => onCommit(v)}
           onCancel={onCancel}
           {...(colDef.minDate !== undefined && {
@@ -484,6 +491,13 @@ export function CellRenderer<TData = Record<string, unknown>>({
       return isEditing ? (
         <TimeCellEdit
           value={value != null ? String(value) : null}
+          formatted={
+            value != null
+              ? colDef.format
+                ? colDef.format(value, mergedRow(row))
+                : formatTime(String(value))
+              : "Pick time…" // matches TimeCellRead's own placeholder default
+          }
           onCommit={(v) => onCommit(v)}
           onCancel={onCancel}
           {...(className !== undefined && { className })}

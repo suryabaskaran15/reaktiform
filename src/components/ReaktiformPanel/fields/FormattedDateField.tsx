@@ -1,5 +1,6 @@
 import type { UseFormRegister } from "react-hook-form";
 import type { SyntheticEvent } from "react";
+import { Calendar } from "lucide-react";
 import { cn, resolveConstraint } from "../../../utils";
 import { FormField, isPanelFieldFullRow, inputBase, inputError } from "../FormField";
 import type { ColumnDef, Row } from "../../../types";
@@ -16,6 +17,15 @@ import type { ColumnDef, Row } from "../../../types";
 // used across the web for custom-styled checkboxes/file inputs. No portal,
 // no backdrop, no positioning math — the field's own box never changes
 // shape, and only one input-shaped box is ever on screen for this field.
+//
+// Deliberately picker-only, not typable: a native input can never show OUR
+// custom format while actively being typed into (100% browser-rendered) —
+// making it typable would mean showing raw mm/dd/yyyy the moment you focus
+// it, which is exactly the problem this component exists to prevent. See
+// the plan file / session history for the tried-and-rejected alternative
+// (reveal-on-focus) — real typing support would require a fully custom
+// masked text input parsing a declared, structured date format, which
+// col.format (an arbitrary function) cannot generically provide.
 // ─────────────────────────────────────────────────────────────
 export function FormattedDateField<TData>({
   col,
@@ -60,10 +70,15 @@ export function FormattedDateField<TData>({
       <div style={{ position: "relative" }}>
         <div
           aria-hidden="true"
-          className={cn(inputBase, "text-left", err && inputError)}
+          className={cn(
+            inputBase,
+            "text-left flex items-center gap-1.5",
+            err && inputError,
+          )}
           style={{ pointerEvents: "none" }}
         >
-          {formatted}
+          <span className="flex-1 truncate">{formatted}</span>
+          <Calendar className="rf-icon-sm text-rf-text-3 shrink-0" />
         </div>
         <input
           {...dateRegister}

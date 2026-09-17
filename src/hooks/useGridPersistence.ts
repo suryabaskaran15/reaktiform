@@ -1,28 +1,16 @@
 import { useEffect, useRef } from "react";
 import type { GridStoreInstance } from "../store/gridStore";
-import type { ActiveFilters, CFRule, PanelMode } from "../types";
+import type { PersistedGridState } from "../types";
 
 // ─────────────────────────────────────────────────────────────
 //  PERSISTED STATE SHAPE
 //  Only user preferences — never raw row data or transient UI state.
 //  Sort and groupBy are intentionally excluded — they are session-only
 //  (resetting them on reload prevents confusing "why is this sorted?" UX).
+//  Shape lives in types/config.ts as `PersistedGridState` so it can also be
+//  the payload type for the `onStoragePersist` consumer callback.
 // ─────────────────────────────────────────────────────────────
-type PersistedState = {
-  version: number;
-  columnWidths: Record<string, number>;
-  hiddenColumns: string[];
-  pinnedColumns: string[];
-  columnOrder: string[];
-  activeFilters: ActiveFilters;
-  aggregations: Record<string, string>;
-  cfRules: CFRule[];
-  // editLocked IS persisted (unlike sort/groupBy) — resetting it to
-  // "unlocked" on every reload would defeat its purpose as a safety toggle.
-  editLocked: boolean;
-  // Optional so it can be added WITHOUT a version bump — see STORAGE_VERSION.
-  panelMode?: PanelMode;
-};
+type PersistedState = PersistedGridState;
 
 // ─────────────────────────────────────────────────────────────
 //  VERSION — bump this ONLY for changes old data cannot survive, e.g. a
@@ -129,10 +117,16 @@ export function loadPersistedState(
 export function useGridPersistence(
   storageKey: string | undefined,
   store: GridStoreInstance | null,
+  onStoragePersist?: (key: string, value: PersistedGridState) => void,
 ): void {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const storeRef = useRef(store);
   storeRef.current = store;
+  // Kept in a ref (not an effect dep) so callers don't need to memoize the
+  // callback — writing an inline arrow prop would otherwise resubscribe
+  // (and drop the debounce timer) on every render.
+  const onStoragePersistRef = useRef(onStoragePersist);
+  onStoragePersistRef.current = onStoragePersist;
 
   useEffect(() => {
     if (!storageKey || !store) return;
@@ -160,6 +154,7 @@ export function useGridPersistence(
           // sortState and groupByCol intentionally excluded
         };
         writeStorage(storageKey, persisted);
+        onStoragePersistRef.current?.(storageKey, persisted);
       }, 300);
     });
 

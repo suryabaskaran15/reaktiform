@@ -407,6 +407,25 @@ export type FetchParams = {
   pageSize?: number;
 };
 
+/**
+ * Shape written under `storageKey` on every persisted-state save. Handed to
+ * `onStoragePersist` so a consumer can mirror the same preferences into its
+ * own storage (server-side profile, IndexedDB, etc.) instead of relying on
+ * `localStorage` alone.
+ */
+export type PersistedGridState = {
+  version: number;
+  columnWidths: Record<string, number>;
+  hiddenColumns: string[];
+  pinnedColumns: string[];
+  columnOrder: string[];
+  activeFilters: ActiveFilters;
+  aggregations: Record<string, string>;
+  cfRules: CFRule[];
+  editLocked: boolean;
+  panelMode?: PanelMode;
+};
+
 // ─────────────────────────────────────────────────────────────
 //  MAIN GRID CONFIG
 // ─────────────────────────────────────────────────────────────
@@ -1100,6 +1119,21 @@ export type GridConfig<TData = Record<string, unknown>> = {
    * ```
    */
   storageKey?: string;
+
+  /**
+   * Called every time `storageKey` writes to localStorage — receives the
+   * same `key` and the persisted `value` that was just saved. Optional;
+   * has no effect unless `storageKey` is also set.
+   *
+   * Use it to mirror the same preferences elsewhere (a server-side profile,
+   * IndexedDB, etc.) alongside the built-in localStorage persistence.
+   *
+   * @example
+   * ```ts
+   * onStoragePersist={(key, value) => saveUserPref(key, value)}
+   * ```
+   */
+  onStoragePersist?: (key: string, value: PersistedGridState) => void;
 
   /**
    * Force dark mode on or off — overrides auto-detection.

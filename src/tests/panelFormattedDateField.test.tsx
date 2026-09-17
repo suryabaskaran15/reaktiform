@@ -8,7 +8,10 @@
 // type="time"> is layered invisibly (opacity: 0) directly on top of the
 // formatted display — there is no separate popup, no second visible box;
 // clicking anywhere in the field hits the real (invisible) input and
-// triggers the browser's own native picker via showPicker(). See
+// triggers the browser's own native picker via showPicker(). Deliberately
+// picker-only, not typable (see FormattedDateField.tsx's header comment):
+// a reveal-on-focus variant was tried and reverted because it necessarily
+// brings back raw mm/dd/yyyy the moment the field is focused. See
 // DetailsTab.tsx's switch for the col.format ? Formatted*Field : *Field
 // routing this suite exercises.
 //
@@ -97,6 +100,7 @@ describe("FormattedDateField", () => {
     expect(input).toBeTruthy();
     expect(input.tagName).toBe("INPUT");
     expect((input as HTMLInputElement).type).toBe("date");
+    expect(input).toHaveStyle({ opacity: "0" });
   });
 
   it("changing the (invisible) input commits the raw value and the formatted text updates", () => {

@@ -1,14 +1,17 @@
 import type { UseFormRegister } from "react-hook-form";
 import type { SyntheticEvent } from "react";
+import { Clock } from "lucide-react";
 import { cn } from "../../../utils";
 import { FormField, isPanelFieldFullRow, inputBase, inputError } from "../FormField";
 import type { ColumnDef, Row } from "../../../types";
 
 // ─────────────────────────────────────────────────────────────
 // FORMATTED TIME FIELD — the time-type counterpart to FormattedDateField.
-// See that file's header comment for the full rationale; kept as a
-// separate, parallel file rather than a shared base, matching how the
-// plain DateField/TimeField are also two independent files today.
+// See that file's header comment for the full rationale (formatted at all
+// times, picker-only rather than typable — see that comment for why
+// typing isn't supported); kept as a separate, parallel file rather than a
+// shared base, matching how the plain DateField/TimeField are also two
+// independent files today.
 // ─────────────────────────────────────────────────────────────
 export function FormattedTimeField<TData>({
   col,
@@ -49,10 +52,15 @@ export function FormattedTimeField<TData>({
       <div style={{ position: "relative" }}>
         <div
           aria-hidden="true"
-          className={cn(inputBase, "text-left", err && inputError)}
+          className={cn(
+            inputBase,
+            "text-left flex items-center gap-1.5",
+            err && inputError,
+          )}
           style={{ pointerEvents: "none" }}
         >
-          {formatted}
+          <span className="flex-1 truncate">{formatted}</span>
+          <Clock className="rf-icon-sm text-rf-text-3 shrink-0" />
         </div>
         <input
           {...timeRegister}

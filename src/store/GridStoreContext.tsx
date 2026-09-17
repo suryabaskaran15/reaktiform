@@ -16,6 +16,7 @@ import {
   loadPersistedState,
   useGridPersistence,
 } from "../hooks/useGridPersistence";
+import type { PersistedGridState } from "../types";
 
 // ── Context
 const GridStoreContext = createContext<GridStoreInstance | null>(null);
@@ -25,12 +26,14 @@ type GridStoreProviderProps = {
   children: ReactNode;
   initialState?: Partial<GridState>;
   storageKey?: string;
+  onStoragePersist?: (key: string, value: PersistedGridState) => void;
 };
 
 export function GridStoreProvider({
   children,
   initialState,
   storageKey,
+  onStoragePersist,
 }: GridStoreProviderProps) {
   const storeRef = useRef<GridStoreInstance | null>(null);
 
@@ -41,7 +44,7 @@ export function GridStoreProvider({
     }
   }
 
-  useGridPersistence(storageKey, storeRef.current);
+  useGridPersistence(storageKey, storeRef.current, onStoragePersist);
 
   return (
     <GridStoreContext.Provider value={storeRef.current}>
