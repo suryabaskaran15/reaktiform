@@ -534,8 +534,8 @@ export function CFPanel({
                       }
                       onChange={(e) => {
                         const { bg, text } = buildCFColors(e.target.value);
+                        // don't explicitly set optional properties to undefined
                         onUpdateRule(rule.id, {
-                          tone: undefined,
                           backgroundColor: bg,
                           textColor: text,
                         });
