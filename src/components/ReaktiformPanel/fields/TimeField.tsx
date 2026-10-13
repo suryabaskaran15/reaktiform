@@ -1,4 +1,3 @@
-import type { UseFormRegister } from "react-hook-form";
 import { cn } from "../../../utils";
 import { FormField, isPanelFieldFullRow, inputBase, inputError} from "../FormField";
 import type { ColumnDef } from "../../../types";
@@ -7,13 +6,13 @@ export function TimeField<TData>({
   col,
   k,
   err,
-  register,
+  value,
   onFieldChange,
 }: {
   col: ColumnDef<TData>;
   k: string;
   err: string | undefined;
-  register: UseFormRegister<Record<string, unknown>>;
+  value: unknown;
   onFieldChange: (field: string, value: unknown) => void;
 }) {
   return (
@@ -25,7 +24,7 @@ export function TimeField<TData>({
       fullRow={isPanelFieldFullRow(col)}
     >
       <input
-        {...register(k)}
+        value={typeof value === "string" ? value : ""}
         type="time"
         className={cn(inputBase, "font-mono", err && inputError)}
         onChange={(e) => {

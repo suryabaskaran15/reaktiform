@@ -144,7 +144,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
           height: "100%",
           padding: "0 10px",
           fontSize: 12.5,
-          color: "var(--rf-text-1)",
+          color: "var(--rf-cell-fg, var(--rf-text-1))",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -179,7 +179,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
           className="rf-flex rf-items-center px-[10px] rf-h-full rf-min-w-0"
           title={formatted}
         >
-          <span className="text-[12.5px] text-rf-text-1 rf-truncate">
+          <span className="text-[12.5px] text-rf-cell rf-truncate">
             {formatted}
           </span>
         </div>
@@ -328,7 +328,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
                 height: "100%",
                 padding: "0 10px",
                 fontSize: 12.5,
-                color: "var(--rf-text-1)",
+                color: "var(--rf-cell-fg, var(--rf-text-1))",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -603,7 +603,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
       ) : (
         <WithErrorTooltip isError={isError} errorMessage={errorMessage}>
           <div className="rf-flex rf-items-center justify-end px-[10px] rf-h-full">
-            <span className="text-[12.5px] rf-font-mono text-rf-text-1">
+            <span className="text-[12.5px] rf-font-mono text-rf-cell">
               {value != null && isFinite(Number(value)) ? (
                 Intl.NumberFormat(currLocale, {
                   style: "currency",
@@ -655,7 +655,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
                 }}
               />
             </div>
-            <span className="text-[11.5px] rf-font-mono text-rf-text-1 rf-flex-shrink-0">
+            <span className="text-[11.5px] rf-font-mono text-rf-cell rf-flex-shrink-0">
               {value != null
                 ? `${Number(value).toFixed(colDef.decimals ?? 1)}%`
                 : "—"}
@@ -724,7 +724,12 @@ export function CellRenderer<TData = Record<string, unknown>>({
               <OptionBadge option={opt} />
             ) : (
               // No matching option — plain text
-              <span style={{ fontSize: 12.5, color: "var(--rf-text-1)" }}>
+              <span
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--rf-cell-fg, var(--rf-text-1))",
+                }}
+              >
                 {label}
               </span>
             )
@@ -788,7 +793,7 @@ export function CellRenderer<TData = Record<string, unknown>>({
     default:
       return (
         <div className="rf-flex rf-items-center px-[10px] rf-h-full">
-          <span className="text-[13px] text-rf-text-1">
+          <span className="text-[13px] text-rf-cell">
             {String(value ?? "")}
           </span>
         </div>

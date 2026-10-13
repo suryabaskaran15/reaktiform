@@ -1180,6 +1180,28 @@ All colors are CSS custom properties scoped to `[data-reaktiform]`:
 </html>
 ```
 
+**Conditional formatting colors.** Each highlight tone (`red`, `orange`,
+`amber`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`) has a
+`--rf-cf-<tone>-bg` / `--rf-cf-<tone>-fg` pair, defined separately for
+light and dark mode. Rules store a `tone` rather than fixed colours, so they
+follow the active theme. Override the pair to match your palette:
+
+```css
+[data-theme="dark"] [data-reaktiform] {
+  --rf-cf-green-bg: color-mix(in srgb, #22c55e 16%, var(--rf-surface));
+  --rf-cf-green-fg: #86efac;
+}
+```
+
+Keep dark-mode backgrounds as subtle tints of `--rf-surface`, so that
+regular text (`--rf-text-*`) stays readable on highlighted rows. Custom
+picker colours get a dark-mode variant derived automatically.
+
+Highlighted rows draw their text in the tone's colour blended with
+`--rf-text-1`, which gives WCAG AAA contrast (7:1 or better) in both
+themes. `--rf-cf-fg-strength` controls the blend: `0%` uses plain theme
+text, `100%` uses the pure tone colour, and the default is `50%`.
+
 ---
 
 ## CSS Isolation

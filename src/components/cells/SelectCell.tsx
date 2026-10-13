@@ -377,12 +377,12 @@ export function SelectCellRead({
         option.color ? (
           <OptionBadge option={option} />
         ) : (
-          <span className="text-[13px] text-rf-text-1 truncate">
+          <span className="text-[13px] text-rf-cell truncate">
             {option.label}
           </span>
         )
       ) : value ? (
-        <span className="text-[13px] text-rf-text-1 truncate">{value}</span>
+        <span className="text-[13px] text-rf-cell truncate">{value}</span>
       ) : (
         <span className="text-[12px] text-rf-text-3 italic">{placeholder}</span>
       )}

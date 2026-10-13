@@ -33,7 +33,7 @@ function PreviewContent({
         style={{ width: 12, height: 12, color: "var(--rf-text-3)", marginRight: 4 }}
       />
       <span
-        className="text-[13px] text-rf-text-1 rf-truncate"
+        className="text-[13px] text-rf-cell rf-truncate"
         title={plain}
       >
         {preview}

@@ -100,6 +100,32 @@
   --rf-row-error-border: #dc2626;
   --rf-cell-focus: #3b5bdb; /* border color for a kb-focused cell/row that isn't being edited */
 
+  /* How much of a CF tone's hue the row text keeps; the rest is
+     --rf-text-1. 0% = plain theme text, 100% = pure tone text. */
+  --rf-cf-fg-strength: 50%;
+
+  /* Conditional formatting palettes — one bg/fg pair per CFTone. Light
+     values mirror CF_COLORS in utils/cfColors.ts; the dark block below
+     redefines them as subtle tints with light text. Host apps may override. */
+  --rf-cf-red-bg: #fff1f2;
+  --rf-cf-red-fg: #991b1b;
+  --rf-cf-orange-bg: #fff7ed;
+  --rf-cf-orange-fg: #9a3412;
+  --rf-cf-amber-bg: #fef3c7;
+  --rf-cf-amber-fg: #92400e;
+  --rf-cf-yellow-bg: #fefce8;
+  --rf-cf-yellow-fg: #854d0e;
+  --rf-cf-green-bg: #f0fdf4;
+  --rf-cf-green-fg: #166534;
+  --rf-cf-teal-bg: #f0fdfa;
+  --rf-cf-teal-fg: #115e59;
+  --rf-cf-blue-bg: #eff6ff;
+  --rf-cf-blue-fg: #1e40af;
+  --rf-cf-purple-bg: #faf5ff;
+  --rf-cf-purple-fg: #6b21a8;
+  --rf-cf-pink-bg: #fff0f6;
+  --rf-cf-pink-fg: #9d174d;
+
   /* Shadows */
   --rf-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
   --rf-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -174,6 +200,48 @@
   --rf-row-hover: #1a2744;
   --rf-row-selected: #1e2a4a;
   --rf-row-dirty: #1c1400;
+
+  /* Conditional formatting — subtle hue tint over the (possibly
+     host-overridden) surface + light hue text. Keeping the tint close to
+     the surface's luminance means every theme text token stays readable
+     on it too, not just --rf-cf-*-fg. */
+  --rf-cf-red-bg: color-mix(in srgb, #ef4444 16%, var(--rf-surface));
+  --rf-cf-red-fg: #fca5a5;
+  --rf-cf-orange-bg: color-mix(in srgb, #f97316 16%, var(--rf-surface));
+  --rf-cf-orange-fg: #fdba74;
+  --rf-cf-amber-bg: color-mix(in srgb, #f59e0b 16%, var(--rf-surface));
+  --rf-cf-amber-fg: #fcd34d;
+  --rf-cf-yellow-bg: color-mix(in srgb, #eab308 14%, var(--rf-surface));
+  --rf-cf-yellow-fg: #fde047;
+  --rf-cf-green-bg: color-mix(in srgb, #22c55e 16%, var(--rf-surface));
+  --rf-cf-green-fg: #86efac;
+  --rf-cf-teal-bg: color-mix(in srgb, #14b8a6 16%, var(--rf-surface));
+  --rf-cf-teal-fg: #5eead4;
+  --rf-cf-blue-bg: color-mix(in srgb, #3b82f6 18%, var(--rf-surface));
+  --rf-cf-blue-fg: #93c5fd;
+  --rf-cf-purple-bg: color-mix(in srgb, #a855f7 18%, var(--rf-surface));
+  --rf-cf-purple-fg: #d8b4fe;
+  --rf-cf-pink-bg: color-mix(in srgb, #ec4899 16%, var(--rf-surface));
+  --rf-cf-pink-fg: #f9a8d4;
+}
+
+/* Custom (non-tone) CF colours: the row carries both pairs inline
+   (--rf-cf-{bg,fg}-{light,dark}) plus data-rf-cf="custom"; pick the pair
+   for the active theme. Same dark-mode conventions as the block above. */
+[data-reaktiform] [data-rf-cf="custom"] {
+  --rf-cf-bg: var(--rf-cf-bg-light);
+  --rf-cf-fg: var(--rf-cf-fg-light);
+}
+.dark [data-reaktiform] [data-rf-cf="custom"],
+[data-reaktiform].dark [data-rf-cf="custom"],
+[data-theme="dark"] [data-reaktiform] [data-rf-cf="custom"],
+[data-reaktiform][data-theme="dark"] [data-rf-cf="custom"],
+[data-color-mode="dark"] [data-reaktiform] [data-rf-cf="custom"],
+[data-reaktiform][data-color-mode="dark"] [data-rf-cf="custom"],
+[data-bs-theme="dark"] [data-reaktiform] [data-rf-cf="custom"],
+[data-reaktiform][data-bs-theme="dark"] [data-rf-cf="custom"] {
+  --rf-cf-bg: var(--rf-cf-bg-dark);
+  --rf-cf-fg: var(--rf-cf-fg-dark);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -454,6 +522,11 @@ Generic names like .flex and .hidden ONLY apply inside
 /* ── Text colors ── */
 [data-reaktiform] .text-rf-text-1 {
   color: var(--rf-text-1);
+}
+/* Grid cell display text — follows a row-level override (conditional
+   formatting sets --rf-cell-fg on the <tr>), else the primary text color. */
+[data-reaktiform] .text-rf-cell {
+  color: var(--rf-cell-fg, var(--rf-text-1));
 }
 [data-reaktiform] .text-rf-text-2 {
   color: var(--rf-text-2);

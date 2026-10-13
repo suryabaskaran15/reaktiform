@@ -79,6 +79,7 @@ export type {
   CFCondition,
   CFConditionOperator,
   CFResult,
+  CFTone,
   GridConfig,
   GridFeatures,
   GridLabels,

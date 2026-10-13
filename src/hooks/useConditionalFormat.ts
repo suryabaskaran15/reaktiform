@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useGridStore } from "../store";
 import type { CFResult, Row } from "../types";
+import { getCFResult } from "../utils/cfColors";
 
 export function useConditionalFormat<TData = Record<string, unknown>>() {
   const cfRules = useGridStore((s) => s.cfRules);
@@ -50,12 +51,8 @@ export function useConditionalFormat<TData = Record<string, unknown>>() {
         const matched =
           rule.logic === "AND" ? results.every(Boolean) : results.some(Boolean);
 
-        if (matched) {
-          return {
-            backgroundColor: rule.backgroundColor,
-            textColor: rule.textColor,
-          };
-        }
+        // Theme-aware: resolves to --rf-cf-* tokens, never raw light-only hex
+        if (matched) return getCFResult(rule);
       }
 
       return null;

@@ -17,6 +17,7 @@ export const reaktiformPreset = {
         'rf-text-1':      'var(--rf-text-1)',
         'rf-text-2':      'var(--rf-text-2)',
         'rf-text-3':      'var(--rf-text-3)',
+        'rf-cell':        'var(--rf-cell-fg, var(--rf-text-1))',
         'rf-accent':      'var(--rf-accent)',
         'rf-accent-bg':   'var(--rf-accent-bg)',
         'rf-accent-br':   'var(--rf-accent-br)',

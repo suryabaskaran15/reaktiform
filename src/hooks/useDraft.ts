@@ -165,6 +165,29 @@ export function useDraft<TData = Record<string, unknown>>({
     [rows, rowIdKey, columns, getVal, actions],
   );
 
+  // ── Authoritative pre-save validation.
+  // Re-validates the merged row (committed data + draft) instead of trusting
+  // row._errors, which only reflects fields that went through markDirty —
+  // addRow starts a row with `_errors = {}`, so an untouched new row with
+  // empty required fields would otherwise be saved. Writes the fresh errors
+  // to the store so the grid and panel highlight what blocked the save.
+  // Returns true when the row may be saved.
+  const validateBeforeSave = useCallback(
+    (row: Row<TData>): boolean => {
+      const errors = validateRow(
+        columns as ColumnDef[],
+        { ...(row as Record<string, unknown>), ...(row._draft ?? {}) },
+        getCachedSchema(),
+      );
+      if (Object.keys(errors).length > 0) {
+        actions.updateRowInStore(row._id, { _errors: errors });
+        return false;
+      }
+      return true;
+    },
+    [columns, getCachedSchema, actions],
+  );
+
   // ── Save a single row (commit draft → row data)
   const saveRow = useCallback(
     async (rowId: string): Promise<boolean> => {
@@ -175,8 +198,7 @@ export function useDraft<TData = Record<string, unknown>>({
       if (!row || !row._draft) return false;
 
       // Block save if validation errors exist
-      const errors = row._errors ?? {};
-      if (Object.keys(errors).length > 0) return false;
+      if (!validateBeforeSave(row)) return false;
 
       const isNew = !!row._new;
 
@@ -338,6 +360,7 @@ export function useDraft<TData = Record<string, unknown>>({
       rowIdKey,
       columns,
       actions,
+      validateBeforeSave,
       onCreate,
       onUpdate,
       onSave,
@@ -392,12 +415,11 @@ export function useDraft<TData = Record<string, unknown>>({
     skipped: number;
   }> => {
     const dirty = rows.filter((r) => isDirty(r));
-    const valid = dirty.filter(
-      (r) => Object.keys(r._errors ?? {}).length === 0,
-    );
-    const invalid = dirty.filter(
-      (r) => Object.keys(r._errors ?? {}).length > 0,
-    );
+    // Re-validate every dirty row (see validateBeforeSave) — invalid rows get
+    // their errors written to the store and are skipped.
+    const valid: Row<TData>[] = [];
+    const invalid: Row<TData>[] = [];
+    for (const r of dirty) (validateBeforeSave(r) ? valid : invalid).push(r);
 
     if (!valid.length) return { saved: 0, skipped: invalid.length };
 
@@ -490,6 +512,7 @@ export function useDraft<TData = Record<string, unknown>>({
   }, [
     rows,
     isDirty,
+    validateBeforeSave,
     saveRow,
     rowIdKey,
     columns,

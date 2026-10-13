@@ -1,4 +1,3 @@
-import type { UseFormRegister } from "react-hook-form";
 import type { SyntheticEvent } from "react";
 import { Calendar } from "lucide-react";
 import { cn, resolveConstraint } from "../../../utils";
@@ -31,7 +30,6 @@ export function FormattedDateField<TData>({
   col,
   k,
   err,
-  register,
   rowForConstraint,
   onFieldChange,
   currentVal,
@@ -39,13 +37,11 @@ export function FormattedDateField<TData>({
   col: ColumnDef<TData>;
   k: string;
   err: string | undefined;
-  register: UseFormRegister<Record<string, unknown>>;
   rowForConstraint: Row<TData>;
   onFieldChange: (field: string, value: unknown) => void;
   currentVal: unknown;
 }) {
   const formatted = col.format!(currentVal, rowForConstraint);
-  const dateRegister = register(k);
 
   const openPicker = (e: SyntheticEvent<HTMLInputElement>) => {
     // Best-effort — not every browser supports showPicker() yet. Without
@@ -81,7 +77,7 @@ export function FormattedDateField<TData>({
           <Calendar className="rf-icon-sm text-rf-text-3 shrink-0" />
         </div>
         <input
-          {...dateRegister}
+          value={typeof currentVal === "string" ? currentVal : ""}
           type="date"
           {...(col.minDate !== undefined && {
             min: resolveConstraint(col.minDate, rowForConstraint),

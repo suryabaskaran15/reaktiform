@@ -1,4 +1,3 @@
-import type { UseFormRegister } from "react-hook-form";
 import { cn, resolveConstraint } from "../../../utils";
 import {
   FormField,
@@ -12,14 +11,14 @@ export function DateField<TData>({
   col,
   k,
   err,
-  register,
+  value,
   rowForConstraint,
   onFieldChange,
 }: {
   col: ColumnDef<TData>;
   k: string;
   err: string | undefined;
-  register: UseFormRegister<Record<string, unknown>>;
+  value: unknown;
   rowForConstraint: Row<TData>;
   onFieldChange: (field: string, value: unknown) => void;
 }) {
@@ -32,7 +31,7 @@ export function DateField<TData>({
       fullRow={isPanelFieldFullRow(col)}
     >
       <input
-        {...register(k)}
+        value={typeof value === "string" ? value : ""}
         type="date"
         {...(col.minDate !== undefined && {
           min: resolveConstraint(col.minDate, rowForConstraint),

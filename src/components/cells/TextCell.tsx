@@ -18,7 +18,7 @@ export function TextCellRead({
     <div className={cn('flex items-center px-[10px] h-full min-w-0', className)}>
       {value ? (
         <span
-          className="text-[13px] text-rf-text-1 overflow-hidden text-ellipsis whitespace-nowrap w-full"
+          className="text-[13px] text-rf-cell overflow-hidden text-ellipsis whitespace-nowrap w-full"
           title={value}
         >
           {value}
@@ -74,7 +74,7 @@ export function TextCellEdit({
 
   const baseClass = cn(
     'w-full border-none outline-none bg-transparent',
-    'font-[var(--rf-font-sans)] text-[13px] text-rf-text-1',
+    'font-[var(--rf-font-sans)] text-[13px] text-rf-cell',
     'placeholder:text-rf-text-3',
     className
   )

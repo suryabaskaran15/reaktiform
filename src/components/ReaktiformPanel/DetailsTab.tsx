@@ -1,10 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Lock } from "lucide-react";
 import { cn, resolveFieldValue, formatTime } from "../../utils";
 import { mergedRow } from "../cells/CellRenderer";
-import { buildZodSchema } from "../../validation/buildZodSchema";
+import { buildZodSchema, validateRow } from "../../validation/buildZodSchema";
 import { FormField, inputBase, isPanelFieldFullRow } from "./FormField";
 import { TextField } from "./fields/TextField";
 import { NumberField } from "./fields/NumberField";
@@ -20,6 +18,9 @@ import { RichTextField } from "./fields/RichTextField";
 import { RichTextViewer } from "../richtext/RichTextViewer";
 import { OptionBadge } from "../primitives/Badge";
 import type { ColumnDef, Row } from "../../types";
+
+// Stable empty overlay — keeps formRow's memo from busting every render.
+const EMPTY_EDITS: Record<string, unknown> = {};
 
 // ─────────────────────────────────────────────────────────────
 //  DETAILS TAB
@@ -48,9 +49,18 @@ export function DetailsTab<TData = Record<string, unknown>>({
   /** Live formula evaluator for `computed: true` columns — see ReaktiformPanelProps. */
   getComputedValue: (row: Row<TData>, colKey: string) => unknown;
 }) {
-  const nonComputedCols = columns.filter((c) => !c.computed);
-  const computedCols = columns.filter((c) => c.computed);
-  const schema = buildZodSchema(nonComputedCols);
+  const nonComputedCols = useMemo(
+    () => columns.filter((c) => !c.computed),
+    [columns],
+  );
+  const computedCols = useMemo(
+    () => columns.filter((c) => c.computed),
+    [columns],
+  );
+  const schema = useMemo(
+    () => buildZodSchema(nonComputedCols),
+    [nonComputedCols],
+  );
 
   // ── RESPONSIVE FIELD GRID ────────────────────────────────────
   // Column count comes from the FORM's own width, not the viewport: the same
@@ -90,50 +100,125 @@ export function DetailsTab<TData = Record<string, unknown>>({
     columnGap: 12,
   };
 
-  const buildDefaults = () => {
-    const vals: Record<string, unknown> = {};
+  // ── VALUES — the row is the single source of truth ─────────
+  // Every field is controlled by resolveFieldValue(row, col), i.e. the
+  // row's _draft over its committed data — exactly what the grid renders
+  // and what saveRow() commits. There is deliberately NO second form-state
+  // copy (this used to be react-hook-form): a parallel copy drifted from the
+  // row whenever a field's change didn't reach it, or the row changed from
+  // outside (undo/redo, an inline edit, a server sync) while the panel was
+  // open, and then blocked Save with "required" errors on filled fields.
+  //
+  // `localEdits` is a thin overlay for STANDALONE <ReaktiformPanel> usage,
+  // where onFieldChange is optional and the consumer may not feed edits back
+  // through `row`. It is tied to the row object it was written against: the
+  // grid's markDirty produces a new row object on every change, so inside
+  // <Reaktiform> the overlay is discarded on the very next render and the
+  // row wins — including external changes like undo. Discard (resetKey)
+  // clears it too.
+  const [localEdits, setLocalEdits] = useState<{
+    source: Row<TData>;
+    resetKey: number;
+    values: Record<string, unknown>;
+  }>({ source: row, resetKey, values: {} });
+  const activeEdits =
+    localEdits.source === row && localEdits.resetKey === resetKey
+      ? localEdits.values
+      : EMPTY_EDITS;
+
+  const handleChange = (field: string, value: unknown) => {
+    setLocalEdits((prev) => ({
+      source: row,
+      resetKey,
+      values: {
+        ...(prev.source === row && prev.resetKey === resetKey
+          ? prev.values
+          : {}),
+        [field]: value,
+      },
+    }));
+    onFieldChange(field, value);
+  };
+
+  const getValue = (col: ColumnDef<TData>): unknown => {
+    const k = col.key as string;
+    return k in activeEdits ? activeEdits[k] : resolveFieldValue(row, col);
+  };
+
+  // Draft-aware row (plus any standalone overlay) — what dynamic constraints,
+  // formatters and validation all see. Same shape markDirty validates.
+  const formRow = useMemo(
+    () => ({ ...mergedRow<TData>(row), ...activeEdits }) as Row<TData>,
+    [row, activeEdits],
+  );
+
+  // ── VALIDATION — validateRow is the only validator ──────────
+  // Same function (Zod rules + dynamic constraints + col.validate) the grid
+  // runs in markDirty and saveRow, so panel and inline messages are always
+  // identical.
+  const liveErrors = useMemo(
+    () =>
+      validateRow(
+        nonComputedCols,
+        formRow as unknown as Record<string, unknown>,
+        schema,
+      ),
+    [nonComputedCols, formRow, schema],
+  );
+
+  // Before the first Save attempt only the grid's own errors (row._errors —
+  // set by inline/panel edits) show, matching inline behaviour: a fresh
+  // record isn't covered in "required" messages before the user has done
+  // anything. After a blocked Save every live error shows, and each one
+  // clears the moment its field becomes valid. Tied to resetKey so Discard
+  // returns the form to its pristine state.
+  const [submitAttemptedAt, setSubmitAttemptedAt] = useState<number | null>(
+    null,
+  );
+  const submitAttempted = submitAttemptedAt === resetKey;
+  // Bumped on every blocked submit so the scroll-to-error effect re-runs
+  // even when submitAttempted was already true.
+  const [blockedSubmits, setBlockedSubmits] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (blockedSubmits === 0) return;
+    const errEl = formRef.current?.querySelector("[data-rf-field-error]");
+    const fieldEl = errEl?.parentElement;
+    fieldEl?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    const focusable = fieldEl?.querySelector<HTMLElement>(
+      "input, select, textarea, button, [contenteditable='true']",
+    );
+    focusable?.focus({ preventScroll: true });
+  }, [blockedSubmits]);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (Object.keys(liveErrors).length > 0) {
+      setSubmitAttemptedAt(resetKey);
+      setBlockedSubmits((n) => n + 1);
+      return;
+    }
+    const data: Record<string, unknown> = {};
     nonComputedCols.forEach((col) => {
-      const k = col.key as string;
-      vals[k] = resolveFieldValue(row, col);
+      data[col.key as string] = getValue(col);
     });
-    return vals;
+    onSave(data);
   };
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: buildDefaults(),
-    mode: "onChange",
-    reValidateMode: "onChange",
-  });
-
-  // Reset form whenever resetKey increments (Discard was clicked) or row changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    reset(buildDefaults());
-  }, [resetKey, rowId]);
-
-  // Merge RHF errors with grid-level errors (row._errors) so the form
-  // always shows errors that were set by inline editing or on save.
-  const getFieldError = (k: string): string | undefined => {
-    const rhfErr = (errors as Record<string, { message?: string }>)[k]?.message;
-    if (rhfErr) return rhfErr;
-    return row._errors?.[k];
-  };
+  // row._errors first: inside the grid it is recomputed on every edit, and
+  // it also carries errors set by inline editing or a blocked grid save.
+  const getFieldError = (k: string): string | undefined =>
+    row._errors?.[k] ?? (submitAttempted ? liveErrors[k] : undefined);
 
   const renderField = (col: ColumnDef<TData>) => {
     const k = col.key as string;
     const err = getFieldError(k);
-    const currentVal = resolveFieldValue(row, col);
+    const currentVal = getValue(col);
     // Resolve readOnly — boolean or (row) => boolean. Also used for
     // resolveConstraint below so dynamic min/max/minDate/maxDate see
     // in-session edits, not just the last-saved row.
-    const rowForConstraint = mergedRow<TData>(row);
+    const rowForConstraint = formRow;
     const isFieldReadOnly =
       editLocked ||
       !canEdit ||
@@ -155,7 +240,7 @@ export function DetailsTab<TData = Record<string, unknown>>({
             currentVal,
             row as unknown as TData,
             (v) => {
-              onFieldChange(k, v);
+              handleChange(k, v);
             }, // onCommit
             () => {}, // onCancel (no-op in panel)
           )}
@@ -469,8 +554,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            register={register}
-            onFieldChange={onFieldChange}
+            value={currentVal}
+            onFieldChange={handleChange}
           />
         );
 
@@ -483,9 +568,9 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            register={register}
+            value={currentVal}
             rowForConstraint={rowForConstraint}
-            onFieldChange={onFieldChange}
+            onFieldChange={handleChange}
           />
         );
 
@@ -496,8 +581,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            control={control}
-            onFieldChange={onFieldChange}
+            value={currentVal}
+            onFieldChange={handleChange}
           />
         );
 
@@ -508,8 +593,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            control={control}
-            onFieldChange={onFieldChange}
+            value={currentVal}
+            onFieldChange={handleChange}
           />
         );
 
@@ -525,9 +610,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            register={register}
             rowForConstraint={rowForConstraint}
-            onFieldChange={onFieldChange}
+            onFieldChange={handleChange}
             currentVal={currentVal}
           />
         ) : (
@@ -536,9 +620,9 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            register={register}
+            value={currentVal}
             rowForConstraint={rowForConstraint}
-            onFieldChange={onFieldChange}
+            onFieldChange={handleChange}
           />
         );
 
@@ -549,9 +633,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            register={register}
             rowForConstraint={rowForConstraint}
-            onFieldChange={onFieldChange}
+            onFieldChange={handleChange}
             currentVal={currentVal}
           />
         ) : (
@@ -560,8 +643,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            register={register}
-            onFieldChange={onFieldChange}
+            value={currentVal}
+            onFieldChange={handleChange}
           />
         );
 
@@ -572,8 +655,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            control={control}
-            onFieldChange={onFieldChange}
+            value={currentVal}
+            onFieldChange={handleChange}
           />
         );
 
@@ -583,8 +666,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             key={k}
             col={col}
             k={k}
-            register={register}
-            onFieldChange={onFieldChange}
+            value={currentVal}
+            onFieldChange={handleChange}
           />
         );
 
@@ -595,8 +678,8 @@ export function DetailsTab<TData = Record<string, unknown>>({
             col={col}
             k={k}
             err={err}
-            control={control}
-            onFieldChange={onFieldChange}
+            value={currentVal}
+            onFieldChange={handleChange}
           />
         );
 
@@ -607,8 +690,10 @@ export function DetailsTab<TData = Record<string, unknown>>({
 
   return (
     <form
+      ref={formRef}
       id={`rf-details-form-${rowId}`}
-      onSubmit={handleSubmit((data) => onSave(data as Record<string, unknown>))}
+      noValidate
+      onSubmit={handleSubmit}
     >
       <div ref={gridRef} style={fieldGridStyle}>
         {nonComputedCols.map(renderField)}

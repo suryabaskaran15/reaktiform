@@ -5,6 +5,7 @@ import { ErrorPopover } from "../overlays/ErrorPopover";
 import { ChevronRight, Save, X, Copy, Trash2 } from "lucide-react";
 import type { Row, ColumnDef } from "../../types";
 import type { GridApi } from "./types";
+import { CF_TEXT_COLOR } from "../../utils/cfColors";
 
 // ─────────────────────────────────────────────────────────────
 //  GRID ROW — one <tr> of grid data, extracted from Reaktiform.tsx
@@ -153,6 +154,9 @@ function GridRowImpl<TData>({
   const isDirty = row._draft !== null;
   const hasErrors = Object.keys(row._errors ?? {}).length > 0;
   const cfResult = evalCF(row);
+  // Single CF precedence flag shared by the <tr> and every cell: dirty and
+  // selected row states always win over a conditional-format highlight.
+  const cfActive = cfResult !== null && !isDirty && !isSelected;
 
   // Same precedence as rowStyle's background/border chain below. Applied to
   // the <tr> AND (redundantly, on purpose) to whichever leading pinned
@@ -185,12 +189,20 @@ function GridRowImpl<TData>({
           ? { borderLeft: edgeBorder }
           : isSelected
             ? { background: "var(--rf-row-selected)", borderLeft: edgeBorder }
-            : cfResult && !isDirty && !hasErrors
-              ? {
-                  background: cfResult.backgroundColor,
-                  color: cfResult.textColor,
-                }
+            : cfActive
+              ? { background: "var(--rf-cf-bg)" }
               : {}),
+    // CF colours come from theme tokens (--rf-cf-bg / --rf-cf-fg, defined by
+    // cfResult.vars), so a theme switch needs no re-render. --rf-cell-fg is
+    // what cell display text (.text-rf-cell) reads — plain `color` on the
+    // <tr> alone would be overridden by each cell's own text colour.
+    ...(cfActive && cfResult
+      ? {
+          ...(cfResult.vars as React.CSSProperties),
+          ["--rf-cell-fg" as string]: CF_TEXT_COLOR,
+          color: CF_TEXT_COLOR,
+        }
+      : {}),
   };
 
   // Consumer row props
@@ -200,6 +212,7 @@ function GridRowImpl<TData>({
     <tr
       key={rowId}
       data-row-id={rowId}
+      data-rf-cf={cfActive && cfResult?.tone === null ? "custom" : undefined}
       data-disabled={isDisabled || undefined}
       style={{
         ...rowStyle,
@@ -238,7 +251,9 @@ function GridRowImpl<TData>({
               ? "var(--rf-row-dirty)"
               : isSelected
                 ? "var(--rf-row-selected)"
-                : "var(--rf-surface)",
+                : cfActive
+                  ? "var(--rf-cf-bg)"
+                  : "var(--rf-surface)",
             position: "sticky",
             left: pinOffsets["_cb"] ?? 0,
             zIndex: 20,
@@ -306,8 +321,8 @@ function GridRowImpl<TData>({
               ? "var(--rf-row-dirty)"
               : isSelected
                 ? "var(--rf-row-selected)"
-                : cfResult
-                  ? cfResult.backgroundColor
+                : cfActive
+                  ? "var(--rf-cf-bg)"
                   : "var(--rf-surface)",
             position: "sticky",
             left: pinOffsets["_rn"] ?? 40,
@@ -376,7 +391,11 @@ function GridRowImpl<TData>({
             <span
               style={{
                 fontSize: 11,
-                color: isKbFocused ? "var(--rf-cell-focus)" : "var(--rf-text-3)",
+                color: isKbFocused
+                  ? "var(--rf-cell-focus)"
+                  : cfActive
+                    ? "var(--rf-cell-fg)"
+                    : "var(--rf-text-3)",
                 fontFamily: "var(--rf-font-mono)",
                 fontWeight: isKbFocused ? 700 : undefined,
               }}
@@ -410,8 +429,8 @@ function GridRowImpl<TData>({
               ? "var(--rf-row-dirty)"
               : isSelected
                 ? "var(--rf-row-selected)"
-                : cfResult
-                  ? cfResult.backgroundColor
+                : cfActive
+                  ? "var(--rf-cf-bg)"
                   : "var(--rf-surface)",
             position: "sticky",
             left: pinOffsets["_exp"] ?? 84,
@@ -445,7 +464,9 @@ function GridRowImpl<TData>({
                   : "transparent",
                 color: expandedRowIds.has(rowId)
                   ? "var(--rf-accent)"
-                  : "var(--rf-text-3)",
+                  : cfActive
+                    ? "var(--rf-cell-fg)"
+                    : "var(--rf-text-3)",
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
@@ -478,7 +499,11 @@ function GridRowImpl<TData>({
                 borderRadius: 6,
                 border: `1px solid ${isPanelOpen ? "var(--rf-accent)" : "var(--rf-border)"}`,
                 background: isPanelOpen ? "var(--rf-accent)" : "transparent",
-                color: isPanelOpen ? "#fff" : "var(--rf-text-3)",
+                color: isPanelOpen
+                  ? "#fff"
+                  : cfActive
+                    ? "var(--rf-cell-fg)"
+                    : "var(--rf-text-3)",
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
@@ -539,8 +564,8 @@ function GridRowImpl<TData>({
             ? "var(--rf-row-dirty)"
             : isSelected
               ? "var(--rf-row-selected)"
-              : cfResult
-                ? cfResult.backgroundColor
+              : cfActive
+                ? "var(--rf-cf-bg)"
                 : "var(--rf-surface)";
 
         return (
@@ -556,10 +581,21 @@ function GridRowImpl<TData>({
               // Pinned cells always win over all non-pinned cells.
               // Non-pinned editing/focused cells use lower z-index so they
               // never visually overlap the sticky column.
-              zIndex: isPinned ? 20 : isEditing ? 18 : isKbCell ? 15 : undefined,
+              zIndex: isPinned
+                ? 20
+                : isEditing
+                  ? 18
+                  : isKbCell
+                    ? 15
+                    : undefined,
               // Every cell has an explicit opaque background. Without this,
               // transparent cells bleed text over sticky pinned cols.
               background: cellBg,
+              // The editor sits on --rf-accent-bg, not the CF tint — drop the
+              // row's CF text colour so typed text uses the normal color.
+              ...(isEditing && cfActive
+                ? { ["--rf-cell-fg" as string]: "var(--rf-text-1)" }
+                : {}),
               outline: isEditing
                 ? "2px solid var(--rf-accent)"
                 : isKbCell

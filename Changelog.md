@@ -6,6 +6,52 @@ All notable changes to reaktiform will be documented here.
 
 ### Fixed
 
+- **Conditional formatting is readable in dark mode, and the rule's text
+  colour now actually applies.** Rules painted their light-only hex
+  background as-is while every cell kept its own `--rf-text-1` colour (the
+  rule's `textColor` was set on the `<tr>` and always overridden), so dark
+  mode showed near-white text on a near-white pastel. Highlights now come
+  from theme tokens:
+  - New `--rf-cf-<tone>-bg` / `--rf-cf-<tone>-fg` tokens (red, orange,
+    amber, yellow, green, teal, blue, purple, pink) for light and dark mode.
+    Dark mode uses a subtle hue tint over `--rf-surface` with light hue
+    text. Host apps can override them like any other `--rf-*` token.
+  - `CFRule.tone?: CFTone` (new, optional). Rules saved without it are
+    migrated at evaluation time: a preset hex maps back to its tone, and
+    any other colour gets a derived dark-mode pair. No storage reset.
+  - Row text blends the tone's colour 50% toward `--rf-text-1`, reaching
+    WCAG AAA (7:1 or better) in both themes; pure tone text was only
+    6–8:1. Tune it with the new `--rf-cf-fg-strength` token (`0%` = plain
+    theme text, `100%` = pure tone colour).
+  - The tint and text colour now also apply to the checkbox, row-number and
+    expander columns. Cell display text reads `--rf-cell-fg` (new
+    `.text-rf-cell` utility).
+  - **`CFResult` shape (additive):** `backgroundColor` / `textColor` are
+    now CSS `var()` values that resolve inside `[data-reaktiform]`, plus new
+    `tone` and `vars` fields.
+
+- **Side panel: required fields no longer stay "required" after being
+  filled, and Save works again.** `DetailsTab` kept a parallel
+  react-hook-form copy of the values, but every native field (text, number,
+  date, formatted date, time, formatted time, checkbox) overrode RHF's
+  `onChange`, so that copy never saw edits — the panel showed the new value
+  (read from the row) while Save validated the stale one and was blocked.
+  The panel is now controlled directly by the row (`_draft` over committed
+  data) and validated only by `validateRow`, the same function inline
+  editing uses. Side effects of the same fix:
+  - The open panel now reflects undo/redo, inline edits and server syncs.
+  - The panel shows the same `validate()` and dynamic `minDate`/`maxDate`/
+    `min`/`max` messages as inline editing (the RHF schema skipped them).
+  - A blocked Save scrolls to and focuses the first invalid field.
+  - `react-hook-form` and `@hookform/resolvers` are no longer dependencies.
+- **`saveRow` / `saveAll` re-validate before saving.** They previously only
+  checked the stored `row._errors`, which `addRow` initialises to `{}`, so an
+  untouched new row with an empty required field could be saved. Invalid
+  rows now get their errors written to `_errors` and are skipped
+  (`saveAll` counts them in `skipped`).
+  - **Note for consumers:** rows that previously slipped through with
+    missing required values are now blocked until fixed.
+
 - **`colDef.format` is now honored in the side panel's read-only state for
   every column type, matching the grid's `CellRenderer` precedence exactly.**
   Previously `DetailsTab` only applied `format` as a generic fallback for

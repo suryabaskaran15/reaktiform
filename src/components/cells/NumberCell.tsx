@@ -44,7 +44,7 @@ export function NumberCellRead({
       {isEmpty ? (
         <span className="text-[12px] text-rf-text-3 italic">—</span>
       ) : (
-        <span className="font-mono text-[12.5px] text-rf-text-1">
+        <span className="font-mono text-[12.5px] text-rf-cell">
           {prefix}
           {formatted}
           {suffix}
@@ -126,7 +126,7 @@ export function NumberCellEdit({
       max={max}
       className={cn(
         "w-full h-full border-none outline-none bg-transparent",
-        "font-mono text-[13px] text-rf-text-1 px-[10px]",
+        "font-mono text-[13px] text-rf-cell px-[10px]",
         "placeholder:text-rf-text-3",
         "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
         className,

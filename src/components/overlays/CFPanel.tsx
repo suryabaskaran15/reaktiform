@@ -3,9 +3,29 @@ import { createPortal } from "react-dom";
 import { Palette, X } from "lucide-react";
 import { cn } from "../../utils";
 import { useAnchoredPosition } from "./useAnchoredPosition";
-import { CF_COLORS, getCFOps, buildCFColors } from "./cfHelpers";
+import { getCFOps } from "./cfHelpers";
+import {
+  CF_COLORS,
+  CF_TEXT_COLOR,
+  buildCFColors,
+  getCFResult,
+  resolveCFTone,
+} from "../../utils/cfColors";
 import { CFConditionValueInput } from "./CFConditionValueInput";
 import type { ColumnDef, CFRule, CFCondition } from "../../types";
+
+// Paint an element with a rule's colours for the ACTIVE theme — the same
+// `--rf-cf-bg` / `--rf-cf-fg` the grid row uses, so the preview never lies.
+function cfPaint(rule: CFRule): {
+  style: CSSProperties;
+  "data-rf-cf"?: "custom";
+} {
+  const cf = getCFResult(rule);
+  return {
+    style: cf.vars as CSSProperties,
+    ...(cf.tone === null ? { "data-rf-cf": "custom" as const } : {}),
+  };
+}
 
 // ─────────────────────────────────────────────────────────────
 //  CFPanel
@@ -423,13 +443,15 @@ export function CFPanel({
                 >
                   {/* Preset swatches */}
                   {CF_COLORS.map((preset) => {
-                    const active = rule.backgroundColor === preset.bg;
+                    const active = resolveCFTone(rule) === preset.tone;
+                    const swatchBg = `var(--rf-cf-${preset.tone}-bg)`;
                     return (
                       <button
                         key={preset.label}
                         title={preset.label}
                         onClick={() =>
                           onUpdateRule(rule.id, {
+                            tone: preset.tone,
                             backgroundColor: preset.bg,
                             textColor: preset.text,
                           })
@@ -439,11 +461,11 @@ export function CFPanel({
                           height: 22,
                           borderRadius: "50%",
                           cursor: "pointer",
-                          background: preset.bg,
-                          border: `2px solid ${active ? S.accent : preset.bg}`,
+                          background: swatchBg,
+                          border: `2px solid ${active ? S.accent : swatchBg}`,
                           boxShadow: active
                             ? `0 0 0 2px ${S.accentBr}`
-                            : "inset 0 0 0 1px rgba(0,0,0,.12)",
+                            : `inset 0 0 0 1px color-mix(in srgb, var(--rf-cf-${preset.tone}-fg) 35%, transparent)`,
                           transform: active ? "scale(1.2)" : "scale(1)",
                           transition: "all 120ms ease",
                         }}
@@ -463,8 +485,10 @@ export function CFPanel({
 
                   {/* Custom color picker */}
                   <label
-                    title="Pick custom color — auto-converted to a light pastel"
+                    title="Pick custom color — auto-converted to a readable light/dark pair"
+                    data-rf-cf={cfPaint(rule)["data-rf-cf"]}
                     style={{
+                      ...cfPaint(rule).style,
                       width: 22,
                       height: 22,
                       borderRadius: "50%",
@@ -476,11 +500,10 @@ export function CFPanel({
                       overflow: "hidden",
                       position: "relative",
                       flexShrink: 0,
-                      background: !CF_COLORS.some(
-                        (p) => p.bg === rule.backgroundColor,
-                      )
-                        ? rule.backgroundColor
-                        : S.header,
+                      background:
+                        resolveCFTone(rule) === null
+                          ? "var(--rf-cf-bg)"
+                          : S.header,
                     }}
                   >
                     <span
@@ -512,6 +535,7 @@ export function CFPanel({
                       onChange={(e) => {
                         const { bg, text } = buildCFColors(e.target.value);
                         onUpdateRule(rule.id, {
+                          tone: undefined,
                           backgroundColor: bg,
                           textColor: text,
                         });
@@ -532,14 +556,16 @@ export function CFPanel({
                       Preview:
                     </span>
                     <div
+                      data-rf-cf={cfPaint(rule)["data-rf-cf"]}
                       style={{
+                        ...cfPaint(rule).style,
                         padding: "3px 10px",
                         borderRadius: 6,
                         fontSize: 12,
                         fontWeight: 600,
-                        background: rule.backgroundColor,
-                        color: rule.textColor,
-                        border: `1px solid ${rule.backgroundColor}`,
+                        background: "var(--rf-cf-bg)",
+                        color: CF_TEXT_COLOR,
+                        border: "1px solid var(--rf-cf-bg)",
                         boxShadow: "0 1px 3px rgba(0,0,0,.08)",
                       }}
                     >
@@ -549,7 +575,7 @@ export function CFPanel({
                 </div>
 
                 {/* Custom hex info */}
-                {!CF_COLORS.some((p) => p.bg === rule.backgroundColor) && (
+                {resolveCFTone(rule) === null && (
                   <div
                     style={{ display: "flex", alignItems: "center", gap: 6 }}
                   >

@@ -19,6 +19,7 @@ export type {
   CFConditionOperator,
   CFRule,
   CFResult,
+  CFTone,
 } from './filter'
 export type {
   GridConfig,

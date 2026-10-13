@@ -1,4 +1,3 @@
-import type { UseFormRegister } from "react-hook-form";
 import { cn } from "../../../utils";
 import { FormField, isPanelFieldFullRow, inputBase, inputError} from "../FormField";
 import type { ColumnDef } from "../../../types";
@@ -7,13 +6,13 @@ export function TextField<TData>({
   col,
   k,
   err,
-  register,
+  value,
   onFieldChange,
 }: {
   col: ColumnDef<TData>;
   k: string;
   err: string | undefined;
-  register: UseFormRegister<Record<string, unknown>>;
+  value: unknown;
   onFieldChange: (field: string, value: unknown) => void;
 }) {
   return (
@@ -26,7 +25,7 @@ export function TextField<TData>({
     >
       {col.multiline ? (
         <textarea
-          {...register(k)}
+          value={typeof value === "string" ? value : ""}
           rows={col.rows ?? 3}
           placeholder={`Enter ${col.label.toLowerCase()}…`}
           className={cn(inputBase, "resize-y min-h-[70px]", err && inputError)}
@@ -36,7 +35,7 @@ export function TextField<TData>({
         />
       ) : (
         <input
-          {...register(k)}
+          value={typeof value === "string" ? value : ""}
           type="text"
           placeholder={`Enter ${col.label.toLowerCase()}…`}
           className={cn(inputBase, err && inputError)}

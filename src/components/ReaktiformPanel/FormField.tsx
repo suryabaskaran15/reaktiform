@@ -69,7 +69,12 @@ export function FormField({
       </label>
       {children}
       {error && (
-        <div className="rf-flex rf-items-center rf-gap-1 mt-1 text-[11px] text-rf-err">
+        // data-rf-field-error: DetailsTab scrolls to / focuses the first one
+        // after a blocked Save.
+        <div
+          data-rf-field-error=""
+          className="rf-flex rf-items-center rf-gap-1 mt-1 text-[11px] text-rf-err"
+        >
           <AlertCircle className="w-[11px] h-[11px] rf-flex-shrink-0" />
           {error}
         </div>

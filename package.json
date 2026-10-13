@@ -1,6 +1,6 @@
 {
   "name": "reaktiform",
-  "version": "1.2.17",
+  "version": "1.2.19",
   "description": "High-performance inline-editable data grid for React — table + form unified. Full UI or headless, server-side or client-side.",
   "author": "Surya Baskaran",
   "license": "MIT",
@@ -129,9 +129,7 @@
     "@tiptap/starter-kit": "^3.28.0",
     "immer": "^10.1.1",
     "lucide-react": "^0.483.0",
-    "react-hook-form": "^7.55.0",
     "zod": "^3.24.2",
-    "@hookform/resolvers": "^3.10.0",
     "zustand": "^5.0.3",
     "react-select": "^5.8.3",
     "clsx": "^2.1.1",

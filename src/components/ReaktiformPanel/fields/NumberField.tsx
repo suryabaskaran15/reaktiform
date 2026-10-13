@@ -1,4 +1,3 @@
-import type { UseFormRegister } from "react-hook-form";
 import { cn, resolveConstraint } from "../../../utils";
 import { FormField, isPanelFieldFullRow, inputBase, inputError} from "../FormField";
 import type { ColumnDef, Row } from "../../../types";
@@ -7,14 +6,14 @@ export function NumberField<TData>({
   col,
   k,
   err,
-  register,
+  value,
   rowForConstraint,
   onFieldChange,
 }: {
   col: ColumnDef<TData>;
   k: string;
   err: string | undefined;
-  register: UseFormRegister<Record<string, unknown>>;
+  value: unknown;
   rowForConstraint: Row<TData>;
   onFieldChange: (field: string, value: unknown) => void;
 }) {
@@ -53,7 +52,7 @@ export function NumberField<TData>({
           </span>
         )}
         <input
-          {...register(k, { valueAsNumber: true })}
+          value={typeof value === "number" && !Number.isNaN(value) ? value : ""}
           type="number"
           {...(col.min !== undefined && {
             min: resolveConstraint(col.min, rowForConstraint),
@@ -76,7 +75,12 @@ export function NumberField<TData>({
             "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
           )}
           onChange={(e) => {
-            onFieldChange(k, e.target.valueAsNumber);
+            // Empty → null, matching NumberCell's inline commit and the
+            // nullable Zod number schema.
+            onFieldChange(
+              k,
+              e.target.value === "" ? null : e.target.valueAsNumber,
+            );
           }}
         />
         {col.suffix && (

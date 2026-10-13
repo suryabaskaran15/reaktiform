@@ -104,6 +104,7 @@ export type {
   CFCondition,
   CFConditionOperator,
   CFResult,
+  CFTone,
 
   // Config
   GridConfig,

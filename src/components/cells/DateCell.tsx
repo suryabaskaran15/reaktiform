@@ -126,7 +126,7 @@ export function DateCellEdit({
     <div className={cn("relative w-full h-full", className)}>
       <div
         aria-hidden="true"
-        className="flex items-center gap-1.5 h-full px-[10px] pointer-events-none font-mono text-[12.5px] text-rf-text-1"
+        className="flex items-center gap-1.5 h-full px-[10px] pointer-events-none font-mono text-[12.5px] text-rf-cell"
       >
         <span className="flex-1 truncate">{formatted}</span>
         <Calendar className="rf-icon-sm text-rf-text-3 shrink-0" />
@@ -219,7 +219,7 @@ export function TimeCellRead({
         style={{
           fontSize: 12.5,
           fontFamily: "monospace",
-          color: "var(--rf-text-1)",
+          color: "var(--rf-cell-fg, var(--rf-text-1))",
         }}
       >
         {formatted}
@@ -273,7 +273,7 @@ export function TimeCellEdit({
     <div className={cn("relative w-full h-full", className)}>
       <div
         aria-hidden="true"
-        className="flex items-center gap-1.5 h-full px-[10px] pointer-events-none font-mono text-[12.5px] text-rf-text-1"
+        className="flex items-center gap-1.5 h-full px-[10px] pointer-events-none font-mono text-[12.5px] text-rf-cell"
       >
         <span className="flex-1 truncate">{formatted}</span>
         <Clock className="rf-icon-sm text-rf-text-3 shrink-0" />

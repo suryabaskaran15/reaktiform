@@ -1,4 +1,3 @@
-import type { UseFormRegister } from "react-hook-form";
 import type { SyntheticEvent } from "react";
 import { Clock } from "lucide-react";
 import { cn } from "../../../utils";
@@ -17,7 +16,6 @@ export function FormattedTimeField<TData>({
   col,
   k,
   err,
-  register,
   rowForConstraint,
   onFieldChange,
   currentVal,
@@ -25,13 +23,11 @@ export function FormattedTimeField<TData>({
   col: ColumnDef<TData>;
   k: string;
   err: string | undefined;
-  register: UseFormRegister<Record<string, unknown>>;
   rowForConstraint: Row<TData>;
   onFieldChange: (field: string, value: unknown) => void;
   currentVal: unknown;
 }) {
   const formatted = col.format!(currentVal, rowForConstraint);
-  const timeRegister = register(k);
 
   const openPicker = (e: SyntheticEvent<HTMLInputElement>) => {
     try {
@@ -63,7 +59,7 @@ export function FormattedTimeField<TData>({
           <Clock className="rf-icon-sm text-rf-text-3 shrink-0" />
         </div>
         <input
-          {...timeRegister}
+          value={typeof currentVal === "string" ? currentVal : ""}
           type="time"
           aria-label={`${col.label}: ${formatted}`}
           style={{

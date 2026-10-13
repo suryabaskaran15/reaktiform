@@ -29,7 +29,7 @@ export function ComputedCell({ value, colDef, className, editable = false }: Com
         ? Number(value).toFixed(colDef.decimals)
         : String(value)
       return (
-        <span className="font-mono text-[12.5px] text-rf-text-1">
+        <span className="font-mono text-[12.5px] text-rf-cell">
           {colDef.prefix}{formatted}{colDef.suffix}
         </span>
       )
@@ -38,7 +38,7 @@ export function ComputedCell({ value, colDef, className, editable = false }: Com
     // Date
     if (colDef.type === 'date') {
       return (
-        <span className="font-mono text-[12.5px] text-rf-text-1">
+        <span className="font-mono text-[12.5px] text-rf-cell">
           {formatDate(String(value))}
         </span>
       )
@@ -57,7 +57,7 @@ export function ComputedCell({ value, colDef, className, editable = false }: Com
     // Default — string
     return (
       <span
-        className="text-[13px] text-rf-text-1 truncate"
+        className="text-[13px] text-rf-cell truncate"
         title={String(value)}
       >
         {String(value)}

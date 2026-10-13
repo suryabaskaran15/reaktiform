@@ -296,7 +296,8 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
   allowMultipleFileUpload = false,
 }: ReaktiformPanelProps<TData>) {
   const [activeTabState, setActiveTab] = useState<TabId>(TAB_DETAILS);
-  // Incremented when Discard is clicked — forces DetailsTab to reset RHF state
+  // Incremented when Discard is clicked — DetailsTab drops its local edit
+  // overlay and its "Save was attempted" error state
   const [resetKey, setResetKey] = useState(0);
 
   const rowId = row
@@ -898,8 +899,8 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
         >
           {row && activeTab === TAB_DETAILS && (
             // key={rowId} forces React to unmount+remount DetailsTab when row changes.
-            // This resets React Hook Form with fresh defaultValues for the new row.
-            // Without this, useForm keeps stale values from the previous row.
+            // This gives each record fresh local form state (edit overlay,
+            // submit-attempted errors) instead of carrying it across rows.
             <DetailsTab
               key={rowId}
               row={row}
@@ -980,11 +981,11 @@ export function ReaktiformPanel<TData = Record<string, unknown>>({
                 const isSavingRow = !!row._saving;
                 return (
                   <>
-                    {/* On Details this submits DetailsTab's RHF form. On a
+                    {/* On Details this submits DetailsTab's form. On a
                         custom tab that form is not mounted, so a submit button
                         would silently do nothing — save the draft directly
-                        instead. Validation still runs: markDirty validated each
-                        field into _errors, and saveRow checks it. */}
+                        instead. Validation still runs: saveRow re-validates
+                        the merged draft and writes any errors to _errors. */}
                     <button
                       {...(activeCustomTab
                         ? {

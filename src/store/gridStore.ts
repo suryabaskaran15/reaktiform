@@ -10,6 +10,7 @@ import type {
   ActiveFilters,
   PanelMode,
 } from "../types";
+import { CF_DEFAULT_COLOR } from "../utils/cfColors";
 
 // ── Enable Immer's MapSet plugin — required for Set/Map in draft state.
 // Without this, Immer crashes when mutating hiddenColumns, pinnedColumns,
@@ -510,8 +511,9 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
                 label: `Rule ${state.cfRules.length + 1}`,
                 conditions: [{ field: "", op: "eq", value: "" }],
                 logic: "AND",
-                backgroundColor: "#FEF3C7",
-                textColor: "#92400E",
+                tone: CF_DEFAULT_COLOR.tone,
+                backgroundColor: CF_DEFAULT_COLOR.bg,
+                textColor: CF_DEFAULT_COLOR.text,
                 enabled: true,
               };
               state.cfRules.push(newRule);
@@ -530,6 +532,11 @@ export const createGridStore = (initialOverrides?: Partial<GridState>) =>
                     existing.conditions = updates.conditions;
                   if (updates.logic !== undefined)
                     existing.logic = updates.logic;
+                  // `in` check: a custom colour clears tone back to undefined
+                  if ("tone" in updates) {
+                    if (updates.tone) existing.tone = updates.tone;
+                    else delete existing.tone;
+                  }
                   if (updates.backgroundColor !== undefined)
                     existing.backgroundColor = updates.backgroundColor;
                   if (updates.textColor !== undefined)
